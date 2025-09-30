@@ -36,26 +36,37 @@ serve(async (req) => {
     const authString = btoa(`${jiraEmail}:${jiraApiToken}`);
 
     // Search for user in Jira
-    const jiraResponse = await fetch(
-      `https://sejaefi.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(email)}`,
-      {
-        headers: {
-          'Authorization': `Basic ${authString}`,
-          'Accept': 'application/json',
-        },
-      }
-    );
+    const jiraUrl = `https://sejaefi.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(email)}`;
+    console.log('Jira API URL:', jiraUrl);
+    console.log('Using auth email:', jiraEmail);
+    
+    const jiraResponse = await fetch(jiraUrl, {
+      headers: {
+        'Authorization': `Basic ${authString}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    console.log('Jira response status:', jiraResponse.status);
+    const responseText = await jiraResponse.text();
+    console.log('Jira raw response:', responseText);
 
     if (!jiraResponse.ok) {
-      console.error('Jira API error:', await jiraResponse.text());
+      console.error('Jira API error - Status:', jiraResponse.status);
+      console.error('Jira API error - Body:', responseText);
       return new Response(
-        JSON.stringify({ error: 'Email não encontrado no Jira' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Erro ao consultar Jira',
+          details: responseText,
+          status: jiraResponse.status 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const users = await jiraResponse.json();
+    const users = JSON.parse(responseText);
     console.log('Jira users found:', users);
+    console.log('Number of users:', users.length);
 
     if (!users || users.length === 0) {
       return new Response(
