@@ -53,7 +53,7 @@ export default function Login() {
 
       if (isSignUp) {
         // Sign up new user
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -75,13 +75,25 @@ export default function Login() {
           } else {
             throw signUpError;
           }
-        } else {
-          toast({
-            title: "Cadastro realizado!",
-            description: "Você já pode fazer login",
+        } else if (signUpData.user) {
+          // Auto login after successful signup
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
           });
-          setIsSignUp(false);
-          setPassword("");
+
+          if (signInError) {
+            toast({
+              title: "Cadastro realizado!",
+              description: "Faça login para acessar",
+            });
+            setIsSignUp(false);
+          } else {
+            toast({
+              title: "Cadastro realizado!",
+              description: "Redirecionando...",
+            });
+          }
         }
       } else {
         // Sign in existing user
