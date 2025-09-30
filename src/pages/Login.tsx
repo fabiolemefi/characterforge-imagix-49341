@@ -7,45 +7,20 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check for auth errors in URL and existing session
+  // Check if user is already logged in
   useEffect(() => {
-    // Check for errors in URL hash
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const error = hashParams.get('error');
-    const errorDescription = hashParams.get('error_description');
-
-    if (error) {
-      let message = errorDescription || 'Erro ao fazer login';
-      
-      if (error === 'otp_expired' || errorDescription?.includes('expired')) {
-        message = 'O link expirou. Por favor, solicite um novo link.';
-      } else if (error === 'access_denied') {
-        message = 'Acesso negado. Solicite um novo link de acesso.';
-      }
-
-      toast({
-        title: "Erro de autenticação",
-        description: message,
-        variant: "destructive",
-      });
-
-      // Clean the URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate('/');
       }
     });
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         navigate('/');
@@ -53,9 +28,9 @@ export default function Login() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -76,29 +51,66 @@ export default function Login() {
         return;
       }
 
-      // Send magic link
-      const { error: signInError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: verifyData.userData.full_name,
-            avatar_url: verifyData.userData.avatar_url,
+      if (isSignUp) {
+        // Sign up new user
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: verifyData.userData.full_name,
+              avatar_url: verifyData.userData.avatar_url,
+            },
           },
-        },
-      });
+        });
 
-      if (signInError) throw signInError;
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            toast({
+              title: "Usuário já cadastrado",
+              description: "Use o formulário de login para acessar",
+              variant: "destructive",
+            });
+            setIsSignUp(false);
+          } else {
+            throw signUpError;
+          }
+        } else {
+          toast({
+            title: "Cadastro realizado!",
+            description: "Você já pode fazer login",
+          });
+          setIsSignUp(false);
+          setPassword("");
+        }
+      } else {
+        // Sign in existing user
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      setLinkSent(true);
-      toast({
-        title: "Link mágico enviado!",
-        description: "Verifique seu email para acessar a aplicação",
-      });
+        if (signInError) {
+          if (signInError.message.includes('Invalid login credentials')) {
+            toast({
+              title: "Credenciais inválidas",
+              description: "Email ou senha incorretos. Se é seu primeiro acesso, faça o cadastro.",
+              variant: "destructive",
+            });
+          } else {
+            throw signInError;
+          }
+        } else {
+          toast({
+            title: "Login realizado!",
+            description: "Bem-vindo de volta",
+          });
+        }
+      }
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Auth error:', error);
       toast({
-        title: "Erro ao enviar link",
+        title: "Erro",
         description: error.message,
         variant: "destructive",
       });
@@ -107,32 +119,19 @@ export default function Login() {
     }
   };
 
-  if (linkSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 to-background">
-        <div className="max-w-md w-full p-8 bg-card rounded-lg shadow-lg text-center">
-          <h1 className="text-2xl font-bold mb-4">Link enviado!</h1>
-          <p className="text-muted-foreground mb-6">
-            Enviamos um link mágico para <strong>{email}</strong>. 
-            Clique no link para acessar a aplicação.
-          </p>
-          <Button variant="outline" onClick={() => setLinkSent(false)}>
-            Enviar novamente
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 to-background">
       <div className="max-w-md w-full p-8 bg-card rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold mb-2 text-center">Bem-vindo</h1>
+        <h1 className="text-3xl font-bold mb-2 text-center">
+          {isSignUp ? "Criar Conta" : "Bem-vindo"}
+        </h1>
         <p className="text-muted-foreground mb-6 text-center">
-          Digite seu email do Jira para receber um link de acesso
+          {isSignUp 
+            ? "Crie sua conta com seu email do Jira" 
+            : "Faça login para acessar a aplicação"}
         </p>
         
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Input
               type="email"
@@ -144,10 +143,37 @@ export default function Login() {
               className="w-full"
             />
           </div>
+
+          <div>
+            <Input
+              type="password"
+              placeholder="Senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              className="w-full"
+              minLength={6}
+            />
+          </div>
           
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Verificando..." : "Enviar link mágico"}
+            {loading ? "Processando..." : isSignUp ? "Criar conta" : "Entrar"}
           </Button>
+
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => setIsSignUp(!isSignUp)}
+              disabled={loading}
+              className="text-sm"
+            >
+              {isSignUp 
+                ? "Já tem conta? Faça login" 
+                : "Primeiro acesso? Crie sua conta"}
+            </Button>
+          </div>
         </form>
 
         <p className="text-xs text-muted-foreground mt-4 text-center">
