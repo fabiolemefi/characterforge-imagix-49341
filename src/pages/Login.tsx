@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,49 @@ export default function Login() {
   const [linkSent, setLinkSent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Check for auth errors in URL and existing session
+  useEffect(() => {
+    // Check for errors in URL hash
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const error = hashParams.get('error');
+    const errorDescription = hashParams.get('error_description');
+
+    if (error) {
+      let message = errorDescription || 'Erro ao fazer login';
+      
+      if (error === 'otp_expired' || errorDescription?.includes('expired')) {
+        message = 'O link expirou. Por favor, solicite um novo link.';
+      } else if (error === 'access_denied') {
+        message = 'Acesso negado. Solicite um novo link de acesso.';
+      }
+
+      toast({
+        title: "Erro de autenticação",
+        description: message,
+        variant: "destructive",
+      });
+
+      // Clean the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate('/');
+      }
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        navigate('/');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
