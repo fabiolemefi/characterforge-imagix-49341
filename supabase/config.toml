@@ -1,1 +1,4 @@
 project_id = "dbxaamdirxjrbolsegwz"
+
+[functions.verify-jira-user]
+verify_jwt = false
