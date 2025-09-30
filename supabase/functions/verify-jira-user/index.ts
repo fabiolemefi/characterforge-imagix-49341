@@ -20,12 +20,16 @@ serve(async (req) => {
       throw new Error('JIRA_API_TOKEN not configured');
     }
 
+    // Jira Cloud requires email:token in base64
+    const jiraEmail = 'fabio.leme@sejaefi.com.br';
+    const authString = btoa(`${jiraEmail}:${jiraApiToken}`);
+
     // Search for user in Jira
     const jiraResponse = await fetch(
       `https://sejaefi.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(email)}`,
       {
         headers: {
-          'Authorization': `Basic ${btoa(jiraApiToken)}`,
+          'Authorization': `Basic ${authString}`,
           'Accept': 'application/json',
         },
       }
