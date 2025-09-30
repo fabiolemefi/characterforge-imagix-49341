@@ -12,8 +12,19 @@ serve(async (req) => {
   }
 
   try {
-    const { email } = await req.json();
+    const body = await req.text();
+    console.log('Request body:', body);
+    
+    if (!body) {
+      throw new Error('Request body is empty');
+    }
+    
+    const { email } = JSON.parse(body);
     console.log('Verifying email in Jira:', email);
+    
+    if (!email) {
+      throw new Error('Email is required');
+    }
 
     const jiraApiToken = Deno.env.get('JIRA_API_TOKEN');
     if (!jiraApiToken) {
