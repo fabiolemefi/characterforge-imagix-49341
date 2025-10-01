@@ -35,33 +35,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Verify if email exists in Jira
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
-        'verify-jira-user',
-        { body: { email } }
-      );
-
-      if (verifyError || !verifyData?.success) {
-        toast({
-          title: "Acesso negado",
-          description: "Este email não está autorizado no Jira",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
       if (isSignUp) {
         // Sign up new user
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              full_name: verifyData.userData.full_name,
-              avatar_url: verifyData.userData.avatar_url,
-            },
-          },
         });
 
         if (signUpError) {
@@ -188,9 +166,6 @@ export default function Login() {
           </div>
         </form>
 
-        <p className="text-xs text-muted-foreground mt-4 text-center">
-          Apenas usuários cadastrados no Jira podem acessar
-        </p>
       </div>
     </div>
   );

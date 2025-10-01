@@ -1,7 +1,37 @@
-import { useState } from "react";
-import { HelpCircle, MessageSquare, BookOpen, GraduationCap, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { HelpCircle, MessageSquare, BookOpen, GraduationCap, Plus, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 const Header = () => {
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Logout realizado",
+      description: "Até logo!",
+    });
+    navigate('/login');
+  };
+
   return <div className="h-16 flex items-center justify-end px-6 border-b border-gray-800">
       <div className="flex items-center gap-4 relative">
         {/* YouTube icon */}
@@ -51,10 +81,19 @@ const Header = () => {
           Create
         </button>
         
-        {/* Sign In button */}
-        <button className="px-4 py-1.5 text-gray-300 text-sm border border-gray-700 rounded-md hover:bg-gray-800 transition-colors">
-          Sign In
-        </button>
+        {/* User info and Logout button */}
+        {user && (
+          <>
+            <span className="text-sm text-gray-400">{user.email}</span>
+            <button 
+              onClick={handleLogout}
+              className="px-4 py-1.5 text-gray-300 text-sm border border-gray-700 rounded-md hover:bg-gray-800 transition-colors flex items-center gap-2"
+            >
+              <LogOut size={16} />
+              Sair
+            </button>
+          </>
+        )}
       </div>
     </div>;
 };
