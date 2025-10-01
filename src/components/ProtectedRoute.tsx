@@ -35,17 +35,30 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         .from("profiles")
         .select("is_active")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
-      // If there's an error fetching profile, allow access by default
+      // If there's an error fetching profile, logout and redirect
       if (error) {
         console.error("Error fetching profile:", error);
+        await supabase.auth.signOut();
+        toast({
+          title: "Erro de autenticação",
+          description: "Faça login novamente",
+          variant: "destructive",
+        });
+        setAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+
+      // If no profile exists, allow access (first time user)
+      if (!profile) {
         setAuthenticated(true);
         setLoading(false);
         return;
       }
 
-      if (!profile?.is_active) {
+      if (!profile.is_active) {
         await supabase.auth.signOut();
         toast({
           title: "Acesso bloqueado",
@@ -58,7 +71,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       }
     } catch (error) {
       console.error("Unexpected error:", error);
-      setAuthenticated(true);
+      await supabase.auth.signOut();
+      setAuthenticated(false);
     } finally {
       setLoading(false);
     }
