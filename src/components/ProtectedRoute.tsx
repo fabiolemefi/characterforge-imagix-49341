@@ -30,24 +30,38 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, []);
 
   const checkUserStatus = async (userId: string) => {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_active")
-      .eq("id", userId)
-      .single();
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", userId)
+        .single();
 
-    if (!profile?.is_active) {
-      await supabase.auth.signOut();
-      toast({
-        title: "Acesso bloqueado",
-        description: "Seu acesso foi desativado por um administrador",
-        variant: "destructive",
-      });
-      setAuthenticated(false);
-    } else {
+      // If there's an error fetching profile, allow access by default
+      if (error) {
+        console.error("Error fetching profile:", error);
+        setAuthenticated(true);
+        setLoading(false);
+        return;
+      }
+
+      if (!profile?.is_active) {
+        await supabase.auth.signOut();
+        toast({
+          title: "Acesso bloqueado",
+          description: "Seu acesso foi desativado por um administrador",
+          variant: "destructive",
+        });
+        setAuthenticated(false);
+      } else {
+        setAuthenticated(true);
+      }
+    } catch (error) {
+      console.error("Unexpected error:", error);
       setAuthenticated(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const checkAuth = async () => {
