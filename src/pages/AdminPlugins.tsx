@@ -35,6 +35,7 @@ interface Plugin {
   image_url: string | null;
   is_active: boolean;
   is_new: boolean;
+  in_development: boolean;
   created_at: string;
 }
 
@@ -50,6 +51,7 @@ export default function AdminPlugins() {
     image_url: "",
     is_active: true,
     is_new: false,
+    in_development: false,
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -216,6 +218,7 @@ export default function AdminPlugins() {
       image_url: plugin.image_url || "",
       is_active: plugin.is_active,
       is_new: plugin.is_new,
+      in_development: plugin.in_development,
     });
     setDialogOpen(true);
   };
@@ -251,6 +254,7 @@ export default function AdminPlugins() {
       image_url: "",
       is_active: true,
       is_new: false,
+      in_development: false,
     });
     setSelectedFile(null);
   };
@@ -351,6 +355,16 @@ export default function AdminPlugins() {
                       }
                     />
                     <Label htmlFor="is_new">Mostrar Badge "Novo"</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="in_development"
+                      checked={formData.in_development}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, in_development: checked as boolean })
+                      }
+                    />
+                    <Label htmlFor="in_development">Em Desenvolvimento</Label>
                   </div>
                   <Button type="submit" className="w-full" disabled={uploadingImage}>
                     {uploadingImage ? "Fazendo upload..." : editingId ? "Atualizar" : "Criar"}

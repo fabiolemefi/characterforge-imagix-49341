@@ -56,6 +56,7 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          in_development: boolean
           is_active: boolean | null
           is_new: boolean | null
           name: string
@@ -66,6 +67,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          in_development?: boolean
           is_active?: boolean | null
           is_new?: boolean | null
           name: string
@@ -76,6 +78,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          in_development?: boolean
           is_active?: boolean | null
           is_new?: boolean | null
           name?: string
