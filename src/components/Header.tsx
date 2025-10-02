@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { HelpCircle, MessageSquare, BookOpen, GraduationCap, Settings, LogOut, Shield } from "lucide-react";
+import { HelpCircle, MessageSquare, BookOpen, GraduationCap, Settings, LogOut, Shield, Sun, Moon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 const Header = () => {
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -48,6 +52,7 @@ const Header = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     toast({
@@ -56,54 +61,64 @@ const Header = () => {
     });
     navigate('/login');
   };
-  return <div className="h-16 flex items-center justify-end px-6 border-b border-gray-800">
+
+  return (
+    <div className="h-16 flex items-center justify-end px-6 border-b">
       <div className="flex items-center gap-4 relative">
-        {/* YouTube icon */}
-        
-        
-        {/* Discord icon */}
-        
-        
         {/* Help icon with dropdown */}
         <div className="relative">
-          
-          
-          {helpMenuOpen && <div className="absolute right-0 mt-2 w-48 bg-[#1e1e1e] border border-gray-800 rounded-md shadow-lg py-1 z-50">
-              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">
+          {helpMenuOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg py-1 z-50">
+              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
                 <MessageSquare size={16} />
                 <span>Feedback</span>
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">
+              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
                 <HelpCircle size={16} />
                 <span>Help Center</span>
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">
+              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
                 <BookOpen size={16} />
                 <span>Tutorials</span>
               </a>
-              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">
+              <a href="#" className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
                 <GraduationCap size={16} />
                 <span>Wiki</span>
               </a>
-            </div>}
+            </div>
+          )}
         </div>
         
-        {/* Upgrade button */}
-        <button className="px-4 py-1.5 border border-gray-700 hover:bg-gray-800 transition-colors text-xs font-bold text-lime-600 rounded-lg">20 Créditos</button>
-        
-        {/* Create button */}
-        
+        {/* Credits button */}
+        <button className="px-4 py-1.5 border hover:bg-accent transition-colors text-xs font-bold text-lime-600 rounded-lg">
+          20 Créditos
+        </button>
         
         {/* User info and Settings menu */}
-        {user && <>
-            <span className="text-sm text-gray-400">{user.email}</span>
+        {user && (
+          <>
+            <span className="text-sm text-muted-foreground">{user.email}</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="px-3 py-1.5 text-gray-300 text-sm border border-gray-700 rounded-md hover:bg-gray-800 transition-colors flex items-center gap-2">
+                <button className="px-3 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors flex items-center gap-2">
                   <Settings size={16} />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="cursor-pointer">
+                  {theme === "dark" ? (
+                    <>
+                      <Sun size={16} className="mr-2" />
+                      Modo claro
+                    </>
+                  ) : (
+                    <>
+                      <Moon size={16} className="mr-2" />
+                      Modo escuro
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {isAdmin && (
                   <>
                     <DropdownMenuItem onClick={() => navigate('/admin')} className="cursor-pointer">
@@ -119,8 +134,11 @@ const Header = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </>}
+          </>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Header;
