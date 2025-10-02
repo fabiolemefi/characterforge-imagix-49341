@@ -331,12 +331,12 @@ const Efimail = () => {
           <div className="max-w-6xl mx-auto space-y-8">
             <div>
               <h1 className="text-4xl font-bold mb-2">Efimail</h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground my-[20px]">
                 Processe e envie templates de email do Emailify para o Marketing Cloud
               </p>
             </div>
 
-            {emails.length === 0 && <Card className="p-8 py-[49px] my-0">
+            {emails.length === 0 && <Card className="p-8 py-[49px] my-[40px]">
                 <div className="space-y-6">
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                     <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
