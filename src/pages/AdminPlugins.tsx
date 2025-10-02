@@ -51,6 +51,8 @@ export default function AdminPlugins() {
     is_active: true,
     is_new: false,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -104,12 +106,54 @@ export default function AdminPlugins() {
     setLoading(false);
   };
 
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      setUploadingImage(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('plugin-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('plugin-images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (error: any) {
+      toast({
+        title: "Erro ao fazer upload da imagem",
+        description: error.message,
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    let imageUrl = formData.image_url;
+
+    // If there's a new file selected, upload it
+    if (selectedFile) {
+      const uploadedUrl = await uploadImage(selectedFile);
+      if (uploadedUrl) {
+        imageUrl = uploadedUrl;
+      } else {
+        return; // Stop if upload failed
+      }
+    }
+
     const payload = {
       ...formData,
-      image_url: formData.image_url || null,
+      image_url: imageUrl || null,
       description: formData.description || null,
     };
 
@@ -201,6 +245,20 @@ export default function AdminPlugins() {
       is_active: true,
       is_new: false,
     });
+    setSelectedFile(null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      // Show preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, image_url: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   if (!isAdmin) {
@@ -250,13 +308,22 @@ export default function AdminPlugins() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="image_url">URL da Imagem</Label>
+                    <Label htmlFor="image_upload">Imagem do Plugin</Label>
                     <Input
-                      id="image_url"
-                      type="url"
-                      value={formData.image_url}
-                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                      id="image_upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
                     />
+                    {formData.image_url && (
+                      <div className="mt-2">
+                        <img
+                          src={formData.image_url}
+                          alt="Preview"
+                          className="w-32 h-32 object-cover rounded"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     <Switch
@@ -278,8 +345,8 @@ export default function AdminPlugins() {
                     />
                     <Label htmlFor="is_new">Mostrar Badge "Novo"</Label>
                   </div>
-                  <Button type="submit" className="w-full">
-                    {editingId ? "Atualizar" : "Criar"}
+                  <Button type="submit" className="w-full" disabled={uploadingImage}>
+                    {uploadingImage ? "Fazendo upload..." : editingId ? "Atualizar" : "Criar"}
                   </Button>
                 </form>
               </DialogContent>
