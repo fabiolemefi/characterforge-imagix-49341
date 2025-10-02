@@ -44,7 +44,9 @@ const Index = () => {
     const {
       data,
       error
-    } = await supabase.from("plugins").select("*").eq("is_active", true).order("created_at", {
+    } = await supabase.from("plugins").select("*").order("is_active", {
+      ascending: false
+    }).order("created_at", {
       ascending: false
     });
     if (error) {
@@ -78,7 +80,7 @@ const Index = () => {
               <section className="mb-12">
                 
                 {loading ? <p className="text-gray-400">Carregando plugins...</p> : plugins.length === 0 ? <p className="text-gray-400">Nenhum plugin disponível no momento.</p> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {plugins.map(plugin => <FeaturedAppCard key={plugin.id} id={plugin.id} title={plugin.name} subtitle="By OpenArt" imageSrc={plugin.image_url || "/placeholder.svg"} isNew={plugin.is_new} inDevelopment={plugin.in_development} />)}
+                    {plugins.map(plugin => <FeaturedAppCard key={plugin.id} id={plugin.id} title={plugin.name} subtitle={plugin.description || ""} imageSrc={plugin.image_url || "/placeholder.svg"} isNew={plugin.is_new} inDevelopment={plugin.in_development} />)}
                   </div>}
               </section>
               
