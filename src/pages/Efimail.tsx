@@ -352,7 +352,7 @@ const Efimail = () => {
 
                   <div className="flex items-center space-x-2 py-[22px]">
                     <Checkbox id="branding" checked={addBranding} onCheckedChange={checked => setAddBranding(checked as boolean)} />
-                    <label htmlFor="branding" className="text-sm cursor-pointer">
+                    <label htmlFor="branding" className="cursor-pointer text-base text-gray-300">
                       Adicionar cabeçalho e rodapé da Efí
                     </label>
                   </div>
