@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { ChevronRight, HomeIcon, ChevronDown, Plug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-
 interface Plugin {
   id: string;
   name: string;
@@ -60,19 +59,13 @@ export const Sidebar = () => {
   const [activeItem, setActiveItem] = useState("Principal");
   const [activeDropdownItem, setActiveDropdownItem] = useState("");
   const navigate = useNavigate();
-
   useEffect(() => {
     loadPlugins();
   }, []);
-
   const loadPlugins = async () => {
-    const { data } = await supabase
-      .from("plugins")
-      .select("*")
-      .eq("is_active", true)
-      .eq("in_development", false)
-      .order("name");
-    
+    const {
+      data
+    } = await supabase.from("plugins").select("*").eq("is_active", true).eq("in_development", false).order("name");
     if (data) {
       setPlugins(data);
     }
@@ -90,7 +83,7 @@ export const Sidebar = () => {
   return <div className="w-[232px] bg-sidebar min-h-screen flex flex-col border-r border-gray-800">
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
         <div className="flex items-center gap-2">
-          <img src="/lovable-uploads/407e5ec8-9b67-42ee-acf0-b238e194aa64.png" alt="Logo" className="w-8 h-8" />
+          
           <span className="text-white font-semibold">Martech Efí
         </span>
         </div>
@@ -100,43 +93,22 @@ export const Sidebar = () => {
       </div>
 
       <div className="py-2 px-3 flex flex-col gap-1">
-        <SidebarItem 
-          icon={<HomeIcon size={20} />} 
-          label="Principal" 
-          isActive={activeItem === "Principal"} 
-          onClick={() => {
-            setActiveItem("Principal");
-            navigate("/");
-          }} 
-        />
+        <SidebarItem icon={<HomeIcon size={20} />} label="Principal" isActive={activeItem === "Principal"} onClick={() => {
+        setActiveItem("Principal");
+        navigate("/");
+      }} />
         
-        <SidebarItem 
-          icon={<Plug size={20} />} 
-          label="Plugins" 
-          isActive={activeItem === "Plugins"} 
-          hasDropdown
-          onClick={() => {
-            setPluginsOpen(!pluginsOpen);
-            setActiveItem("Plugins");
-          }} 
-        />
+        <SidebarItem icon={<Plug size={20} />} label="Plugins" isActive={activeItem === "Plugins"} hasDropdown onClick={() => {
+        setPluginsOpen(!pluginsOpen);
+        setActiveItem("Plugins");
+      }} />
 
-        {pluginsOpen && (
-          <div className="mt-1 space-y-1 animate-fade-in">
-            {plugins.map((plugin) => (
-              <DropdownItem 
-                key={plugin.id}
-                icon={<Plug size={16} />} 
-                label={plugin.name}
-                isActive={activeDropdownItem === plugin.id}
-                onClick={() => {
-                  setActiveDropdownItem(plugin.id);
-                  navigate(`/plugin/${plugin.id}`);
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {pluginsOpen && <div className="mt-1 space-y-1 animate-fade-in">
+            {plugins.map(plugin => <DropdownItem key={plugin.id} icon={<Plug size={16} />} label={plugin.name} isActive={activeDropdownItem === plugin.id} onClick={() => {
+          setActiveDropdownItem(plugin.id);
+          navigate(`/plugin/${plugin.id}`);
+        }} />)}
+          </div>}
       </div>
     </div>;
 };
