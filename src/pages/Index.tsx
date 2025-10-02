@@ -59,52 +59,11 @@ const Index = () => {
               
               <section className="mb-12">
                 <h2 className="text-2xl font-bold text-white mb-6">Olá, Usuário.</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="bg-[#1A1A1A] rounded-lg p-4 flex items-start">
-                    <div className="p-3 rounded-lg bg-[#3A3600] mr-4 flex items-center justify-center">
-                      <Video size={24} className="text-[#FFD426]" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-white">Image to Video</h3>
-                        <span className="bg-green-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                          New
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-400 mt-1">Bring your image to life</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#1A1A1A] rounded-lg p-4 flex items-start">
-                    <div className="p-3 rounded-lg bg-[#00361F] mr-4 flex items-center justify-center">
-                      <Paintbrush size={24} className="text-[#00A67E]" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-white">Choose a Style</h3>
-                      <p className="text-sm text-gray-400 mt-1">Start with a style you like</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-[#1A1A1A] rounded-lg p-4 flex items-start">
-                    <div className="p-3 rounded-lg bg-[#360036] mr-4 flex items-center justify-center">
-                      <Grid size={24} className="text-[#FF3EA5]" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-white">Explore Models</h3>
-                      <p className="text-sm text-gray-400 mt-1">See 100+ Fine-tuned models</p>
-                    </div>
-                  </div>
-                  
-                  
-                  
-                  
-                  
-                  
-                </div>
+                
               </section>
               
               <section className="mb-12">
-                <h2 className="text-2xl font-bold text-white mb-6">Plugins</h2>
+                
                 {loading ? <p className="text-gray-400">Carregando plugins...</p> : plugins.length === 0 ? <p className="text-gray-400">Nenhum plugin disponível no momento.</p> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {plugins.map(plugin => <FeaturedAppCard key={plugin.id} id={plugin.id} title={plugin.name} subtitle="By OpenArt" imageSrc={plugin.image_url || "/placeholder.svg"} isNew={plugin.is_new} inDevelopment={plugin.in_development} />)}
                   </div>}
