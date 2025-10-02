@@ -9,7 +9,6 @@ import { ModelCard } from "../components/ModelCard";
 import { Video, Paintbrush, Grid, FileText, ArrowUpRight, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
 interface Plugin {
   id: string;
   name: string;
@@ -22,24 +21,24 @@ interface Plugin {
 const Index = () => {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   useEffect(() => {
     loadPlugins();
   }, []);
-
   const loadPlugins = async () => {
-    const { data, error } = await supabase
-      .from("plugins")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-
+    const {
+      data,
+      error
+    } = await supabase.from("plugins").select("*").eq("is_active", true).order("created_at", {
+      ascending: false
+    });
     if (error) {
       toast({
         title: "Erro ao carregar plugins",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
     } else {
       setPlugins(data || []);
@@ -56,15 +55,10 @@ const Index = () => {
             <main className="py-8 px-12">
               
               
-              <div className="grid grid-cols-2 gap-6 mb-12">
-                <CreationCard type="image" />
-                <CreationCard type="storytelling" />
-              </div>
+              
               
               <section className="mb-12">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  Quick starts
-                </h2>
+                <h2 className="text-2xl font-bold text-white mb-6">Olá, Usuário.</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="bg-[#1A1A1A] rounded-lg p-4 flex items-start">
                     <div className="p-3 rounded-lg bg-[#3A3600] mr-4 flex items-center justify-center">
@@ -111,25 +105,9 @@ const Index = () => {
               
               <section className="mb-12">
                 <h2 className="text-2xl font-bold text-white mb-6">Plugins</h2>
-                {loading ? (
-                  <p className="text-gray-400">Carregando plugins...</p>
-                ) : plugins.length === 0 ? (
-                  <p className="text-gray-400">Nenhum plugin disponível no momento.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {plugins.map((plugin) => (
-                      <FeaturedAppCard
-                        key={plugin.id}
-                        id={plugin.id}
-                        title={plugin.name}
-                        subtitle="By OpenArt"
-                        imageSrc={plugin.image_url || "/placeholder.svg"}
-                        isNew={plugin.is_new}
-                        inDevelopment={plugin.in_development}
-                      />
-                    ))}
-                  </div>
-                )}
+                {loading ? <p className="text-gray-400">Carregando plugins...</p> : plugins.length === 0 ? <p className="text-gray-400">Nenhum plugin disponível no momento.</p> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {plugins.map(plugin => <FeaturedAppCard key={plugin.id} id={plugin.id} title={plugin.name} subtitle="By OpenArt" imageSrc={plugin.image_url || "/placeholder.svg"} isNew={plugin.is_new} inDevelopment={plugin.in_development} />)}
+                  </div>}
               </section>
               
               
