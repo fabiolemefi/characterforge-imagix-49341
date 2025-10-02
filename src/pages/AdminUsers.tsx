@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,10 +21,11 @@ interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   is_active: boolean;
+  is_admin: boolean;
   created_at: string;
 }
 
-export default function Admin() {
+export default function AdminUsers() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -44,13 +44,12 @@ export default function Admin() {
       return;
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
+    const { data, error } = await supabase.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
 
-    if (!profile?.is_admin) {
+    if (error || !data) {
       navigate("/");
       toast({
         title: "Acesso negado",
@@ -66,20 +65,38 @@ export default function Admin() {
 
   const loadProfiles = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Get all profiles
+    const { data: profilesData, error: profilesError } = await supabase
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) {
+    if (profilesError) {
       toast({
         title: "Erro ao carregar usuários",
-        description: error.message,
+        description: profilesError.message,
         variant: "destructive",
       });
-    } else {
-      setProfiles(data || []);
+      setLoading(false);
+      return;
     }
+
+    // Get all admin roles
+    const { data: rolesData } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+
+    const adminIds = new Set(rolesData?.map(r => r.user_id) || []);
+
+    // Merge the data
+    const profilesWithAdmin = profilesData?.map(profile => ({
+      ...profile,
+      is_admin: adminIds.has(profile.id)
+    })) || [];
+
+    setProfiles(profilesWithAdmin);
     setLoading(false);
   };
 
@@ -101,6 +118,50 @@ export default function Admin() {
         description: `Usuário ${!currentStatus ? "ativado" : "desativado"} com sucesso`,
       });
       loadProfiles();
+    }
+  };
+
+  const toggleAdminStatus = async (userId: string, currentIsAdmin: boolean) => {
+    if (currentIsAdmin) {
+      // Remove admin role
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("role", "admin");
+
+      if (error) {
+        toast({
+          title: "Erro ao remover admin",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Admin removido",
+          description: "Privilégios de admin foram removidos",
+        });
+        loadProfiles();
+      }
+    } else {
+      // Add admin role
+      const { error } = await supabase
+        .from("user_roles")
+        .insert([{ user_id: userId, role: "admin" }]);
+
+      if (error) {
+        toast({
+          title: "Erro ao tornar admin",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Admin criado",
+          description: "Usuário agora tem privilégios de admin",
+        });
+        loadProfiles();
+      }
     }
   };
 
@@ -128,19 +189,20 @@ export default function Admin() {
                     <TableHead>Email</TableHead>
                     <TableHead>Cadastro</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Admin</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center">
+                      <TableCell colSpan={6} className="text-center">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : profiles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center">
+                      <TableCell colSpan={6} className="text-center">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -172,6 +234,14 @@ export default function Admin() {
                           >
                             {profile.is_active ? "Ativo" : "Inativo"}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={profile.is_admin}
+                            onCheckedChange={() =>
+                              toggleAdminStatus(profile.id, profile.is_admin)
+                            }
+                          />
                         </TableCell>
                         <TableCell className="text-right">
                           <Switch

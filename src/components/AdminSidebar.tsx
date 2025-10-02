@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -22,6 +22,16 @@ const menuItems = [
     title: "Usuários",
     url: "/admin/users",
     icon: Users,
+  },
+  {
+    title: "Comunicados",
+    url: "/admin/announcements",
+    icon: Megaphone,
+  },
+  {
+    title: "Plugins",
+    url: "/admin/plugins",
+    icon: Puzzle,
   },
 ];
 
