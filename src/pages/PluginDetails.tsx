@@ -48,6 +48,12 @@ export default function PluginDetails() {
       return;
     }
 
+    // Redirecionar para página específica do Efimail
+    if (data.name === "Efimail") {
+      navigate("/efimail");
+      return;
+    }
+
     setPlugin(data);
     setLoading(false);
   };
