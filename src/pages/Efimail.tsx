@@ -346,7 +346,7 @@ const Efimail = () => {
                     </label>
                     <input id="file-upload" type="file" accept=".zip" onChange={handleFileChange} className="hidden" />
                     {file && <p className="mt-4 text-sm text-foreground">
-                        Arquivo selecionado: <strong>{file.name}</strong>
+                        Arquivo selecionado: <strong className="bg-gray-500 rounded-2xl">{file.name}</strong>
                       </p>}
                   </div>
 
