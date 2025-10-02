@@ -39,23 +39,7 @@ interface UploadAssetRequest {
 }
 
 async function getSFMCToken(): Promise<string> {
-  const authBaseUri = Deno.env.get('SFMC_AUTH_BASE_URI');
-  const clientId = Deno.env.get('SFMC_CLIENT_ID');
-  const clientSecret = Deno.env.get('SFMC_CLIENT_SECRET');
-  
-  console.log('Auth Base URI:', authBaseUri);
-  console.log('Client ID configured:', !!clientId);
-  console.log('Client Secret configured:', !!clientSecret);
-  
-  if (!authBaseUri || !clientId || !clientSecret) {
-    throw new Error('SFMC credentials not configured');
-  }
-  
-  // Remove trailing slash if present
-  const baseUri = authBaseUri.replace(/\/$/, '');
-  const authUrl = `${baseUri}/v2/token`;
-  
-  console.log('Attempting authentication at:', authUrl);
+  const authUrl = `${Deno.env.get('SFMC_AUTH_BASE_URI')}`;
   
   const response = await fetch(authUrl, {
     method: 'POST',
@@ -64,20 +48,18 @@ async function getSFMCToken(): Promise<string> {
     },
     body: JSON.stringify({
       grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: Deno.env.get('SFMC_CLIENT_ID'),
+      client_secret: Deno.env.get('SFMC_CLIENT_SECRET'),
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
     console.error('SFMC Auth Error:', error);
-    console.error('Response status:', response.status);
     throw new Error(`Failed to authenticate with SFMC: ${response.status}`);
   }
 
   const data: SFMCTokenResponse = await response.json();
-  console.log('Authentication successful');
   return data.access_token;
 }
 
