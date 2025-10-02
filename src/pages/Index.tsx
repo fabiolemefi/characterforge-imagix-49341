@@ -21,12 +21,25 @@ interface Plugin {
 const Index = () => {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [firstName, setFirstName] = useState<string>("Usuário");
   const {
     toast
   } = useToast();
   useEffect(() => {
     loadPlugins();
+    loadUserName();
   }, []);
+
+  const loadUserName = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.email) {
+      const email = session.user.email;
+      const namePart = email.split('@')[0];
+      const firstName = namePart.split('.')[0];
+      const capitalizedName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+      setFirstName(capitalizedName);
+    }
+  };
   const loadPlugins = async () => {
     const {
       data,
@@ -58,7 +71,7 @@ const Index = () => {
               
               
               <section className="mb-12">
-                <h2 className="text-2xl font-bold text-white mb-6">Olá, Usuário.</h2>
+                <h2 className="text-2xl font-bold text-foreground mb-6">Olá, {firstName}.</h2>
                 
               </section>
               

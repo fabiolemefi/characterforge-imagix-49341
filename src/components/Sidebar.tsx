@@ -1,5 +1,17 @@
-import { useState } from "react";
-import { ChevronRight, HomeIcon, Users, Video, Image, Edit, Palette, Grid, LayoutGrid, Rss, Code, ChevronDown, BookOpen, HelpCircle, Sparkles, Palette as ThemeIcon, Newspaper, Clock, Bookmark, Heart, Album, Boxes } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+
+interface Plugin {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  is_new: boolean;
+  in_development: boolean;
+}
 type SidebarItemProps = {
   icon: React.ReactNode;
   label: string;
@@ -43,10 +55,28 @@ const DropdownItem = ({
   </button>;
 export const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [resourcesOpen, setResourcesOpen] = useState(false);
-  const [myStuffOpen, setMyStuffOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState("Home");
+  const [pluginsOpen, setPluginsOpen] = useState(false);
+  const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [activeItem, setActiveItem] = useState("Principal");
   const [activeDropdownItem, setActiveDropdownItem] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadPlugins();
+  }, []);
+
+  const loadPlugins = async () => {
+    const { data } = await supabase
+      .from("plugins")
+      .select("*")
+      .eq("is_active", true)
+      .eq("in_development", false)
+      .order("name");
+    
+    if (data) {
+      setPlugins(data);
+    }
+  };
   if (isCollapsed) {
     return <div className="w-16 bg-sidebar min-h-screen flex flex-col items-center py-4 border-r border-gray-800">
         <div className="mb-8">
@@ -70,49 +100,43 @@ export const Sidebar = () => {
       </div>
 
       <div className="py-2 px-3 flex flex-col gap-1">
-        <SidebarItem icon={<HomeIcon size={20} />} label="Home" isActive={activeItem === "Home"} onClick={() => setActiveItem("Home")} />
-        <SidebarItem icon={<Users size={20} />} label="Characters" isNew isActive={activeItem === "Characters"} onClick={() => setActiveItem("Characters")} />
-        <SidebarItem icon={<Video size={20} />} label="Videos" isActive={activeItem === "Videos"} onClick={() => setActiveItem("Videos")} />
-        <SidebarItem icon={<Image size={20} />} label="Create Image" isActive={activeItem === "Create Image"} onClick={() => setActiveItem("Create Image")} />
-        <SidebarItem icon={<Edit size={20} />} label="Edit Image" isActive={activeItem === "Edit Image"} onClick={() => setActiveItem("Edit Image")} />
-        <SidebarItem icon={<Palette size={20} />} label="Style Palettes" isActive={activeItem === "Style Palettes"} onClick={() => setActiveItem("Style Palettes")} />
-        <SidebarItem icon={<Grid size={20} />} label="Models" isActive={activeItem === "Models"} onClick={() => setActiveItem("Models")} />
-        <SidebarItem icon={<LayoutGrid size={20} />} label="Apps" isActive={activeItem === "Apps"} onClick={() => setActiveItem("Apps")} />
-        <SidebarItem icon={<Rss size={20} />} label="Community Feed" isActive={activeItem === "Community Feed"} onClick={() => setActiveItem("Community Feed")} />
-        <SidebarItem icon={<Code size={20} />} label="ComfyUI Workflows" isActive={activeItem === "ComfyUI Workflows"} onClick={() => setActiveItem("ComfyUI Workflows")} />
-      </div>
+        <SidebarItem 
+          icon={<HomeIcon size={20} />} 
+          label="Principal" 
+          isActive={activeItem === "Principal"} 
+          onClick={() => {
+            setActiveItem("Principal");
+            navigate("/");
+          }} 
+        />
+        
+        <SidebarItem 
+          icon={<Plug size={20} />} 
+          label="Plugins" 
+          isActive={activeItem === "Plugins"} 
+          hasDropdown
+          onClick={() => {
+            setPluginsOpen(!pluginsOpen);
+            setActiveItem("Plugins");
+          }} 
+        />
 
-      <div className="flex-grow overflow-auto">
-        <div className="py-2 px-3">
-          <SidebarItem icon={myStuffOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />} label="My stuff" isActive={activeItem === "My stuff"} hasDropdown onClick={() => {
-          setMyStuffOpen(!myStuffOpen);
-          setActiveItem("My stuff");
-        }} />
-
-          {myStuffOpen && <div className="mt-1 space-y-1 animate-fade-in">
-              <DropdownItem icon={<Clock size={16} />} label="Creation History" isActive={activeDropdownItem === "Creation History"} onClick={() => setActiveDropdownItem("Creation History")} />
-              <DropdownItem icon={<Bookmark size={16} />} label="Bookmarks" isActive={activeDropdownItem === "Bookmarks"} onClick={() => setActiveDropdownItem("Bookmarks")} />
-              <DropdownItem icon={<Heart size={16} />} label="Liked" isActive={activeDropdownItem === "Liked"} onClick={() => setActiveDropdownItem("Liked")} />
-              <DropdownItem icon={<Album size={16} />} label="Saved Albums" isActive={activeDropdownItem === "Saved Albums"} onClick={() => setActiveDropdownItem("Saved Albums")} />
-              <DropdownItem icon={<Boxes size={16} />} label="Trained Models" isActive={activeDropdownItem === "Trained Models"} onClick={() => setActiveDropdownItem("Trained Models")} />
-            </div>}
-        </div>
-
-        <div className="py-2 px-3">
-          <SidebarItem icon={resourcesOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />} label="Resources" hasDropdown isActive={activeItem === "Resources"} onClick={() => {
-          setResourcesOpen(!resourcesOpen);
-          setActiveItem("Resources");
-        }} />
-          
-          {resourcesOpen && <div className="mt-1 space-y-1 animate-fade-in">
-              <DropdownItem icon={<BookOpen size={16} />} label="Tutorials" isActive={activeDropdownItem === "Tutorials"} onClick={() => setActiveDropdownItem("Tutorials")} />
-              <DropdownItem icon={<HelpCircle size={16} />} label="Wiki" isExternal isActive={activeDropdownItem === "Wiki"} onClick={() => setActiveDropdownItem("Wiki")} />
-              <DropdownItem icon={<HelpCircle size={16} />} label="Help Center" isActive={activeDropdownItem === "Help Center"} onClick={() => setActiveDropdownItem("Help Center")} />
-              <DropdownItem icon={<Sparkles size={16} />} label="What's New" isActive={activeDropdownItem === "What's New"} onClick={() => setActiveDropdownItem("What's New")} />
-              <DropdownItem icon={<ThemeIcon size={16} />} label="Theme Gallery" isActive={activeDropdownItem === "Theme Gallery"} onClick={() => setActiveDropdownItem("Theme Gallery")} />
-              <DropdownItem icon={<Newspaper size={16} />} label="Blog" isExternal isActive={activeDropdownItem === "Blog"} onClick={() => setActiveDropdownItem("Blog")} />
-            </div>}
-        </div>
+        {pluginsOpen && (
+          <div className="mt-1 space-y-1 animate-fade-in">
+            {plugins.map((plugin) => (
+              <DropdownItem 
+                key={plugin.id}
+                icon={<Plug size={16} />} 
+                label={plugin.name}
+                isActive={activeDropdownItem === plugin.id}
+                onClick={() => {
+                  setActiveDropdownItem(plugin.id);
+                  navigate(`/plugin/${plugin.id}`);
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>;
 };
