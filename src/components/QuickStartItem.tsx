@@ -21,7 +21,7 @@ export const QuickStartItem = ({ icon, title, description, isNew = false, iconBg
           <h3 className="font-medium text-white">{title}</h3>
           {isNew && (
             <span className="bg-green-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-              New
+              Fresquinho
             </span>
           )}
         </div>
