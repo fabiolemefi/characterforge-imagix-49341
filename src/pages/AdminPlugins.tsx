@@ -110,14 +110,20 @@ export default function AdminPlugins() {
     try {
       setUploadingImage(true);
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+      const filePath = fileName;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('plugin-images')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
 
       const { data } = supabase.storage
         .from('plugin-images')
@@ -125,6 +131,7 @@ export default function AdminPlugins() {
 
       return data.publicUrl;
     } catch (error: any) {
+      console.error('Upload failed:', error);
       toast({
         title: "Erro ao fazer upload da imagem",
         description: error.message,

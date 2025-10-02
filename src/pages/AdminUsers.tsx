@@ -5,7 +5,10 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Save } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -23,12 +26,14 @@ interface Profile {
   is_active: boolean;
   is_admin: boolean;
   created_at: string;
+  credits: number;
 }
 
 export default function AdminUsers() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [editingCredits, setEditingCredits] = useState<{[key: string]: number}>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -165,6 +170,32 @@ export default function AdminUsers() {
     }
   };
 
+  const updateCredits = async (userId: string, credits: number) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ credits })
+      .eq("id", userId);
+
+    if (error) {
+      toast({
+        title: "Erro ao atualizar créditos",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Créditos atualizados",
+        description: "Os créditos foram atualizados com sucesso",
+      });
+      setEditingCredits(prev => {
+        const newState = { ...prev };
+        delete newState[userId];
+        return newState;
+      });
+      loadProfiles();
+    }
+  };
+
   if (!isAdmin) {
     return null;
   }
@@ -188,6 +219,7 @@ export default function AdminUsers() {
                     <TableHead>Usuário</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Cadastro</TableHead>
+                    <TableHead>Créditos</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Admin</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -196,13 +228,13 @@ export default function AdminUsers() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : profiles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -223,6 +255,29 @@ export default function AdminUsers() {
                         <TableCell>{profile.email}</TableCell>
                         <TableCell>
                           {new Date(profile.created_at).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={editingCredits[profile.id] ?? profile.credits}
+                              onChange={(e) => setEditingCredits(prev => ({
+                                ...prev,
+                                [profile.id]: parseInt(e.target.value) || 0
+                              }))}
+                              className="w-24"
+                            />
+                            {editingCredits[profile.id] !== undefined && 
+                             editingCredits[profile.id] !== profile.credits && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => updateCredits(profile.id, editingCredits[profile.id])}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span
