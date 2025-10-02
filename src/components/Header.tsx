@@ -71,7 +71,7 @@ const Header = () => {
         </div>
         
         {/* Upgrade button */}
-        <button className="px-4 py-1.5 border border-gray-700 hover:bg-gray-800 transition-colors text-xs font-bold text-lime-600 rounded-lg">20 Efí Coins</button>
+        <button className="px-4 py-1.5 border border-gray-700 hover:bg-gray-800 transition-colors text-xs font-bold text-lime-600 rounded-lg">20 Créditos</button>
         
         {/* Create button */}
         
