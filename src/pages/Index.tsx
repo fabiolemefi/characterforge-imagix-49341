@@ -102,50 +102,10 @@ const Index = () => {
                   <FeaturedAppCard title="Remove background" subtitle="By OpenArt" imageSrc="/lovable-uploads/b89881e6-12b4-4527-9c22-1052b8116ca9.png" />
                 </div>
                 
-                <div className="flex justify-center mt-8">
-                  <button className="border border-gray-700 hover:bg-gray-800 transition-colors text-white flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium">
-                    View All Flow Apps
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
+                
               </section>
               
-              <section className="mb-12">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  Start from a model
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <ModelCard title="Train your own model" subtitle="Customize your creativity" imageSrc="" isTrainYourOwn={true} />
-                  <ModelCard title="OpenArt SDXL" subtitle="OpenArt" imageSrc="/lovable-uploads/22f4141e-f83e-4b85-8c93-672e181d999b.png" tags={[{
-                  label: 'SDXL',
-                  variant: 'blue'
-                }, {
-                  label: 'Standard',
-                  variant: 'green'
-                }]} />
-                  <ModelCard title="Flux (dev)" subtitle="Flux_dev" imageSrc="/lovable-uploads/e9db2be9-f0a3-4506-b387-ce20bea67ba9.png" tags={[{
-                  label: 'Flux',
-                  variant: 'orange'
-                }, {
-                  label: 'Standard',
-                  variant: 'green'
-                }]} />
-                  <ModelCard title="Flux Realism" subtitle="Flux_Realism" imageSrc="/lovable-uploads/e565a3ea-dc96-4344-a533-62026d4245e1.png" tags={[{
-                  label: 'Flux',
-                  variant: 'orange'
-                }, {
-                  label: 'Photorealistic',
-                  variant: 'yellow'
-                }]} />
-                </div>
-                
-                <div className="flex justify-center mt-8">
-                  <button className="border border-gray-700 hover:bg-gray-800 transition-colors text-white flex items-center gap-2 rounded-md px-6 py-2 text-sm font-medium">
-                    View All Models
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
-              </section>
+              
             </main>
           </div>
         </div>
