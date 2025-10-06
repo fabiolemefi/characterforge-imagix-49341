@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { VisualBlockEditor } from './VisualBlockEditor';
 
 interface BlockEditorProps {
   open: boolean;
@@ -12,7 +18,13 @@ interface BlockEditorProps {
   onSave: (newHtml: string) => void;
 }
 
-export const BlockEditor = ({ open, onClose, blockHtml, blockName, onSave }: BlockEditorProps) => {
+export const BlockEditor = ({
+  open,
+  onClose,
+  blockHtml,
+  blockName,
+  onSave,
+}: BlockEditorProps) => {
   const [html, setHtml] = useState(blockHtml);
 
   const handleSave = () => {
@@ -22,29 +34,21 @@ export const BlockEditor = ({ open, onClose, blockHtml, blockName, onSave }: Blo
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Bloco: {blockName}</DialogTitle>
+          <DialogTitle>Editar {blockName}</DialogTitle>
+          <DialogDescription>
+            Edite os textos e imagens do bloco ou acesse o código HTML no accordion abaixo
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <Label>HTML do Bloco</Label>
-            <Textarea
-              value={html}
-              onChange={(e) => setHtml(e.target.value)}
-              className="font-mono text-xs min-h-[400px] mt-2"
-              placeholder="Cole ou edite o HTML do bloco aqui..."
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Dica: Use CSS inline para garantir compatibilidade com clientes de email
-            </p>
-          </div>
+          <VisualBlockEditor html={html} onUpdate={setHtml} />
 
-          <div className="border rounded-lg p-4 bg-muted">
-            <p className="text-sm font-medium mb-2">Preview:</p>
+          <div className="border rounded-md p-4 bg-muted/30">
+            <p className="text-sm font-medium mb-2">Pré-visualização</p>
             <div 
-              className="bg-white p-4 rounded border"
+              className="border rounded bg-white p-4"
               dangerouslySetInnerHTML={{ __html: html }}
             />
           </div>

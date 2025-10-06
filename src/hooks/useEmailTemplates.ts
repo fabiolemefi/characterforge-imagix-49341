@@ -9,6 +9,7 @@ export interface EmailTemplate {
   subject: string | null;
   preview_text: string | null;
   html_content: string;
+  blocks_data?: any[];
   is_published: boolean;
   created_by: string | null;
   updated_by: string | null;
@@ -29,7 +30,14 @@ export const useEmailTemplates = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setTemplates(data || []);
+      
+      // Transform blocks_data from Json to any[]
+      const transformedData = (data || []).map(template => ({
+        ...template,
+        blocks_data: Array.isArray(template.blocks_data) ? template.blocks_data : [],
+      }));
+      
+      setTemplates(transformedData);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -41,7 +49,7 @@ export const useEmailTemplates = () => {
     }
   };
 
-  const saveTemplate = async (template: Partial<EmailTemplate> & { name: string; html_content: string }) => {
+  const saveTemplate = async (template: Partial<EmailTemplate> & { name: string; html_content: string; blocks_data?: any[] }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
@@ -54,6 +62,7 @@ export const useEmailTemplates = () => {
           subject: template.subject,
           preview_text: template.preview_text,
           html_content: template.html_content,
+          blocks_data: template.blocks_data || [],
           is_published: template.is_published || false,
           created_by: user.id,
           updated_by: user.id,

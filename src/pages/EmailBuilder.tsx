@@ -27,9 +27,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowLeft, Save, Download, Eye, Plus } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
-import { BlocksLibrary } from '@/components/BlocksLibrary';
 import { EmailBlockItem } from '@/components/EmailBlockItem';
 import { BlockEditor } from '@/components/BlockEditor';
+import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
@@ -55,7 +55,7 @@ const EmailBuilder = () => {
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
   const [editingBlock, setEditingBlock] = useState<SelectedBlock | null>(null);
-  const [showBlocksLibrary, setShowBlocksLibrary] = useState(false);
+  const [showAddBlockModal, setShowAddBlockModal] = useState(false);
 
   useEffect(() => {
     const template = templates.find(t => t.id === id);
@@ -64,6 +64,15 @@ const EmailBuilder = () => {
       setTemplateDescription(template.description || '');
       setSubject(template.subject || '');
       setPreviewText(template.preview_text || '');
+      
+      // Load blocks data if exists
+      if (template.blocks_data && Array.isArray(template.blocks_data)) {
+        const loadedBlocks = template.blocks_data.map((blockData: any) => ({
+          ...blockData,
+          instanceId: blockData.instanceId || `${blockData.id}-${Date.now()}-${Math.random()}`,
+        }));
+        setSelectedBlocks(loadedBlocks);
+      }
     }
   }, [id, templates]);
 
@@ -133,6 +142,7 @@ const EmailBuilder = () => {
       subject,
       preview_text: previewText,
       html_content: htmlContent,
+      blocks_data: selectedBlocks,
     });
   };
 
@@ -227,24 +237,12 @@ const EmailBuilder = () => {
                     <h3 className="font-semibold">Blocos do Email</h3>
                     <Button
                       size="sm"
-                      onClick={() => setShowBlocksLibrary(!showBlocksLibrary)}
+                      onClick={() => setShowAddBlockModal(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Bloco
                     </Button>
                   </div>
-
-                  {showBlocksLibrary && (
-                    <div className="border-b">
-                      <BlocksLibrary
-                        blocks={blocks}
-                        onAddBlock={(block) => {
-                          handleAddBlock(block);
-                          setShowBlocksLibrary(false);
-                        }}
-                      />
-                    </div>
-                  )}
                   
                   <ScrollArea className="flex-1">
                     <div className="p-4">
@@ -285,6 +283,13 @@ const EmailBuilder = () => {
           </div>
         </div>
       </div>
+
+      <AddBlockModal
+        open={showAddBlockModal}
+        onClose={() => setShowAddBlockModal(false)}
+        blocks={blocks}
+        onAddBlock={handleAddBlock}
+      />
 
       {editingBlock && (
         <BlockEditor
