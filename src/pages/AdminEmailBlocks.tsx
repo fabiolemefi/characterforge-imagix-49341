@@ -43,6 +43,8 @@ const AdminEmailBlocks = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importHtml, setImportHtml] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [editingBlock, setEditingBlock] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -167,9 +169,11 @@ const AdminEmailBlocks = () => {
       return;
     }
 
+    setIsImporting(true);
+
     try {
       // Parse blocks from HTML comments
-      const blockRegex = /<!-- ={3,} INÍCIO ([A-Z\s]+) ={3,} -->[\s\S]*?<!-- ={3,} FIM \1 ={3,} -->/g;
+      const blockRegex = /<!-- ={3,} INÍCIO ([A-ZÀ-Ú\s]+) ={3,} -->[\s\S]*?<!-- ={3,} FIM \1 ={3,} -->/gi;
       const matches = [...importHtml.matchAll(blockRegex)];
 
       if (matches.length === 0) {
@@ -178,6 +182,7 @@ const AdminEmailBlocks = () => {
           title: 'Nenhum bloco encontrado',
           description: 'Certifique-se de usar os comentários no formato: <!-- === INÍCIO NOME === -->',
         });
+        setIsImporting(false);
         return;
       }
 
@@ -215,11 +220,21 @@ const AdminEmailBlocks = () => {
         };
       });
 
-      const { error } = await supabase
-        .from('email_blocks')
-        .insert(blocksToInsert);
+      setImportProgress({ current: 0, total: blocksToInsert.length });
 
-      if (error) throw error;
+      // Insert blocks one by one to show progress
+      for (let i = 0; i < blocksToInsert.length; i++) {
+        const { error } = await supabase
+          .from('email_blocks')
+          .insert([blocksToInsert[i]]);
+
+        if (error) throw error;
+
+        setImportProgress({ current: i + 1, total: blocksToInsert.length });
+        
+        // Small delay to show progress
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
 
       toast({
         title: 'Blocos importados!',
@@ -228,13 +243,17 @@ const AdminEmailBlocks = () => {
 
       setIsImportModalOpen(false);
       setImportHtml('');
+      setImportProgress({ current: 0, total: 0 });
       reloadBlocks();
     } catch (error: any) {
+      console.error('Erro ao importar blocos:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao importar',
         description: error.message,
       });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -426,12 +445,18 @@ const AdminEmailBlocks = () => {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsImportModalOpen(false)}
+                disabled={isImporting}
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleImportBlocks}>
+              <Button onClick={handleImportBlocks} disabled={isImporting}>
                 <Upload className="h-4 w-4 mr-2" />
-                Importar Blocos
+                {isImporting 
+                  ? `Importando ${importProgress.current}/${importProgress.total}...` 
+                  : 'Importar Blocos'}
               </Button>
             </div>
           </div>
