@@ -27,7 +27,6 @@ export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) =>
   const handleContentChange = () => {
     if (previewRef.current) {
       const newHtml = previewRef.current.innerHTML;
-      setEditableHtml(newHtml);
       onUpdate(newHtml);
     }
   };

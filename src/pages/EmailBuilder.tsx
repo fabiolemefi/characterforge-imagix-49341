@@ -226,7 +226,23 @@ const EmailBuilder = () => {
 
             <ResizablePanelGroup direction="horizontal" className="flex-1">
               <ResizablePanel defaultSize={60} minSize={40}>
-                <EmailPreview htmlContent={generateHtmlContent()} className="h-full" />
+                <EmailPreview 
+                  blocks={selectedBlocks.map(block => ({
+                    instanceId: block.instanceId,
+                    html: block.customHtml || block.html_template
+                  }))}
+                  onEditBlock={(instanceId) => {
+                    const block = selectedBlocks.find(b => b.instanceId === instanceId);
+                    if (block) handleEditBlock(block);
+                  }}
+                  onReorderBlocks={(newBlocks) => {
+                    const reorderedBlocks = newBlocks.map(nb => 
+                      selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
+                    );
+                    setSelectedBlocks(reorderedBlocks);
+                  }}
+                  className="h-full" 
+                />
               </ResizablePanel>
 
               <ResizableHandle withHandle />
