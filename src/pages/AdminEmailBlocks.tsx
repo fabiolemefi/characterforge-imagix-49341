@@ -27,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowLeft, Upload } from 'lucide-react';
 import { useEmailBlocks } from '@/hooks/useEmailBlocks';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +41,8 @@ const AdminEmailBlocks = () => {
   const { toast } = useToast();
   const { blocks, reloadBlocks } = useEmailBlocks();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importHtml, setImportHtml] = useState('');
   const [editingBlock, setEditingBlock] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -155,6 +157,87 @@ const AdminEmailBlocks = () => {
     return labels[category] || category;
   };
 
+  const handleImportBlocks = async () => {
+    if (!importHtml.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Campo vazio',
+        description: 'Cole o HTML dos blocos para importar',
+      });
+      return;
+    }
+
+    try {
+      // Parse blocks from HTML comments
+      const blockRegex = /<!-- ={3,} INÍCIO ([A-Z\s]+) ={3,} -->[\s\S]*?<!-- ={3,} FIM \1 ={3,} -->/g;
+      const matches = [...importHtml.matchAll(blockRegex)];
+
+      if (matches.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Nenhum bloco encontrado',
+          description: 'Certifique-se de usar os comentários no formato: <!-- === INÍCIO NOME === -->',
+        });
+        return;
+      }
+
+      const blocksToInsert = matches.map(match => {
+        const blockName = match[1].trim();
+        const blockHtml = match[0];
+        
+        // Map block names to categories
+        const categoryMap: Record<string, string> = {
+          'HEADER': 'header',
+          'CABEÇALHO': 'header',
+          'HERO': 'hero',
+          'RODAPÉ': 'footer',
+          'FOOTER': 'footer',
+          'TEXTO PRINCIPAL': 'content',
+          'CONTEÚDO': 'content',
+          'CONTENT': 'content',
+          'BLOCO VANTAGENS': 'list',
+          'VANTAGENS': 'list',
+          'LISTA': 'list',
+          'CTA': 'content',
+          'CTA FINAL': 'content',
+        };
+
+        const category = categoryMap[blockName.toUpperCase()] || 'content';
+
+        return {
+          name: blockName.toLowerCase().split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' '),
+          description: `Bloco importado: ${blockName}`,
+          category,
+          html_template: blockHtml,
+          is_active: true,
+        };
+      });
+
+      const { error } = await supabase
+        .from('email_blocks')
+        .insert(blocksToInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Blocos importados!',
+        description: `${blocksToInsert.length} bloco(s) criado(s) com sucesso.`,
+      });
+
+      setIsImportModalOpen(false);
+      setImportHtml('');
+      reloadBlocks();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao importar',
+        description: error.message,
+      });
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -176,10 +259,16 @@ const AdminEmailBlocks = () => {
                 <h1 className="text-xl font-semibold">Blocos de Email</h1>
               </div>
             </div>
-            <Button onClick={() => handleOpenModal()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Novo Bloco
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Blocos
+              </Button>
+              <Button onClick={() => handleOpenModal()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Novo Bloco
+              </Button>
+            </div>
           </header>
 
           <main className="p-6">
@@ -303,6 +392,46 @@ const AdminEmailBlocks = () => {
               </Button>
               <Button onClick={handleSave}>
                 {editingBlock ? 'Atualizar' : 'Criar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar Blocos</DialogTitle>
+            <DialogDescription>
+              Cole o HTML com os blocos separados por comentários no formato: 
+              <code className="block mt-2 text-xs bg-muted p-2 rounded">
+                &lt;!-- =================== INÍCIO NOME =================== --&gt;
+                <br />
+                ...conteúdo do bloco...
+                <br />
+                &lt;!-- =================== FIM NOME =================== --&gt;
+              </code>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="import-html">HTML dos Blocos</Label>
+              <Textarea
+                id="import-html"
+                value={importHtml}
+                onChange={(e) => setImportHtml(e.target.value)}
+                placeholder="Cole aqui o HTML com os blocos comentados..."
+                className="font-mono text-sm"
+                rows={20}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleImportBlocks}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Blocos
               </Button>
             </div>
           </div>
