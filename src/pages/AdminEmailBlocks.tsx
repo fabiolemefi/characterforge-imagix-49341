@@ -51,7 +51,10 @@ const AdminEmailBlocks = () => {
     description: '',
     category: 'content',
     html_template: '',
+    thumbnail_url: '',
   });
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
 
   const handleOpenModal = (block?: any) => {
     if (block) {
@@ -61,7 +64,10 @@ const AdminEmailBlocks = () => {
         description: block.description || '',
         category: block.category,
         html_template: block.html_template,
+        thumbnail_url: block.thumbnail_url || '',
       });
+      setThumbnailPreview(block.thumbnail_url || '');
+      setThumbnailFile(null);
     } else {
       setEditingBlock(null);
       setFormData({
@@ -69,9 +75,49 @@ const AdminEmailBlocks = () => {
         description: '',
         category: 'content',
         html_template: '',
+        thumbnail_url: '',
       });
+      setThumbnailPreview('');
+      setThumbnailFile(null);
     }
     setIsModalOpen(true);
+  };
+
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setThumbnailFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setThumbnailPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadThumbnail = async (): Promise<string | null> => {
+    if (!thumbnailFile) return formData.thumbnail_url || null;
+
+    try {
+      const fileExt = thumbnailFile.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `thumbnails/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('email-images')
+        .upload(filePath, thumbnailFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('email-images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Erro ao fazer upload do thumbnail:', error);
+      return null;
+    }
   };
 
   const handleSave = async () => {
@@ -85,10 +131,23 @@ const AdminEmailBlocks = () => {
     }
 
     try {
+      const thumbnailUrl = await uploadThumbnail();
+
       if (editingBlock) {
+        const updateData: any = {
+          name: formData.name,
+          description: formData.description,
+          category: formData.category,
+          html_template: formData.html_template,
+        };
+
+        if (thumbnailUrl) {
+          updateData.thumbnail_url = thumbnailUrl;
+        }
+
         const { error } = await supabase
           .from('email_blocks')
-          .update(formData)
+          .update(updateData)
           .eq('id', editingBlock.id);
 
         if (error) throw error;
@@ -100,7 +159,11 @@ const AdminEmailBlocks = () => {
       } else {
         const { error } = await supabase
           .from('email_blocks')
-          .insert([{ ...formData, is_active: true }]);
+          .insert([{ 
+            ...formData, 
+            thumbnail_url: thumbnailUrl,
+            is_active: true 
+          }]);
 
         if (error) throw error;
 
@@ -393,6 +456,25 @@ const AdminEmailBlocks = () => {
                 placeholder="Descrição do bloco..."
                 rows={2}
               />
+            </div>
+            <div>
+              <Label htmlFor="thumbnail">Thumbnail (Preview)</Label>
+              <Input
+                id="thumbnail"
+                type="file"
+                accept="image/*"
+                onChange={handleThumbnailChange}
+                className="cursor-pointer"
+              />
+              {thumbnailPreview && (
+                <div className="mt-2">
+                  <img 
+                    src={thumbnailPreview} 
+                    alt="Preview" 
+                    className="w-full h-32 object-cover rounded border"
+                  />
+                </div>
+              )}
             </div>
             <div>
               <Label htmlFor="html">HTML Template *</Label>

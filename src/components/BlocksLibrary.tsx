@@ -60,6 +60,15 @@ export const BlocksLibrary = ({ blocks, onAddBlock }: BlocksLibraryProps) => {
                     onClick={() => onAddBlock(block)}
                   >
                     <CardHeader className="p-3">
+                      {block.thumbnail_url && (
+                        <div className="mb-3">
+                          <img 
+                            src={block.thumbnail_url} 
+                            alt={block.name}
+                            className="w-full h-24 object-cover rounded border"
+                          />
+                        </div>
+                      )}
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-sm">{block.name}</CardTitle>
