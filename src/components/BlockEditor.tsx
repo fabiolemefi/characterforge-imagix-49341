@@ -44,14 +44,6 @@ export const BlockEditor = ({
 
         <div className="space-y-4">
           <VisualBlockEditor html={html} onUpdate={setHtml} />
-
-          <div className="border rounded-md p-4 bg-muted/30">
-            <p className="text-sm font-medium mb-2">Pré-visualização</p>
-            <div 
-              className="border rounded bg-white p-4"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          </div>
         </div>
 
         <DialogFooter>

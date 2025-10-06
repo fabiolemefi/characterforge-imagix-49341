@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Monitor, Tablet, Smartphone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   DndContext,
   closestCenter,
@@ -86,6 +87,15 @@ export const EmailPreview = ({
   onReorderBlocks,
 }: EmailPreviewProps) => {
   const [localBlocks, setLocalBlocks] = useState<BlockData[]>(blocks);
+  const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  
+  const getPreviewWidth = () => {
+    switch (viewMode) {
+      case 'mobile': return '375px';
+      case 'tablet': return '768px';
+      case 'desktop': return '600px';
+    }
+  };
 
   useEffect(() => {
     setLocalBlocks(blocks);
@@ -118,7 +128,29 @@ export const EmailPreview = ({
       <div className={`bg-muted rounded-lg overflow-hidden ${className}`}>
         <div className="bg-background border-b p-3 flex items-center justify-between">
           <span className="text-sm font-medium">Preview do Email</span>
-          <span className="text-xs text-muted-foreground">600px de largura</span>
+          <div className="flex gap-1">
+            <Button
+              variant={viewMode === 'mobile' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('mobile')}
+            >
+              <Smartphone className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'tablet' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('tablet')}
+            >
+              <Tablet className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'desktop' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('desktop')}
+            >
+              <Monitor className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex items-center justify-center min-h-[600px] text-muted-foreground">
           <p>Adicione blocos para visualizar seu email</p>
@@ -131,11 +163,33 @@ export const EmailPreview = ({
     <div className={`bg-muted rounded-lg overflow-hidden ${className}`}>
       <div className="bg-background border-b p-3 flex items-center justify-between">
         <span className="text-sm font-medium">Preview do Email</span>
-        <span className="text-xs text-muted-foreground">600px de largura</span>
+        <div className="flex gap-1">
+          <Button
+            variant={viewMode === 'mobile' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('mobile')}
+          >
+            <Smartphone className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'tablet' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('tablet')}
+          >
+            <Tablet className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'desktop' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('desktop')}
+          >
+            <Monitor className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
       <div className="overflow-auto" style={{ minHeight: '600px' }}>
         <div className="bg-[#f5f5f5] p-5">
-          <div className="max-w-[600px] mx-auto bg-white">
+          <div className="mx-auto bg-white transition-all duration-300" style={{ maxWidth: getPreviewWidth() }}>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}

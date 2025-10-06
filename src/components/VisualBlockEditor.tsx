@@ -15,18 +15,22 @@ interface VisualBlockEditorProps {
 
 export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) => {
   const { toast } = useToast();
-  const [editableHtml, setEditableHtml] = useState(html);
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImageElement, setSelectedImageElement] = useState<HTMLImageElement | null>(null);
+  const [codeViewHtml, setCodeViewHtml] = useState(html);
 
   useEffect(() => {
-    setEditableHtml(html);
+    if (previewRef.current && !previewRef.current.innerHTML) {
+      previewRef.current.innerHTML = html;
+    }
+    setCodeViewHtml(html);
   }, [html]);
 
   const handleContentChange = () => {
     if (previewRef.current) {
       const newHtml = previewRef.current.innerHTML;
+      setCodeViewHtml(newHtml);
       onUpdate(newHtml);
     }
   };
@@ -72,7 +76,6 @@ export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) =>
           suppressContentEditableWarning
           onInput={handleContentChange}
           onClick={handleImageClick}
-          dangerouslySetInnerHTML={{ __html: editableHtml }}
           className="border rounded-lg p-4 bg-white min-h-[300px] focus:outline-none focus:ring-2 focus:ring-primary"
           style={{ 
             cursor: 'text',
@@ -96,10 +99,13 @@ export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) =>
           <AccordionTrigger className="text-sm">Código HTML</AccordionTrigger>
           <AccordionContent>
             <Textarea
-              value={editableHtml}
+              value={codeViewHtml}
               onChange={(e) => {
-                setEditableHtml(e.target.value);
-                onUpdate(e.target.value);
+                setCodeViewHtml(e.target.value);
+                if (previewRef.current) {
+                  previewRef.current.innerHTML = e.target.value;
+                  onUpdate(e.target.value);
+                }
               }}
               className="font-mono text-xs min-h-[200px]"
             />
