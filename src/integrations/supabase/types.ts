@@ -50,6 +50,129 @@ export type Database = {
         }
         Relationships: []
       }
+      email_blocks: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          html_template: string
+          id: string
+          is_active: boolean
+          name: string
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          html_template: string
+          id?: string
+          is_active?: boolean
+          name: string
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          html_template?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_template_blocks: {
+        Row: {
+          block_id: string
+          created_at: string
+          custom_data: Json | null
+          id: string
+          position: number
+          template_id: string
+        }
+        Insert: {
+          block_id: string
+          created_at?: string
+          custom_data?: Json | null
+          id?: string
+          position: number
+          template_id: string
+        }
+        Update: {
+          block_id?: string
+          created_at?: string
+          custom_data?: Json | null
+          id?: string
+          position?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_template_blocks_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "email_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_template_blocks_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          html_content: string
+          id: string
+          is_published: boolean
+          name: string
+          preview_text: string | null
+          subject: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          html_content: string
+          id?: string
+          is_published?: boolean
+          name: string
+          preview_text?: string | null
+          subject?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          html_content?: string
+          id?: string
+          is_published?: boolean
+          name?: string
+          preview_text?: string | null
+          subject?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       plugins: {
         Row: {
           created_at: string | null

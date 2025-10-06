@@ -54,6 +54,12 @@ export default function PluginDetails() {
       return;
     }
 
+    // Redirecionar para página específica do Email Builder
+    if (data.name === "Email Builder") {
+      navigate("/email-builder");
+      return;
+    }
+
     setPlugin(data);
     setLoading(false);
   };
