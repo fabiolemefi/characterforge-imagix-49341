@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,25 +25,55 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { Sidebar } from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { PromoBar } from '@/components/PromoBar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { downloadEmailHtml } from '@/lib/emailExporter';
+
+const ITEMS_PER_PAGE = 10;
 
 const EmailTemplates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { templates, loading, saveTemplate, deleteTemplate } = useEmailTemplates();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     subject: '',
     preview_text: '',
     description: '',
   });
+
+  // Filter templates based on search
+  const filteredTemplates = useMemo(() => {
+    if (!searchQuery.trim()) return templates;
+    
+    const query = searchQuery.toLowerCase();
+    return templates.filter(template => 
+      template.name.toLowerCase().includes(query) ||
+      template.subject?.toLowerCase().includes(query) ||
+      template.description?.toLowerCase().includes(query)
+    );
+  }, [templates, searchQuery]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTemplates.length / ITEMS_PER_PAGE);
+  const paginatedTemplates = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTemplates.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTemplates, currentPage]);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   const handleCreateTemplate = async () => {
     if (!newTemplate.name.trim()) {
@@ -76,6 +106,28 @@ const EmailTemplates = () => {
     }
   };
 
+  const handleExport = (template: any) => {
+    try {
+      downloadEmailHtml(
+        template.html_content || '',
+        template.name,
+        template.subject || template.name,
+        template.preview_text
+      );
+      
+      toast({
+        title: 'Email exportado',
+        description: `${template.name} foi exportado como HTML otimizado para email`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao exportar',
+        description: 'Não foi possível exportar o email',
+      });
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar />
@@ -99,23 +151,52 @@ const EmailTemplates = () => {
               </Button>
             </div>
 
+            {/* Search bar */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar templates por nome, assunto ou descrição..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
             {loading ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">Carregando templates...</p>
               </div>
-            ) : templates.length === 0 ? (
+            ) : filteredTemplates.length === 0 ? (
               <div className="text-center py-12 border rounded-lg bg-muted/30">
-                <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Nenhum template criado</h3>
-                <p className="text-muted-foreground mb-4">
-                  Comece criando seu primeiro template de email
-                </p>
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeiro Email
-                </Button>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum resultado encontrado</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Tente buscar com outros termos
+                    </p>
+                    <Button variant="outline" onClick={() => setSearchQuery('')}>
+                      Limpar busca
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum template criado</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Comece criando seu primeiro template de email
+                    </p>
+                    <Button onClick={() => setIsCreateModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Primeiro Email
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
+              <>
               <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
@@ -128,7 +209,7 @@ const EmailTemplates = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {templates.map((template) => (
+                    {paginatedTemplates.map((template) => (
                       <TableRow key={template.id}>
                         <TableCell className="font-medium">{template.name}</TableCell>
                         <TableCell className="text-muted-foreground">
@@ -155,6 +236,12 @@ const EmailTemplates = () => {
                                 Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                onClick={() => handleExport(template)}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Exportar HTML
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => handleDelete(template.id, template.name)}
                               >
@@ -168,7 +255,38 @@ const EmailTemplates = () => {
                     ))}
                   </TableBody>
                 </Table>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, filteredTemplates.length)} de {filteredTemplates.length} templates
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="text-sm">
+                        Página {currentPage} de {totalPages}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
+              </>
             )}
           </div>
         </div>
