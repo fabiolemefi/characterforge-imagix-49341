@@ -139,6 +139,7 @@ export type Database = {
           description: string | null
           html_content: string
           id: string
+          is_model: boolean | null
           is_published: boolean
           name: string
           preview_text: string | null
@@ -153,6 +154,7 @@ export type Database = {
           description?: string | null
           html_content: string
           id?: string
+          is_model?: boolean | null
           is_published?: boolean
           name: string
           preview_text?: string | null
@@ -167,6 +169,7 @@ export type Database = {
           description?: string | null
           html_content?: string
           id?: string
+          is_model?: boolean | null
           is_published?: boolean
           name?: string
           preview_text?: string | null
