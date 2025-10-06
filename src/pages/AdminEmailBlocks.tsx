@@ -32,8 +32,7 @@ import { useEmailBlocks } from '@/hooks/useEmailBlocks';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdminSidebar } from '@/components/AdminSidebar';
-import Header from '@/components/Header';
-import { PromoBar } from '@/components/PromoBar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
 const CATEGORIES = ['header', 'hero', 'content', 'list', 'footer', 'social'];
 
@@ -157,37 +156,37 @@ const AdminEmailBlocks = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <AdminSidebar />
-      
-      <div className="flex-1 flex flex-col">
-        <PromoBar />
-        <Header />
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-background">
+        <AdminSidebar />
         
-        <div className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/admin/plugins')}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Voltar
-                </Button>
-                <div>
-                  <h1 className="text-3xl font-bold">Blocos de Email</h1>
-                  <p className="text-muted-foreground mt-1">
-                    Gerencie os blocos disponíveis para o Email Builder
-                  </p>
-                </div>
-              </div>
-              <Button onClick={() => handleOpenModal()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Novo Bloco
+        <div className="flex-1">
+          <header className="h-16 border-b flex items-center justify-between px-6 bg-card">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/admin/plugins')}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
               </Button>
+              <div>
+                <h1 className="text-xl font-semibold">Blocos de Email</h1>
+              </div>
             </div>
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Novo Bloco
+            </Button>
+          </header>
+
+          <main className="p-6">
+            <div className="max-w-7xl mx-auto">
+              <p className="text-muted-foreground mb-6">
+                Gerencie os blocos disponíveis para o Email Builder
+              </p>
 
             <div className="border rounded-lg">
               <Table>
@@ -233,8 +232,9 @@ const AdminEmailBlocks = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
-          </div>
+          </main>
         </div>
       </div>
 
@@ -308,7 +308,7 @@ const AdminEmailBlocks = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </SidebarProvider>
   );
 };
 
