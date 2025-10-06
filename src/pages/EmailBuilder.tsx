@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -44,17 +44,28 @@ interface SelectedBlock extends EmailBlock {
 
 const EmailBuilder = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { toast } = useToast();
   const { blocks, loading: blocksLoading } = useEmailBlocks();
-  const { saveTemplate, updateTemplate } = useEmailTemplates();
+  const { templates, updateTemplate } = useEmailTemplates();
   
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [templateDescription, setTemplateDescription] = useState('');
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
-  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
   const [editingBlock, setEditingBlock] = useState<SelectedBlock | null>(null);
+  const [showBlocksLibrary, setShowBlocksLibrary] = useState(false);
+
+  useEffect(() => {
+    const template = templates.find(t => t.id === id);
+    if (template) {
+      setTemplateName(template.name);
+      setTemplateDescription(template.description || '');
+      setSubject(template.subject || '');
+      setPreviewText(template.preview_text || '');
+    }
+  }, [id, templates]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -112,46 +123,17 @@ const EmailBuilder = () => {
   };
 
   const handleSave = async () => {
-    if (!templateName.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Nome obrigatório',
-        description: 'Por favor, dê um nome ao seu template',
-      });
-      return;
-    }
-
-    if (selectedBlocks.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Template vazio',
-        description: 'Adicione pelo menos um bloco ao template',
-      });
-      return;
-    }
+    if (!id) return;
 
     const htmlContent = generateHtmlContent();
 
-    if (currentTemplateId) {
-      await updateTemplate(currentTemplateId, {
-        name: templateName,
-        description: templateDescription,
-        subject,
-        preview_text: previewText,
-        html_content: htmlContent,
-      });
-    } else {
-      const newTemplate = await saveTemplate({
-        name: templateName,
-        description: templateDescription,
-        subject,
-        preview_text: previewText,
-        html_content: htmlContent,
-      });
-      if (newTemplate) {
-        setCurrentTemplateId(newTemplate.id);
-      }
-    }
+    await updateTemplate(id, {
+      name: templateName,
+      description: templateDescription,
+      subject,
+      preview_text: previewText,
+      html_content: htmlContent,
+    });
   };
 
   const handleDownload = () => {
@@ -206,15 +188,15 @@ const EmailBuilder = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/email-templates')}
                   >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Voltar
                   </Button>
                   <div>
-                    <h1 className="text-2xl font-bold">Email Builder</h1>
+                    <h1 className="text-2xl font-bold">{templateName || 'Email Builder'}</h1>
                     <p className="text-sm text-muted-foreground">
-                      Crie emails profissionais com nosso editor visual
+                      {subject || 'Crie emails profissionais com nosso editor visual'}
                     </p>
                   </div>
                 </div>
@@ -226,125 +208,77 @@ const EmailBuilder = () => {
                   </Button>
                   <Button onClick={handleSave}>
                     <Save className="h-4 w-4 mr-2" />
-                    Salvar Template
+                    Salvar
                   </Button>
                 </div>
               </div>
             </div>
 
             <ResizablePanelGroup direction="horizontal" className="flex-1">
-              <ResizablePanel defaultSize={50} minSize={30}>
+              <ResizablePanel defaultSize={60} minSize={40}>
                 <EmailPreview htmlContent={generateHtmlContent()} className="h-full" />
               </ResizablePanel>
 
               <ResizableHandle withHandle />
 
-              <ResizablePanel defaultSize={25} minSize={20}>
+              <ResizablePanel defaultSize={40} minSize={30}>
                 <div className="h-full flex flex-col border-l">
-                  <div className="p-4 border-b bg-muted/30">
-                    <h3 className="font-semibold mb-4">Configurações do Email</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="template-name">Nome do Template *</Label>
-                        <Input
-                          id="template-name"
-                          value={templateName}
-                          onChange={(e) => setTemplateName(e.target.value)}
-                          placeholder="Ex: Newsletter Mensal"
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="subject">Assunto do Email</Label>
-                        <Input
-                          id="subject"
-                          value={subject}
-                          onChange={(e) => setSubject(e.target.value)}
-                          placeholder="Ex: Novidades deste mês"
-                          className="mt-1"
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="preview-text">Texto de Preview</Label>
-                        <Textarea
-                          id="preview-text"
-                          value={previewText}
-                          onChange={(e) => setPreviewText(e.target.value)}
-                          placeholder="Texto que aparece na caixa de entrada..."
-                          className="mt-1 resize-none"
-                          rows={2}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="description">Descrição</Label>
-                        <Textarea
-                          id="description"
-                          value={templateDescription}
-                          onChange={(e) => setTemplateDescription(e.target.value)}
-                          placeholder="Descrição interna do template..."
-                          className="mt-1 resize-none"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
+                  <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
+                    <h3 className="font-semibold">Blocos do Email</h3>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowBlocksLibrary(!showBlocksLibrary)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Bloco
+                    </Button>
                   </div>
 
-                  <div className="flex-1 border-t">
-                    <div className="p-4 border-b bg-muted/30">
-                      <h3 className="font-semibold">Blocos no Email</h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Arraste para reordenar
-                      </p>
+                  {showBlocksLibrary && (
+                    <div className="border-b">
+                      <BlocksLibrary
+                        blocks={blocks}
+                        onAddBlock={(block) => {
+                          handleAddBlock(block);
+                          setShowBlocksLibrary(false);
+                        }}
+                      />
                     </div>
-                    
-                    <ScrollArea className="h-[calc(100vh-600px)]">
-                      <div className="p-4">
-                        {selectedBlocks.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            <Plus className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                            <p className="text-sm">Nenhum bloco adicionado</p>
-                            <p className="text-xs">Clique nos blocos à direita</p>
-                          </div>
-                        ) : (
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleDragEnd}
+                  )}
+                  
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
+                      {selectedBlocks.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Plus className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p className="text-sm font-medium">Nenhum bloco adicionado</p>
+                          <p className="text-xs mt-1">Clique em "Adicionar Bloco" para começar</p>
+                        </div>
+                      ) : (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <SortableContext
+                            items={selectedBlocks.map(b => b.instanceId)}
+                            strategy={verticalListSortingStrategy}
                           >
-                            <SortableContext
-                              items={selectedBlocks.map(b => b.instanceId)}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {selectedBlocks.map((block) => (
-                                <EmailBlockItem
-                                  key={block.instanceId}
-                                  id={block.instanceId}
-                                  name={block.name}
-                                  category={block.category}
-                                  onRemove={() => handleRemoveBlock(block.instanceId)}
-                                  onEdit={() => handleEditBlock(block)}
-                                />
-                              ))}
-                            </SortableContext>
-                          </DndContext>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </div>
-              </ResizablePanel>
-
-              <ResizableHandle withHandle />
-
-              <ResizablePanel defaultSize={25} minSize={20}>
-                <div className="h-full border-l">
-                  <BlocksLibrary
-                    blocks={blocks}
-                    onAddBlock={handleAddBlock}
-                  />
+                            {selectedBlocks.map((block) => (
+                              <EmailBlockItem
+                                key={block.instanceId}
+                                id={block.instanceId}
+                                name={block.name}
+                                category={block.category}
+                                onRemove={() => handleRemoveBlock(block.instanceId)}
+                                onEdit={() => handleEditBlock(block)}
+                              />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>

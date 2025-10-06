@@ -56,7 +56,7 @@ export default function PluginDetails() {
 
     // Redirecionar para página específica do Email Builder
     if (data.name === "Email Builder") {
-      navigate("/email-builder");
+      navigate("/email-templates");
       return;
     }
 

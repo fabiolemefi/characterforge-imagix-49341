@@ -11,7 +11,9 @@ import AdminAnnouncements from "./pages/AdminAnnouncements";
 import AdminPlugins from "./pages/AdminPlugins";
 import PluginDetails from "./pages/PluginDetails";
 import Efimail from "./pages/Efimail";
-import EmailBuilder from "./pages/EmailBuilder";
+import EmailBuilder from './pages/EmailBuilder';
+import EmailTemplates from './pages/EmailTemplates';
+import AdminEmailBlocks from './pages/AdminEmailBlocks';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -28,7 +30,9 @@ const App = () => (
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/plugin/:id" element={<ProtectedRoute><PluginDetails /></ProtectedRoute>} />
           <Route path="/efimail" element={<ProtectedRoute><Efimail /></ProtectedRoute>} />
-          <Route path="/email-builder" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
+          <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
+          <Route path="/email-builder/:id" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
+          <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />

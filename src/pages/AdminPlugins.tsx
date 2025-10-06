@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -435,6 +435,16 @@ export default function AdminPlugins() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            {plugin.name === 'Email Builder' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate('/admin/email-blocks')}
+                                title="Gerenciar blocos"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
