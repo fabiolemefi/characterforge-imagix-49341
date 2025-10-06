@@ -1,15 +1,11 @@
-import { useState, useRef } from 'react';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import { useState, useRef, useEffect } from 'react';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Upload } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
 interface VisualBlockEditorProps {
@@ -20,87 +16,38 @@ interface VisualBlockEditorProps {
 export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) => {
   const { toast } = useToast();
   const [editableHtml, setEditableHtml] = useState(html);
+  const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImageElement, setSelectedImageElement] = useState<HTMLImageElement | null>(null);
 
-  // Extract text content from HTML for visual editing
-  const extractTexts = (htmlString: string): string[] => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-    const textNodes: string[] = [];
-    
-    const walker = doc.createTreeWalker(
-      doc.body,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      const text = node.textContent?.trim();
-      if (text) {
-        textNodes.push(text);
-      }
+  useEffect(() => {
+    setEditableHtml(html);
+  }, [html]);
+
+  const handleContentChange = () => {
+    if (previewRef.current) {
+      const newHtml = previewRef.current.innerHTML;
+      setEditableHtml(newHtml);
+      onUpdate(newHtml);
     }
-    
-    return textNodes;
   };
 
-  // Extract image sources from HTML
-  const extractImages = (htmlString: string): string[] => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-    const images = doc.querySelectorAll('img');
-    return Array.from(images).map(img => img.src);
+  const handleImageClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'IMG') {
+      setSelectedImageElement(target as HTMLImageElement);
+      fileInputRef.current?.click();
+    }
   };
 
-  const texts = extractTexts(editableHtml);
-  const images = extractImages(editableHtml);
-
-  const handleTextChange = (index: number, newValue: string) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(editableHtml, 'text/html');
-    const textNodes: Node[] = [];
-    
-    const walker = doc.createTreeWalker(
-      doc.body,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      if (node.textContent?.trim()) {
-        textNodes.push(node);
-      }
-    }
-    
-    if (textNodes[index]) {
-      textNodes[index].textContent = newValue;
-    }
-    
-    const newHtml = doc.body.innerHTML;
-    setEditableHtml(newHtml);
-    onUpdate(newHtml);
-  };
-
-  const handleImageUpload = async (index: number, file: File) => {
-    try {
-      // Convert to base64 for demo purposes
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && selectedImageElement) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result as string;
-        
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(editableHtml, 'text/html');
-        const imgElements = doc.querySelectorAll('img');
-        
-        if (imgElements[index]) {
-          imgElements[index].src = base64;
-        }
-        
-        const newHtml = doc.body.innerHTML;
-        setEditableHtml(newHtml);
-        onUpdate(newHtml);
+        selectedImageElement.src = base64;
+        handleContentChange();
         
         toast({
           title: 'Imagem atualizada',
@@ -108,87 +55,46 @@ export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) =>
         });
       };
       reader.readAsDataURL(file);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar imagem',
-        description: 'Não foi possível processar a imagem',
-      });
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   return (
     <div className="space-y-4">
-      <div className="space-y-4">
+      <div className="space-y-2">
         <h3 className="font-semibold text-sm">Edição Visual</h3>
-        
-        {texts.length > 0 && (
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Textos</Label>
-            {texts.map((text, index) => (
-              <div key={index} className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Texto {index + 1}</Label>
-                {text.length > 50 ? (
-                  <Textarea
-                    value={text}
-                    onChange={(e) => handleTextChange(index, e.target.value)}
-                    className="min-h-[80px]"
-                  />
-                ) : (
-                  <Input
-                    value={text}
-                    onChange={(e) => handleTextChange(index, e.target.value)}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {images.length > 0 && (
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Imagens</Label>
-            {images.map((src, index) => (
-              <div key={index} className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Imagem {index + 1}</Label>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={src}
-                    alt={`Preview ${index + 1}`}
-                    className="h-20 w-20 object-cover rounded border cursor-pointer hover:opacity-80"
-                    onClick={() => fileInputRef.current?.click()}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Alterar Imagem
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handleImageUpload(index, file);
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div 
+          ref={previewRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleContentChange}
+          onClick={handleImageClick}
+          dangerouslySetInnerHTML={{ __html: editableHtml }}
+          className="border rounded-lg p-4 bg-white min-h-[300px] focus:outline-none focus:ring-2 focus:ring-primary"
+          style={{ 
+            cursor: 'text',
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          Clique nos textos para editar e nas imagens para fazer upload
+        </p>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageUpload}
+      />
+
       <Accordion type="single" collapsible>
-        <AccordionItem value="code">
-          <AccordionTrigger className="text-sm">Mostrar código</AccordionTrigger>
+        <AccordionItem value="code" className="border-none">
+          <AccordionTrigger className="text-sm">Código HTML</AccordionTrigger>
           <AccordionContent>
             <Textarea
               value={editableHtml}
