@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/accordion';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VisualBlockEditorProps {
   html: string;
@@ -43,21 +44,45 @@ export const VisualBlockEditor = ({ html, onUpdate }: VisualBlockEditorProps) =>
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && selectedImageElement) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        selectedImageElement.src = base64;
+      try {
+        // Generate unique filename
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('email-images')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) throw error;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('email-images')
+          .getPublicUrl(data.path);
+
+        // Update image src
+        selectedImageElement.src = publicUrl;
         handleContentChange();
         
         toast({
           title: 'Imagem atualizada',
-          description: 'A imagem foi substituída com sucesso',
+          description: 'A imagem foi enviada e substituída com sucesso',
         });
-      };
-      reader.readAsDataURL(file);
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao fazer upload',
+          description: error.message,
+        });
+      }
     }
     
     // Reset file input
