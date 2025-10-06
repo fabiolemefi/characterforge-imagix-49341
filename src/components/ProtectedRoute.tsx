@@ -13,12 +13,42 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { toast } = useToast();
 
   useEffect(() => {
-    checkAuth();
+    let mounted = true;
+
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+
+        if (!session) {
+          setAuthenticated(false);
+          setLoading(false);
+          return;
+        }
+
+        await checkUserStatus(session.user.id, mounted);
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+        if (mounted) {
+          setAuthenticated(false);
+          setLoading(false);
+        }
+      }
+    };
+
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        if (!mounted) return;
+
         if (event === 'SIGNED_IN' && session) {
-          await checkUserStatus(session.user.id);
+          setTimeout(() => {
+            if (mounted) {
+              checkUserStatus(session.user.id, mounted);
+            }
+          }, 0);
         } else if (event === 'SIGNED_OUT') {
           setAuthenticated(false);
           setLoading(false);
@@ -26,16 +56,21 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const checkUserStatus = async (userId: string) => {
+  const checkUserStatus = async (userId: string, mounted: boolean) => {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("is_active")
         .eq("id", userId)
         .maybeSingle();
+
+      if (!mounted) return;
 
       // If there's an error fetching profile, logout and redirect
       if (error) {
@@ -66,28 +101,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           variant: "destructive",
         });
         setAuthenticated(false);
+        setLoading(false);
       } else {
         setAuthenticated(true);
+        setLoading(false);
       }
     } catch (error) {
       console.error("Unexpected error:", error);
-      await supabase.auth.signOut();
-      setAuthenticated(false);
-    } finally {
-      setLoading(false);
+      if (mounted) {
+        await supabase.auth.signOut();
+        setAuthenticated(false);
+        setLoading(false);
+      }
     }
-  };
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      setAuthenticated(false);
-      setLoading(false);
-      return;
-    }
-
-    await checkUserStatus(session.user.id);
   };
 
   if (loading) {
