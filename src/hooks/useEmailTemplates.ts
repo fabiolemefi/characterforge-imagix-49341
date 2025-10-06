@@ -11,6 +11,7 @@ export interface EmailTemplate {
   html_content: string;
   blocks_data?: any[];
   is_published: boolean;
+  is_model: boolean; // true for models/templates
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -23,6 +24,16 @@ export const useEmailTemplates = () => {
   const { toast } = useToast();
 
   const loadTemplates = async () => {
+    // Timeout to prevent indefinite loading
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      toast({
+        variant: 'destructive',
+        title: 'Timeout',
+        description: 'Tempo limite excedido ao carregar templates',
+      });
+    }, 10000); // 10 seconds
+
     try {
       const { data, error } = await supabase
         .from('email_templates')
@@ -30,15 +41,18 @@ export const useEmailTemplates = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      
+      clearTimeout(timeout);
+
       // Transform blocks_data from Json to any[]
       const transformedData = (data || []).map(template => ({
         ...template,
         blocks_data: Array.isArray(template.blocks_data) ? template.blocks_data : [],
+        is_model: (template as any).is_model || false,
       }));
-      
+
       setTemplates(transformedData);
     } catch (error: any) {
+      clearTimeout(timeout);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar templates',
@@ -64,6 +78,7 @@ export const useEmailTemplates = () => {
           html_content: template.html_content,
           blocks_data: template.blocks_data || [],
           is_published: template.is_published || false,
+          is_model: template.is_model || false,
           created_by: user.id,
           updated_by: user.id,
         }])

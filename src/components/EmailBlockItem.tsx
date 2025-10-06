@@ -2,17 +2,16 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Trash2, Edit } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 
 interface EmailBlockItemProps {
   id: string;
   name: string;
   category: string;
   onRemove: () => void;
-  onEdit: () => void;
 }
 
-export const EmailBlockItem = ({ id, name, category, onRemove, onEdit }: EmailBlockItemProps) => {
+export const EmailBlockItem = ({ id, name, category, onRemove }: EmailBlockItemProps) => {
   const {
     attributes,
     listeners,
@@ -44,24 +43,14 @@ export const EmailBlockItem = ({ id, name, category, onRemove, onEdit }: EmailBl
           <p className="text-xs text-muted-foreground">{category}</p>
         </div>
 
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onEdit}
-            className="h-8 w-8 p-0"
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRemove}
+          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </Card>
   );

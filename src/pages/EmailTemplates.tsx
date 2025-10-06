@@ -33,6 +33,7 @@ import { PromoBar } from '@/components/PromoBar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadEmailHtml } from '@/lib/emailExporter';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -40,7 +41,10 @@ const EmailTemplates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { templates, loading, saveTemplate, deleteTemplate } = useEmailTemplates();
+
+  const models = templates.filter(t => t.is_model);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isUseModelDialogOpen, setIsUseModelDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [newTemplate, setNewTemplate] = useState({
@@ -145,10 +149,15 @@ const EmailTemplates = () => {
                   Gerencie seus templates de email
                 </p>
               </div>
-              <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Novo Email
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setIsUseModelDialogOpen(true)}>
+                  Usar Modelo
+                </Button>
+                <Button onClick={() => setIsCreateModalOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Novo Email
+                </Button>
+              </div>
             </div>
 
             {/* Search bar */}
@@ -165,8 +174,29 @@ const EmailTemplates = () => {
             </div>
 
             {loading ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">Carregando templates...</p>
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Assunto</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Atualizado em</TableHead>
+                      <TableHead className="w-[80px]">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={index}>
+                        <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             ) : filteredTemplates.length === 0 ? (
               <div className="text-center py-12 border rounded-lg bg-muted/30">
@@ -351,6 +381,68 @@ const EmailTemplates = () => {
                 Criar e Editar
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUseModelDialogOpen} onOpenChange={setIsUseModelDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Escolher Modelo</DialogTitle>
+            <DialogDescription>
+              Selecione um modelo para utilizar como base para seu novo email
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {models.length === 0 ? (
+              <p className="text-center text-muted-foreground">Nenhum modelo disponível</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Assunto</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Atualizado em</TableHead>
+                    <TableHead className="w-[80px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {models.map((model) => (
+                    <TableRow key={model.id}>
+                      <TableCell className="font-medium">{model.name}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {model.subject || '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {model.description || '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {format(new Date(model.updated_at), 'dd/MM/yyyy HH:mm')}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            navigate('/email-builder', { state: { modelId: model.id } });
+                            setIsUseModelDialogOpen(false);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Usar Modelo
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setIsUseModelDialogOpen(false)}>
+              Cancelar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

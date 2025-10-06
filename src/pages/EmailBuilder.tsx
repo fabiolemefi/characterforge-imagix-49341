@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -25,10 +25,22 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Save, Download, Eye, Plus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ArrowLeft, Save, Download, Eye, Plus, Loader, Palette } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
 import { EmailBlockItem } from '@/components/EmailBlockItem';
-import { BlockEditor } from '@/components/BlockEditor';
 import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
@@ -45,17 +57,19 @@ interface SelectedBlock extends EmailBlock {
 const EmailBuilder = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const { toast } = useToast();
+  const modelId = location?.state?.modelId;
   const { blocks, loading: blocksLoading } = useEmailBlocks();
-  const { templates, updateTemplate } = useEmailTemplates();
+  const { templates, updateTemplate, saveTemplate } = useEmailTemplates();
   
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [templateName, setTemplateName] = useState('');
   const [templateDescription, setTemplateDescription] = useState('');
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
-  const [editingBlock, setEditingBlock] = useState<SelectedBlock | null>(null);
   const [showAddBlockModal, setShowAddBlockModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const template = templates.find(t => t.id === id);
@@ -73,8 +87,25 @@ const EmailBuilder = () => {
         }));
         setSelectedBlocks(loadedBlocks);
       }
+    } else if (!id && modelId) {
+      const template = templates.find(t => t.id === modelId);
+      if (template) {
+        setTemplateName(`Cópia de ${template.name}`);
+        setTemplateDescription(template.description || '');
+        setSubject(template.subject || '');
+        setPreviewText(template.preview_text || '');
+        
+        // Load blocks data if exists
+        if (template.blocks_data && Array.isArray(template.blocks_data)) {
+          const loadedBlocks = template.blocks_data.map((blockData: any) => ({
+            ...blockData,
+            instanceId: `${blockData.id}-${Date.now()}-${Math.random()}`,
+          }));
+          setSelectedBlocks(loadedBlocks);
+        }
+      }
     }
-  }, [id, templates]);
+  }, [id, modelId, templates]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -99,18 +130,14 @@ const EmailBuilder = () => {
     setSelectedBlocks(selectedBlocks.filter(b => b.instanceId !== instanceId));
   };
 
-  const handleEditBlock = (block: SelectedBlock) => {
-    setEditingBlock(block);
-  };
 
-  const handleSaveBlockEdit = (newHtml: string) => {
-    if (editingBlock) {
-      setSelectedBlocks(selectedBlocks.map(b =>
-        b.instanceId === editingBlock.instanceId
-          ? { ...b, customHtml: newHtml }
-          : b
-      ));
-    }
+
+  const handleUpdateBlock = (instanceId: string, html: string) => {
+    setSelectedBlocks(selectedBlocks.map(b =>
+      b.instanceId === instanceId
+        ? { ...b, customHtml: html }
+        : b
+    ));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -134,6 +161,7 @@ const EmailBuilder = () => {
   const handleSave = async () => {
     if (!id) return;
 
+    setSaving(true);
     const htmlContent = generateHtmlContent();
 
     await updateTemplate(id, {
@@ -144,6 +172,34 @@ const EmailBuilder = () => {
       html_content: htmlContent,
       blocks_data: selectedBlocks,
     });
+
+    setSaving(false);
+  };
+
+  const handleSaveAsModel = async () => {
+    setSaving(true);
+    const htmlContent = generateHtmlContent();
+    const modelName = `Modelo - ${templateName || 'Sem nome'}`;
+
+    const result = await saveTemplate({
+      name: modelName,
+      description: templateDescription,
+      subject,
+      preview_text: previewText,
+      html_content: htmlContent,
+      blocks_data: selectedBlocks,
+      is_model: true,
+    });
+
+    if (result) {
+      toast({
+        title: 'Modelo salvo!',
+        description: 'Seu modelo foi criado com sucesso.',
+      });
+      navigate('/email-templates');
+    }
+
+    setSaving(false);
   };
 
   const handleDownload = () => {
@@ -216,32 +272,47 @@ const EmailBuilder = () => {
                     <Download className="h-4 w-4 mr-2" />
                     Baixar HTML
                   </Button>
-                  <Button onClick={handleSave}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button disabled={saving}>
+                        {saving ? (
+                          <Loader className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-2" />
+                        )}
+                        {saving ? 'Salvando...' : 'Salvar'}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleSave}>
+                        Salvar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleSaveAsModel}>
+                        <Palette className="h-4 w-4 mr-2" />
+                        Salvar como Modelo
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </div>
 
             <ResizablePanelGroup direction="horizontal" className="flex-1">
               <ResizablePanel defaultSize={60} minSize={40}>
-                <EmailPreview 
+                <EmailPreview
                   blocks={selectedBlocks.map(block => ({
                     instanceId: block.instanceId,
                     html: block.customHtml || block.html_template
                   }))}
-                  onEditBlock={(instanceId) => {
-                    const block = selectedBlocks.find(b => b.instanceId === instanceId);
-                    if (block) handleEditBlock(block);
-                  }}
                   onReorderBlocks={(newBlocks) => {
-                    const reorderedBlocks = newBlocks.map(nb => 
+                    const reorderedBlocks = newBlocks.map(nb =>
                       selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
                     );
                     setSelectedBlocks(reorderedBlocks);
                   }}
-                  className="h-full" 
+                  onUpdateBlock={handleUpdateBlock}
+                  onDeleteBlock={handleRemoveBlock}
+                  className="h-full"
                 />
               </ResizablePanel>
 
@@ -285,7 +356,6 @@ const EmailBuilder = () => {
                                 name={block.name}
                                 category={block.category}
                                 onRemove={() => handleRemoveBlock(block.instanceId)}
-                                onEdit={() => handleEditBlock(block)}
                               />
                             ))}
                           </SortableContext>
@@ -306,16 +376,6 @@ const EmailBuilder = () => {
         blocks={blocks}
         onAddBlock={handleAddBlock}
       />
-
-      {editingBlock && (
-        <BlockEditor
-          open={true}
-          onClose={() => setEditingBlock(null)}
-          blockHtml={editingBlock.customHtml || editingBlock.html_template}
-          blockName={editingBlock.name}
-          onSave={handleSaveBlockEdit}
-        />
-      )}
     </div>
   );
 };
