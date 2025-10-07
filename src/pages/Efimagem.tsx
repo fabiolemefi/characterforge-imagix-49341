@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CharacterImage {
   id: string;
@@ -346,12 +347,23 @@ export default function Efimagem() {
                   </div>
                 </Card>
 
-                {generatedImages.length > 0 && (
+                {(generatedImages.length > 0 || loading) && (
                   <div>
                     <h2 className="text-2xl font-semibold text-white mb-4">
                       Imagens Geradas
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {loading && (
+                        <Card className="overflow-hidden animate-pulse opacity-80">
+                          <div className="aspect-square bg-muted flex items-center justify-center">
+                            <Skeleton className="w-full h-full" />
+                          </div>
+                          <div className="p-4">
+                            <Skeleton className="h-4 w-16 mb-2" />
+                            <Skeleton className="h-3 w-full" />
+                          </div>
+                        </Card>
+                      )}
                       {generatedImages.map((img) => (
                         <Card key={img.id} className="overflow-hidden">
                           <div className="relative group">
