@@ -9,17 +9,20 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { ImageViewerModal } from "@/components/ImageViewerModal";
 
 interface CharacterImage {
   id: string;
   image_url: string;
   position: number;
+  is_cover: boolean;
 }
 
 interface Character {
   id: string;
   name: string;
   images: CharacterImage[];
+  coverImage?: string;
 }
 
 interface GeneratedImage {
@@ -35,6 +38,7 @@ export default function Efimagem() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,7 +69,7 @@ export default function Efimagem() {
         const characterIds = charactersData.map((c) => c.id);
         const { data: imagesData, error: imgsError } = await supabase
           .from("character_images")
-          .select("id, character_id, image_url, position")
+          .select("id, character_id, image_url, position, is_cover")
           .in("character_id", characterIds)
           .order("position", { ascending: true });
 
@@ -74,6 +78,8 @@ export default function Efimagem() {
         const charactersWithImages = charactersData.map((char) => ({
           ...char,
           images: imagesData?.filter((img) => img.character_id === char.id) || [],
+          coverImage: imagesData?.find((img) => img.character_id === char.id && img.is_cover)?.image_url ||
+                      imagesData?.find((img) => img.character_id === char.id)?.image_url
         }));
 
         setCharacters(charactersWithImages);
@@ -180,7 +186,7 @@ export default function Efimagem() {
                       Nenhum personagem cadastrado ainda. Entre em contato com o administrador.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     {characters.map((character) => (
                       <label
                         key={character.id}
@@ -199,22 +205,17 @@ export default function Efimagem() {
                           className="sr-only"
                         />
                         <div className="text-center">
-                          <div className="text-lg font-medium text-white mb-2">
+                          {character.coverImage && (
+                            <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
+                              <img
+                                src={character.coverImage}
+                                alt={character.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <div className="text-lg font-medium text-white">
                             {character.name}
-                          </div>
-                          <div className="flex gap-2 justify-center">
-                            {character.images.map((img) => (
-                              <div
-                                key={img.id}
-                                className="w-16 h-16 rounded overflow-hidden bg-muted"
-                              >
-                                <img
-                                  src={img.image_url}
-                                  alt={`${character.name} ${img.position + 1}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ))}
                           </div>
                         </div>
                       </label>
@@ -261,7 +262,10 @@ export default function Efimagem() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {generatedImages.map((img, idx) => (
                         <Card key={idx} className="overflow-hidden">
-                          <div className="aspect-square bg-muted">
+                          <div 
+                            className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setSelectedImage(img.url)}
+                          >
                             <img
                               src={img.url}
                               alt={`Gerado - ${img.character}`}
@@ -279,6 +283,12 @@ export default function Efimagem() {
                     </div>
                   </div>
                 )}
+
+                <ImageViewerModal
+                  open={!!selectedImage}
+                  onOpenChange={(open) => !open && setSelectedImage(null)}
+                  imageUrl={selectedImage || ""}
+                />
               </div>
             </main>
           </div>

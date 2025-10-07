@@ -56,6 +56,7 @@ export type Database = {
           created_at: string
           id: string
           image_url: string
+          is_cover: boolean
           position: number
         }
         Insert: {
@@ -63,6 +64,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url: string
+          is_cover?: boolean
           position?: number
         }
         Update: {
@@ -70,6 +72,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string
+          is_cover?: boolean
           position?: number
         }
         Relationships: [

@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card";
 interface Character {
   id: string;
   name: string;
-  images: { id: string; image_url: string; position: number }[];
+  images: { id: string; image_url: string; position: number; is_cover: boolean }[];
 }
 
 interface CharactersModalProps {
@@ -53,7 +53,7 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
         const characterIds = charactersData.map((c) => c.id);
         const { data: imagesData, error: imgsError } = await supabase
           .from("character_images")
-          .select("id, character_id, image_url, position")
+          .select("id, character_id, image_url, position, is_cover")
           .in("character_id", characterIds)
           .order("position", { ascending: true });
 
@@ -211,6 +211,42 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
     }
   };
 
+  const handleToggleCover = async (characterId: string, imageId: string) => {
+    try {
+      const character = characters.find(c => c.id === characterId);
+      if (!character) return;
+
+      // Remove is_cover from all images of this character
+      for (const img of character.images) {
+        await supabase
+          .from("character_images")
+          .update({ is_cover: false })
+          .eq("id", img.id);
+      }
+
+      // Set the selected image as cover
+      const { error } = await supabase
+        .from("character_images")
+        .update({ is_cover: true })
+        .eq("id", imageId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Imagem de capa atualizada",
+        description: "A imagem de capa foi definida com sucesso",
+      });
+      
+      loadCharacters();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar imagem de capa",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 10) {
@@ -321,12 +357,21 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
                         </h4>
                         <div className="flex gap-2 flex-wrap">
                           {character.images.map((img) => (
-                            <img
-                              key={img.id}
-                              src={img.image_url}
-                              alt={character.name}
-                              className="w-20 h-20 object-cover rounded"
-                            />
+                            <div key={img.id} className="relative group">
+                              <img
+                                src={img.image_url}
+                                alt={character.name}
+                                className="w-20 h-20 object-cover rounded"
+                              />
+                              <Button
+                                size="sm"
+                                variant={img.is_cover ? "default" : "secondary"}
+                                className="absolute bottom-1 left-1 right-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleToggleCover(character.id, img.id)}
+                              >
+                                {img.is_cover ? "Capa" : "Definir"}
+                              </Button>
+                            </div>
                           ))}
                         </div>
                       </div>
