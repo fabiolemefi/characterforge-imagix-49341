@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Character {
   id: string;
@@ -31,13 +32,31 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
   const [newCharacterName, setNewCharacterName] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [generalPrompt, setGeneralPrompt] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       loadCharacters();
+      loadGeneralPrompt();
     }
   }, [open, pluginId]);
+
+  const loadGeneralPrompt = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("plugins")
+        .select("general_prompt")
+        .eq("id", pluginId)
+        .single();
+
+      if (!error && data) {
+        setGeneralPrompt(data.general_prompt || "");
+      }
+    } catch (error) {
+      console.error("Erro ao carregar prompt geral:", error);
+    }
+  };
 
   const loadCharacters = async () => {
     setLoading(true);
@@ -264,6 +283,29 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleSaveGeneralPrompt = async () => {
+    try {
+      const { error } = await supabase
+        .from("plugins")
+        .update({ general_prompt: generalPrompt })
+        .eq("id", pluginId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Configuração salva",
+        description: "O prompt geral foi atualizado com sucesso.",
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar prompt geral:", error);
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -272,6 +314,29 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* General settings */}
+          <Card className="p-4">
+            <h3 className="text-lg font-semibold mb-4">Configurações Gerais</h3>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="general-prompt">Prompt Geral (prefixo para geração sem referência)</Label>
+                <Textarea
+                  id="general-prompt"
+                  value={generalPrompt}
+                  onChange={(e) => setGeneralPrompt(e.target.value)}
+                  placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
+                  rows={2}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Este texto será adicionado antes do prompt quando não houver imagens de referência.
+                </p>
+              </div>
+              <Button onClick={handleSaveGeneralPrompt} variant="outline">
+                Salvar Configurações
+              </Button>
+            </div>
+          </Card>
+
           {/* Add new character form */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4">Adicionar Novo Personagem</h3>

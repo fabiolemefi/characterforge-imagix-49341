@@ -64,28 +64,7 @@ export default function Efimagem() {
     }
   };
 
-  const saveGeneralPrompt = async () => {
-    try {
-      const { error } = await supabase
-        .from("plugins")
-        .update({ general_prompt: generalPrompt })
-        .eq("name", "Efimagem");
 
-      if (error) throw error;
-
-      toast({
-        title: "Configuração salva",
-        description: "O prompt geral foi atualizado com sucesso.",
-      });
-    } catch (error: any) {
-      console.error("Erro ao salvar prompt geral:", error);
-      toast({
-        title: "Erro ao salvar",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
 
   const loadGeneratedImages = async () => {
     try {
@@ -285,30 +264,7 @@ export default function Efimagem() {
               <div className="max-w-6xl mx-auto">
                 <h1 className="text-4xl font-bold text-white mb-8">Efimagem</h1>
 
-                <Card className="p-6 mb-8">
-                  <h2 className="text-xl font-semibold text-white mb-4">
-                    Configurações
-                  </h2>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        Prompt Geral (prefixo para geração sem referência)
-                      </label>
-                      <Textarea
-                        value={generalPrompt}
-                        onChange={(e) => setGeneralPrompt(e.target.value)}
-                        placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
-                        rows={2}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Este texto será adicionado antes do prompt quando não houver imagens de referência.
-                      </p>
-                    </div>
-                    <Button onClick={saveGeneralPrompt} variant="outline">
-                      Salvar Configurações
-                    </Button>
-                  </div>
-                </Card>
+
 
                 <Card className="p-6 mb-8">
                   <h2 className="text-xl font-semibold text-white mb-4">
