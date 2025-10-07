@@ -54,6 +54,12 @@ export default function PluginDetails() {
       return;
     }
 
+    // Redirecionar para página específica do Efimagem
+    if (data.name === "Efimagem") {
+      navigate("/efimagem");
+      return;
+    }
+
     // Redirecionar para página específica do Email Builder
     if (data.name === "Email Builder") {
       navigate("/email-templates");
