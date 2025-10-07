@@ -48,13 +48,15 @@ serve(async (req) => {
     console.log("Prompt:", prompt)
 
     const output = await replicate.run(
-      "fofr/any-comfyui-workflow:3b4936a7c4c09c85809dcf24c9707d3cfa778b1d2d2e359fb6b5e8c7dbd9f6f6",
+      "fofr/consistent-character",
       {
         input: {
           prompt: prompt,
-          image_1: imageUrls[0],
-          image_2: imageUrls[1] || imageUrls[0],
-          image_3: imageUrls[2] || imageUrls[0],
+          subject: imageUrls[0],
+          number_of_outputs: 1,
+          output_format: "webp",
+          output_quality: 80,
+          negative_prompt: "low quality, worst quality, blurry, distorted",
         }
       }
     )
