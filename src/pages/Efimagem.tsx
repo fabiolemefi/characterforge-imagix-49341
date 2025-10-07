@@ -68,10 +68,14 @@ export default function Efimagem() {
             clearInterval(interval);
             return 100;
           }
-          const increment = Math.random() * 12 + 1; // 1 to 13
-          return Math.min(prev + increment, 100);
+          if (imageReady) {
+            return Math.min(prev + 5, 100); // Fast increment to 100 when ready
+          } else {
+            const increment = Math.random() * 1 + 0.5; // 0.5 to 1.5
+            return Math.min(prev + increment, 90); // Cap at 90 until ready
+          }
         });
-      }, Math.random() * 500 + 200);
+      }, Math.random() * 200 + 100);
 
       return () => {
         clearInterval(interval);
