@@ -22,7 +22,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
-    const { imageUrls, prompt } = await req.json();
+    const { imageUrls, prompt, generalPrompt = "" } = await req.json();
 
     if (!imageUrls?.length)
       return new Response(JSON.stringify({ error: "imageUrls array is required" }), {
@@ -40,13 +40,17 @@ serve(async (req) => {
     const limitedImageUrls = imageUrls.slice(0, 3);
     console.log(`Using ${limitedImageUrls.length} images from ${imageUrls.length} total`);
 
+    // Aplicar prompt geral se não houver imagens
+    const enhancedPrompt = imageUrls.length === 0 ? `${generalPrompt} ${prompt}` : prompt;
+    console.log("Enhanced prompt:", enhancedPrompt);
+
     // Etapa 1: Gerar imagem com nano-banana
     console.log("Step 1: Generating image with nano-banana");
     const generatedOutput = await replicate.run(
       "google/nano-banana",
       {
         input: {
-          prompt,
+          prompt: enhancedPrompt,
           image_input: limitedImageUrls,
           aspect_ratio: "1:1",
           output_format: "png",

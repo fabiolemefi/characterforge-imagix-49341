@@ -285,6 +285,7 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string | null
+          general_prompt: string | null
           id: string
           image_url: string | null
           in_development: boolean
@@ -296,6 +297,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           description?: string | null
+          general_prompt?: string | null
           id?: string
           image_url?: string | null
           in_development?: boolean
@@ -307,6 +309,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string | null
+          general_prompt?: string | null
           id?: string
           image_url?: string | null
           in_development?: boolean
