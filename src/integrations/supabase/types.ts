@@ -50,6 +50,38 @@ export type Database = {
         }
         Relationships: []
       }
+      character_images: {
+        Row: {
+          character_id: string
+          created_at: string
+          id: string
+          image_url: string
+          position: number
+        }
+        Insert: {
+          character_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          position?: number
+        }
+        Update: {
+          character_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "character_images_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "plugin_characters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_blocks: {
         Row: {
           category: string
@@ -178,6 +210,38 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      plugin_characters: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          plugin_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          plugin_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          plugin_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plugin_characters_plugin_id_fkey"
+            columns: ["plugin_id"]
+            isOneToOne: false
+            referencedRelation: "plugins"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plugins: {
         Row: {

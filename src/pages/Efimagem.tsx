@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PromoBar } from "@/components/PromoBar";
 import { Sidebar } from "@/components/Sidebar";
 import Header from "@/components/Header";
@@ -10,41 +10,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
+interface CharacterImage {
+  id: string;
+  image_url: string;
+  position: number;
+}
+
 interface Character {
   id: string;
   name: string;
-  images: string[];
+  images: CharacterImage[];
 }
-
-const characters: Character[] = [
-  {
-    id: "fuba",
-    name: "Fubá",
-    images: [
-      "https://sejaefi.com.br/1.jpg",
-      "https://sejaefi.com.br/2.jpg",
-      "https://sejaefi.com.br/3.jpg"
-    ]
-  },
-  {
-    id: "rubens",
-    name: "Rubens",
-    images: [
-      "https://sejaefi.com.br/4.jpg",
-      "https://sejaefi.com.br/5.jpg",
-      "https://sejaefi.com.br/6.jpg"
-    ]
-  },
-  {
-    id: "rubi",
-    name: "Rubí",
-    images: [
-      "https://sejaefi.com.br/7.jpg",
-      "https://sejaefi.com.br/8.jpg",
-      "https://sejaefi.com.br/9.jpg"
-    ]
-  }
-];
 
 interface GeneratedImage {
   url: string;
@@ -53,11 +29,66 @@ interface GeneratedImage {
 }
 
 export default function Efimagem() {
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [loadingCharacters, setLoadingCharacters] = useState(true);
   const [selectedCharacter, setSelectedCharacter] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadCharacters();
+  }, []);
+
+  const loadCharacters = async () => {
+    setLoadingCharacters(true);
+    try {
+      // Get Efimagem plugin ID
+      const { data: pluginData, error: pluginError } = await supabase
+        .from("plugins")
+        .select("id")
+        .eq("name", "Efimagem")
+        .single();
+
+      if (pluginError) throw pluginError;
+
+      // Get characters for this plugin
+      const { data: charactersData, error: charsError } = await supabase
+        .from("plugin_characters")
+        .select("id, name")
+        .eq("plugin_id", pluginData.id);
+
+      if (charsError) throw charsError;
+
+      if (charactersData && charactersData.length > 0) {
+        const characterIds = charactersData.map((c) => c.id);
+        const { data: imagesData, error: imgsError } = await supabase
+          .from("character_images")
+          .select("id, character_id, image_url, position")
+          .in("character_id", characterIds)
+          .order("position", { ascending: true });
+
+        if (imgsError) throw imgsError;
+
+        const charactersWithImages = charactersData.map((char) => ({
+          ...char,
+          images: imagesData?.filter((img) => img.character_id === char.id) || [],
+        }));
+
+        setCharacters(charactersWithImages);
+      }
+    } catch (error: any) {
+      console.error("Erro ao carregar personagens:", error);
+      toast({
+        title: "Erro ao carregar personagens",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCharacters(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!selectedCharacter) {
@@ -86,9 +117,11 @@ export default function Efimagem() {
 
       const fullPrompt = `Esse é o personagem que quero criar outra pose, quero o personagem na seguinte pose: ${prompt}`;
 
+      const imageUrls = character.images.map(img => img.image_url);
+
       const { data, error } = await supabase.functions.invoke('generate-character-image', {
         body: {
-          imageUrls: character.images,
+          imageUrls: imageUrls,
           prompt: fullPrompt
         }
       });
@@ -139,8 +172,15 @@ export default function Efimagem() {
                   <h2 className="text-xl font-semibold text-white mb-4">
                     Selecione um personagem
                   </h2>
-                  
-                  <div className="grid grid-cols-3 gap-4 mb-6">
+
+                  {loadingCharacters ? (
+                    <p className="text-center text-muted-foreground mb-6">Carregando personagens...</p>
+                  ) : characters.length === 0 ? (
+                    <p className="text-center text-muted-foreground mb-6">
+                      Nenhum personagem cadastrado ainda. Entre em contato com o administrador.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-4 mb-6">
                     {characters.map((character) => (
                       <label
                         key={character.id}
@@ -163,14 +203,14 @@ export default function Efimagem() {
                             {character.name}
                           </div>
                           <div className="flex gap-2 justify-center">
-                            {character.images.map((img, idx) => (
+                            {character.images.map((img) => (
                               <div
-                                key={idx}
+                                key={img.id}
                                 className="w-16 h-16 rounded overflow-hidden bg-muted"
                               >
                                 <img
-                                  src={img}
-                                  alt={`${character.name} ${idx + 1}`}
+                                  src={img.image_url}
+                                  alt={`${character.name} ${img.position + 1}`}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
@@ -178,8 +218,9 @@ export default function Efimagem() {
                           </div>
                         </div>
                       </label>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div>

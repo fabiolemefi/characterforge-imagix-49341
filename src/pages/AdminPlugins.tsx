@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Settings } from "lucide-react";
+import { CharactersModal } from "@/components/CharactersModal";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,8 @@ export default function AdminPlugins() {
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [charactersModalOpen, setCharactersModalOpen] = useState(false);
+  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -445,6 +448,19 @@ export default function AdminPlugins() {
                                 <Settings className="h-4 w-4" />
                               </Button>
                             )}
+                            {plugin.name === 'Efimagem' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedPluginId(plugin.id);
+                                  setCharactersModalOpen(true);
+                                }}
+                                title="Gerenciar personagens"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -470,6 +486,14 @@ export default function AdminPlugins() {
           </main>
         </div>
       </div>
+
+      {selectedPluginId && (
+        <CharactersModal
+          open={charactersModalOpen}
+          onOpenChange={setCharactersModalOpen}
+          pluginId={selectedPluginId}
+        />
+      )}
     </SidebarProvider>
   );
 }
