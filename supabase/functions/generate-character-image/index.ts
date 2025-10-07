@@ -29,7 +29,7 @@ serve(async (req) => {
       });
 
     const output = await replicate.run(
-      "google/nano-banana:eaaaedb09d28a1ffad993ae85d9d94e2c87b63a0eae580eec64b8a2f01d9e3e4", // versão atual
+      "google/nano-banana", // versão atual
       {
         input: {
           prompt,
