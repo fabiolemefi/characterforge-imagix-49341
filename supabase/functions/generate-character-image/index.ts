@@ -52,15 +52,16 @@ serve(async (req) => {
       {
         input: {
           prompt: prompt,
-          image: imageUrls[0],
-          num_outputs: 1,
+          image_input: imageUrls,
           output_format: "webp",
-          output_quality: 80,
         }
       }
     )
 
     console.log("Generation response:", output)
+    
+    // nano-banana returns an object with url() method
+    const imageUrl = typeof output === 'string' ? output : (output as any).url()
     
     return new Response(JSON.stringify({ output }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
