@@ -22,6 +22,7 @@ interface CharacterImage {
 interface Character {
   id: string;
   name: string;
+  general_prompt: string;
   images: CharacterImage[];
   coverImage?: string;
 }
@@ -152,7 +153,7 @@ export default function Efimagem() {
       // Get characters for this plugin
       const { data: charactersData, error: charsError } = await supabase
         .from("plugin_characters")
-        .select("id, name")
+        .select("id, name, general_prompt")
         .eq("plugin_id", pluginData.id);
 
       if (charsError) throw charsError;
@@ -214,7 +215,7 @@ export default function Efimagem() {
       const character = characters.find((c) => c.id === selectedCharacter);
       if (!character) return;
 
-      const fullPrompt = `${generalPrompt ? generalPrompt + " " : ""} ${prompt}`;
+      const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${prompt}`;
 
       const imageUrls = character.images.map((img) => img.image_url);
 
@@ -222,7 +223,7 @@ export default function Efimagem() {
         body: {
           imageUrls: imageUrls,
           prompt: fullPrompt,
-          generalPrompt: generalPrompt,
+          generalPrompt: character.general_prompt,
         },
       });
 

@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface Character {
   id: string;
   name: string;
+  general_prompt: string;
   images: { id: string; image_url: string; position: number; is_cover: boolean }[];
 }
 
@@ -30,40 +31,25 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(false);
   const [newCharacterName, setNewCharacterName] = useState("");
+  const [newCharacterPrompt, setNewCharacterPrompt] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [generalPrompt, setGeneralPrompt] = useState("");
+  const [editingCharacterPrompt, setEditingCharacterPrompt] = useState<string | null>(null);
+  const [characterPromptValue, setCharacterPromptValue] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       loadCharacters();
-      loadGeneralPrompt();
     }
   }, [open, pluginId]);
-
-  const loadGeneralPrompt = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("plugins")
-        .select("general_prompt")
-        .eq("id", pluginId)
-        .single();
-
-      if (!error && data) {
-        setGeneralPrompt(data.general_prompt || "");
-      }
-    } catch (error) {
-      console.error("Erro ao carregar prompt geral:", error);
-    }
-  };
 
   const loadCharacters = async () => {
     setLoading(true);
     try {
       const { data: charactersData, error: charsError } = await supabase
         .from("plugin_characters")
-        .select("id, name")
+        .select("id, name, general_prompt")
         .eq("plugin_id", pluginId);
 
       if (charsError) throw charsError;
@@ -255,11 +241,37 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
         title: "Imagem de capa atualizada",
         description: "A imagem de capa foi definida com sucesso",
       });
-      
+
       loadCharacters();
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar imagem de capa",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta imagem?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("character_images")
+        .delete()
+        .eq("id", imageId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Imagem excluída",
+        description: "A imagem foi excluída com sucesso",
+      });
+
+      loadCharacters();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir imagem",
         description: error.message,
         variant: "destructive",
       });
@@ -283,27 +295,43 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveGeneralPrompt = async () => {
+  const handleEditCharacterPrompt = (characterId: string, currentPrompt: string) => {
+    setEditingCharacterPrompt(characterId);
+    setCharacterPromptValue(currentPrompt);
+  };
+
+  const handleSaveCharacterPrompt = async () => {
+    if (!editingCharacterPrompt) return;
+
     try {
       const { error } = await supabase
-        .from("plugins")
-        .update({ general_prompt: generalPrompt })
-        .eq("id", pluginId);
+        .from("plugin_characters")
+        .update({ general_prompt: characterPromptValue })
+        .eq("id", editingCharacterPrompt);
 
       if (error) throw error;
 
       toast({
-        title: "Configuração salva",
-        description: "O prompt geral foi atualizado com sucesso.",
+        title: "Prompt atualizado",
+        description: "O prompt geral do personagem foi atualizado com sucesso.",
       });
+
+      setEditingCharacterPrompt(null);
+      setCharacterPromptValue("");
+      loadCharacters();
     } catch (error: any) {
-      console.error("Erro ao salvar prompt geral:", error);
+      console.error("Erro ao salvar prompt:", error);
       toast({
-        title: "Erro ao salvar",
+        title: "Erro ao salvar prompt",
         description: error.message,
         variant: "destructive",
       });
     }
+  };
+
+  const handleCancelEditPrompt = () => {
+    setEditingCharacterPrompt(null);
+    setCharacterPromptValue("");
   };
 
   return (
@@ -313,29 +341,7 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
           <DialogTitle>Gerenciar Personagens</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* General settings */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Configurações Gerais</h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="general-prompt">Prompt Geral (prefixo para geração sem referência)</Label>
-                <Textarea
-                  id="general-prompt"
-                  value={generalPrompt}
-                  onChange={(e) => setGeneralPrompt(e.target.value)}
-                  placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
-                  rows={2}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Este texto será adicionado antes do prompt quando não houver imagens de referência.
-                </p>
-              </div>
-              <Button onClick={handleSaveGeneralPrompt} variant="outline">
-                Salvar Configurações
-              </Button>
-            </div>
-          </Card>
+        <div className="space-y-6 mb-6">{/* Empty gap at top */}
 
           {/* Add new character form */}
           <Card className="p-4">
@@ -420,6 +426,44 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
                         <h4 className="font-medium text-lg mb-2">
                           {character.name}
                         </h4>
+
+                        {/* Character prompt section */}
+                        <div className="mb-3 p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="text-sm font-medium">Prompt Geral</Label>
+                            {editingCharacterPrompt === character.id ? (
+                              <div className="flex gap-1">
+                                <Button size="sm" onClick={handleSaveCharacterPrompt} variant="default">
+                                  Salvar
+                                </Button>
+                                <Button size="sm" onClick={handleCancelEditPrompt} variant="outline">
+                                  Cancelar
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditCharacterPrompt(character.id, character.general_prompt)}
+                              >
+                                Editar
+                              </Button>
+                            )}
+                          </div>
+                          {editingCharacterPrompt === character.id ? (
+                            <Textarea
+                              value={characterPromptValue}
+                              onChange={(e) => setCharacterPromptValue(e.target.value)}
+                              placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
+                              rows={2}
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {character.general_prompt || "Nenhum prompt definido"}
+                            </p>
+                          )}
+                        </div>
+
                         <div className="flex gap-2 flex-wrap">
                           {character.images.map((img) => (
                             <div key={img.id} className="relative group">
@@ -435,6 +479,14 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
                                 onClick={() => handleToggleCover(character.id, img.id)}
                               >
                                 {img.is_cover ? "Capa" : "Definir"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="absolute -top-1 -right-1 p-0.5 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteImage(img.id)}
+                              >
+                                <X className="h-3 w-3" />
                               </Button>
                             </div>
                           ))}
