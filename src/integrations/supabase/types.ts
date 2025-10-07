@@ -214,6 +214,41 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_images: {
+        Row: {
+          character_id: string | null
+          character_name: string
+          created_at: string
+          id: string
+          image_url: string
+          prompt: string
+        }
+        Insert: {
+          character_id?: string | null
+          character_name: string
+          created_at?: string
+          id?: string
+          image_url: string
+          prompt: string
+        }
+        Update: {
+          character_id?: string | null
+          character_name?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          prompt?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_images_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "plugin_characters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plugin_characters: {
         Row: {
           created_at: string

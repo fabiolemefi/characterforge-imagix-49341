@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 
 interface CharacterImage {
@@ -26,6 +26,7 @@ interface Character {
 }
 
 interface GeneratedImage {
+  id: string;
   url: string;
   character: string;
   prompt: string;
@@ -43,7 +44,32 @@ export default function Efimagem() {
 
   useEffect(() => {
     loadCharacters();
+    loadGeneratedImages();
   }, []);
+
+  const loadGeneratedImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("generated_images")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setGeneratedImages(
+          data.map((img) => ({
+            id: img.id,
+            url: img.image_url,
+            character: img.character_name,
+            prompt: img.prompt,
+          }))
+        );
+      }
+    } catch (error: any) {
+      console.error("Erro ao carregar imagens geradas:", error);
+    }
+  };
 
   const loadCharacters = async () => {
     setLoadingCharacters(true);
@@ -137,11 +163,28 @@ export default function Efimagem() {
       if (data?.output) {
         const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
         
-        setGeneratedImages(prev => [{
-          url: imageUrl,
-          character: character.name,
-          prompt: prompt
-        }, ...prev]);
+        // Save to database
+        const { data: savedImage, error: saveError } = await supabase
+          .from("generated_images")
+          .insert({
+            character_id: character.id,
+            character_name: character.name,
+            prompt: prompt,
+            image_url: imageUrl,
+          })
+          .select()
+          .single();
+
+        if (saveError) throw saveError;
+
+        if (savedImage) {
+          setGeneratedImages(prev => [{
+            id: savedImage.id,
+            url: savedImage.image_url,
+            character: savedImage.character_name,
+            prompt: savedImage.prompt
+          }, ...prev]);
+        }
 
         toast({
           title: "Imagem gerada!",
@@ -159,6 +202,33 @@ export default function Efimagem() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta imagem?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("generated_images")
+        .delete()
+        .eq("id", imageId);
+
+      if (error) throw error;
+
+      setGeneratedImages(prev => prev.filter(img => img.id !== imageId));
+      
+      toast({
+        title: "Imagem excluída",
+        description: "A imagem foi excluída com sucesso.",
+      });
+    } catch (error: any) {
+      console.error("Erro ao excluir imagem:", error);
+      toast({
+        title: "Erro ao excluir imagem",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -260,17 +330,30 @@ export default function Efimagem() {
                       Imagens Geradas
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {generatedImages.map((img, idx) => (
-                        <Card key={idx} className="overflow-hidden">
-                          <div 
-                            className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => setSelectedImage(img.url)}
-                          >
-                            <img
-                              src={img.url}
-                              alt={`Gerado - ${img.character}`}
-                              className="w-full h-full object-cover"
-                            />
+                      {generatedImages.map((img) => (
+                        <Card key={img.id} className="overflow-hidden">
+                          <div className="relative group">
+                            <div 
+                              className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setSelectedImage(img.url)}
+                            >
+                              <img
+                                src={img.url}
+                                alt={`Gerado - ${img.character}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteImage(img.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                           <div className="p-4">
                             <Badge className="mb-2">{img.character}</Badge>
