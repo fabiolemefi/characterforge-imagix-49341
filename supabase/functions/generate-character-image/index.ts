@@ -40,8 +40,8 @@ serve(async (req) => {
     const limitedImageUrls = imageUrls.slice(0, 6);
     console.log(`Using ${limitedImageUrls.length} images from ${imageUrls.length} total`);
 
-    // Aplicar prompt geral se não houver imagens
-    const enhancedPrompt = imageUrls.length === 0 ? `${generalPrompt} ${prompt}` : prompt;
+    // Usar o prompt como enviado (já inclui prompt geral se necessário)
+    const enhancedPrompt = prompt;
     console.log("Enhanced prompt:", enhancedPrompt);
 
     // Etapa 1: Gerar imagem com nano-banana

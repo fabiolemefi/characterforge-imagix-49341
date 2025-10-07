@@ -167,7 +167,7 @@ export default function Efimagem() {
       const character = characters.find(c => c.id === selectedCharacter);
       if (!character) return;
 
-      const fullPrompt = `Esse é o personagem que quero criar outra pose, quero o personagem na seguinte pose: ${prompt}`;
+      const fullPrompt = `${generalPrompt ? generalPrompt + ' ' : ''}Esse é o personagem que quero criar outra pose, quero o personagem na seguinte pose: ${prompt}`;
 
       const imageUrls = character.images.map(img => img.image_url);
 
