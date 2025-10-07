@@ -62,20 +62,23 @@ export default function Efimagem() {
       const minWait = Math.random() * 2000 + 15000; // 8000 to 10000 ms
       const minTimer = setTimeout(() => setMinTimePassed(true), minWait);
 
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          if (imageReady) {
-            return Math.min(prev + 5, 100); // Fast increment to 100 when ready
-          } else {
-            const increment = Math.random() * 1 + 0.5; // 0.5 to 1.5
-            return Math.min(prev + increment, 90); // Cap at 90 until ready
-          }
-        });
-      }, Math.random() * 200 + 100);
+      const interval = setInterval(
+        () => {
+          setProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(interval);
+              return 100;
+            }
+            if (imageReady) {
+              return Math.min(prev + 5, 100); // Fast increment to 100 when ready
+            } else {
+              const increment = Math.random() * 1 + 0.5; // 0.5 to 1.5
+              return Math.min(prev + increment, 90); // Cap at 90 until ready
+            }
+          });
+        },
+        Math.random() * 200 + 100,
+      );
 
       return () => {
         clearInterval(interval);
@@ -88,7 +91,7 @@ export default function Efimagem() {
   useEffect(() => {
     if (imageReady && minTimePassed) {
       if (readyImage) {
-        setGeneratedImages(prev => [readyImage, ...prev]);
+        setGeneratedImages((prev) => [readyImage, ...prev]);
       }
       setLoading(false);
       toast({
@@ -101,11 +104,7 @@ export default function Efimagem() {
 
   const loadGeneralPrompt = async () => {
     try {
-      const { data, error } = await supabase
-        .from("plugins")
-        .select("general_prompt")
-        .eq("name", "Efimagem")
-        .single();
+      const { data, error } = await supabase.from("plugins").select("general_prompt").eq("name", "Efimagem").single();
 
       if (error) throw error;
       if (data) setGeneralPrompt(data.general_prompt || "");
@@ -113,8 +112,6 @@ export default function Efimagem() {
       console.error("Erro ao carregar prompt geral:", error);
     }
   };
-
-
 
   const loadGeneratedImages = async () => {
     try {
@@ -132,7 +129,7 @@ export default function Efimagem() {
             url: img.image_url,
             character: img.character_name,
             prompt: img.prompt,
-          }))
+          })),
         );
       }
     } catch (error: any) {
@@ -173,8 +170,9 @@ export default function Efimagem() {
         const charactersWithImages = charactersData.map((char) => ({
           ...char,
           images: imagesData?.filter((img) => img.character_id === char.id) || [],
-          coverImage: imagesData?.find((img) => img.character_id === char.id && img.is_cover)?.image_url ||
-                      imagesData?.find((img) => img.character_id === char.id)?.image_url
+          coverImage:
+            imagesData?.find((img) => img.character_id === char.id && img.is_cover)?.image_url ||
+            imagesData?.find((img) => img.character_id === char.id)?.image_url,
         }));
 
         setCharacters(charactersWithImages);
@@ -213,26 +211,26 @@ export default function Efimagem() {
     setLoading(true);
 
     try {
-      const character = characters.find(c => c.id === selectedCharacter);
+      const character = characters.find((c) => c.id === selectedCharacter);
       if (!character) return;
 
-      const fullPrompt = `${generalPrompt ? generalPrompt + ' ' : ''}Esse é o personagem que quero criar outra pose, quero o personagem na seguinte pose: ${prompt}`;
+      const fullPrompt = `${generalPrompt ? generalPrompt + " " : ""} ${prompt}`;
 
-      const imageUrls = character.images.map(img => img.image_url);
+      const imageUrls = character.images.map((img) => img.image_url);
 
-      const { data, error } = await supabase.functions.invoke('generate-character-image', {
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
         body: {
           imageUrls: imageUrls,
           prompt: fullPrompt,
-          generalPrompt: generalPrompt
-        }
+          generalPrompt: generalPrompt,
+        },
       });
 
       if (error) throw error;
 
       if (data?.output) {
         const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-        
+
         // Save to database
         const { data: savedImage, error: saveError } = await supabase
           .from("generated_images")
@@ -247,15 +245,15 @@ export default function Efimagem() {
 
         if (saveError) throw saveError;
 
-                      if (savedImage) {
-                        setReadyImage({
-                          id: savedImage.id,
-                          url: savedImage.image_url,
-                          character: savedImage.character_name,
-                          prompt: savedImage.prompt
-                        });
-                        setImageReady(true);
-                      }
+        if (savedImage) {
+          setReadyImage({
+            id: savedImage.id,
+            url: savedImage.image_url,
+            character: savedImage.character_name,
+            prompt: savedImage.prompt,
+          });
+          setImageReady(true);
+        }
       }
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
@@ -273,15 +271,12 @@ export default function Efimagem() {
     if (!confirm("Tem certeza que deseja excluir esta imagem?")) return;
 
     try {
-      const { error } = await supabase
-        .from("generated_images")
-        .delete()
-        .eq("id", imageId);
+      const { error } = await supabase.from("generated_images").delete().eq("id", imageId);
 
       if (error) throw error;
 
-      setGeneratedImages(prev => prev.filter(img => img.id !== imageId));
-      
+      setGeneratedImages((prev) => prev.filter((img) => img.id !== imageId));
+
       toast({
         title: "Imagem excluída",
         description: "A imagem foi excluída com sucesso.",
@@ -308,12 +303,8 @@ export default function Efimagem() {
               <div className="max-w-6xl mx-auto">
                 <h1 className="text-4xl font-bold text-white mb-8">Efimagem</h1>
 
-
-
                 <Card className="p-6 mb-8">
-                  <h2 className="text-xl font-semibold text-white mb-4">
-                    Selecione um personagem
-                  </h2>
+                  <h2 className="text-xl font-semibold text-white mb-4">Selecione um personagem</h2>
 
                   {loadingCharacters ? (
                     <p className="text-center text-muted-foreground mb-6">Carregando personagens...</p>
@@ -323,47 +314,43 @@ export default function Efimagem() {
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    {characters.map((character) => (
-                      <label
-                        key={character.id}
-                        className={`cursor-pointer p-4 border-2 rounded-lg transition-all ${
-                          selectedCharacter === character.id
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="character"
-                          value={character.id}
-                          checked={selectedCharacter === character.id}
-                          onChange={(e) => setSelectedCharacter(e.target.value)}
-                          className="sr-only"
-                        />
-                        <div className="text-center">
-                          {character.coverImage && (
-                            <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
-                              <img
-                                src={character.coverImage}
-                                alt={character.name}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          )}
-                          <div className="text-lg font-medium text-white">
-                            {character.name}
+                      {characters.map((character) => (
+                        <label
+                          key={character.id}
+                          className={`cursor-pointer p-4 border-2 rounded-lg transition-all ${
+                            selectedCharacter === character.id
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="character"
+                            value={character.id}
+                            checked={selectedCharacter === character.id}
+                            onChange={(e) => setSelectedCharacter(e.target.value)}
+                            className="sr-only"
+                          />
+                          <div className="text-center">
+                            {character.coverImage && (
+                              <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
+                                <img
+                                  src={character.coverImage}
+                                  alt={character.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="text-lg font-medium text-white">{character.name}</div>
                           </div>
-                        </div>
-                      </label>
+                        </label>
                       ))}
                     </div>
                   )}
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        Descreva a pose desejada
-                      </label>
+                      <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
                       <Textarea
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
@@ -392,17 +379,31 @@ export default function Efimagem() {
 
                 {(generatedImages.length > 0 || loading) && (
                   <div>
-                    <h2 className="text-2xl font-semibold text-white mb-4">
-                      Imagens Geradas
-                    </h2>
+                    <h2 className="text-2xl font-semibold text-white mb-4">Imagens Geradas</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {loading && (
-                        <Card className="overflow-hidden" style={{transform: `scale(${1 - (progress / 100) * 0.2})`, transition: 'transform 0.3s ease'}}>
+                        <Card
+                          className="overflow-hidden"
+                          style={{
+                            transform: `scale(${1 - (progress / 100) * 0.2})`,
+                            transition: "transform 0.3s ease",
+                          }}
+                        >
                           <div className="aspect-square bg-muted flex items-center justify-center">
                             <div className="relative w-16 h-16">
                               <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
                                 <circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="4" fill="none"></circle>
-                                <circle cx="50" cy="50" r="40" stroke="#3b82f6" stroke-width="4" fill="none" stroke-dasharray={`${(progress / 100) * 251} 251`} stroke-linecap="round" style={{transition: 'stroke-dasharray 0.1s ease'}}></circle>
+                                <circle
+                                  cx="50"
+                                  cy="50"
+                                  r="40"
+                                  stroke="#3b82f6"
+                                  stroke-width="4"
+                                  fill="none"
+                                  stroke-dasharray={`${(progress / 100) * 251} 251`}
+                                  stroke-linecap="round"
+                                  style={{ transition: "stroke-dasharray 0.1s ease" }}
+                                ></circle>
                               </svg>
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <span className="text-sm font-medium text-white">{Math.floor(progress)}%</span>
