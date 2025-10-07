@@ -48,15 +48,14 @@ serve(async (req) => {
     console.log("Prompt:", prompt)
 
     const output = await replicate.run(
-      "fofr/consistent-character",
+      "google/nano-banana",
       {
         input: {
           prompt: prompt,
-          subject: imageUrls[0],
-          number_of_outputs: 1,
+          image: imageUrls[0],
+          num_outputs: 1,
           output_format: "webp",
           output_quality: 80,
-          negative_prompt: "low quality, worst quality, blurry, distorted",
         }
       }
     )
