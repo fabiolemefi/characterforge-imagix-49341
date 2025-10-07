@@ -59,7 +59,7 @@ export default function Efimagem() {
       setProgress(0);
       setImageReady(false);
       setReadyImage(null);
-      const minWait = Math.random() * 2000 + 8000; // 8000 to 10000 ms
+      const minWait = Math.random() * 2000 + 15000; // 8000 to 10000 ms
       const minTimer = setTimeout(() => setMinTimePassed(true), minWait);
 
       const interval = setInterval(() => {
