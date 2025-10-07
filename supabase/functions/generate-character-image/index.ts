@@ -36,8 +36,8 @@ serve(async (req) => {
         status: 400,
       });
 
-    // Limitar a 3 imagens para evitar erro do modelo
-    const limitedImageUrls = imageUrls.slice(0, 3);
+    // Limitar a 6 imagens para evitar erro do modelo
+    const limitedImageUrls = imageUrls.slice(0, 6);
     console.log(`Using ${limitedImageUrls.length} images from ${imageUrls.length} total`);
 
     // Aplicar prompt geral se não houver imagens
@@ -46,17 +46,14 @@ serve(async (req) => {
 
     // Etapa 1: Gerar imagem com nano-banana
     console.log("Step 1: Generating image with nano-banana");
-    const generatedOutput = await replicate.run(
-      "google/nano-banana",
-      {
-        input: {
-          prompt: enhancedPrompt,
-          image_input: limitedImageUrls,
-          aspect_ratio: "1:1",
-          output_format: "png",
-        },
+    const generatedOutput = await replicate.run("google/nano-banana", {
+      input: {
+        prompt: enhancedPrompt,
+        image_input: limitedImageUrls,
+        aspect_ratio: "1:1",
+        output_format: "png",
       },
-    );
+    });
 
     const generatedImageUrl = typeof generatedOutput === "string" ? generatedOutput : generatedOutput[0];
     console.log("Generated image URL:", generatedImageUrl);
@@ -102,9 +99,9 @@ serve(async (req) => {
     }
 
     // Etapa 5: Obter URL pública
-    const { data: { publicUrl } } = supabase.storage
-      .from("plugin-images")
-      .getPublicUrl(fileName);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("plugin-images").getPublicUrl(fileName);
 
     console.log("Final stored image URL:", publicUrl);
 
