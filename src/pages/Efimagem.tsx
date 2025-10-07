@@ -42,6 +42,10 @@ export default function Efimagem() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [imageReady, setImageReady] = useState(false);
+  const [readyImage, setReadyImage] = useState<GeneratedImage | null>(null);
+  const [minTimePassed, setMinTimePassed] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,6 +53,47 @@ export default function Efimagem() {
     loadGeneratedImages();
     loadGeneralPrompt();
   }, []);
+
+  useEffect(() => {
+    if (loading) {
+      setProgress(0);
+      setImageReady(false);
+      setReadyImage(null);
+      const minWait = Math.random() * 2000 + 8000; // 8000 to 10000 ms
+      const minTimer = setTimeout(() => setMinTimePassed(true), minWait);
+
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          const increment = Math.random() * 12 + 1; // 1 to 13
+          return Math.min(prev + increment, 100);
+        });
+      }, Math.random() * 500 + 200);
+
+      return () => {
+        clearInterval(interval);
+        clearTimeout(minTimer);
+        setMinTimePassed(false);
+      };
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (imageReady && minTimePassed) {
+      if (readyImage) {
+        setGeneratedImages(prev => [readyImage, ...prev]);
+      }
+      setLoading(false);
+      toast({
+        title: "Imagem gerada!",
+        description: "Sua imagem foi gerada com sucesso.",
+      });
+      setPrompt("");
+    }
+  }, [imageReady, minTimePassed, readyImage, toast]);
 
   const loadGeneralPrompt = async () => {
     try {
@@ -198,21 +243,15 @@ export default function Efimagem() {
 
         if (saveError) throw saveError;
 
-        if (savedImage) {
-          setGeneratedImages(prev => [{
-            id: savedImage.id,
-            url: savedImage.image_url,
-            character: savedImage.character_name,
-            prompt: savedImage.prompt
-          }, ...prev]);
-        }
-
-        toast({
-          title: "Imagem gerada!",
-          description: "Sua imagem foi gerada com sucesso.",
-        });
-
-        setPrompt("");
+                      if (savedImage) {
+                        setReadyImage({
+                          id: savedImage.id,
+                          url: savedImage.image_url,
+                          character: savedImage.character_name,
+                          prompt: savedImage.prompt
+                        });
+                        setImageReady(true);
+                      }
       }
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
@@ -354,13 +393,17 @@ export default function Efimagem() {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {loading && (
-                        <Card className="overflow-hidden animate-pulse opacity-80">
+                        <Card className="overflow-hidden" style={{transform: `scale(${1 - (progress / 100) * 0.2})`, transition: 'transform 0.3s ease'}}>
                           <div className="aspect-square bg-muted flex items-center justify-center">
-                            <Skeleton className="w-full h-full" />
-                          </div>
-                          <div className="p-4">
-                            <Skeleton className="h-4 w-16 mb-2" />
-                            <Skeleton className="h-3 w-full" />
+                            <div className="relative w-16 h-16">
+                              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="4" fill="none"></circle>
+                                <circle cx="50" cy="50" r="40" stroke="#3b82f6" stroke-width="4" fill="none" stroke-dasharray={`${(progress / 100) * 251} 251`} stroke-linecap="round" style={{transition: 'stroke-dasharray 0.1s ease'}}></circle>
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-sm font-medium text-white">{Math.floor(progress)}%</span>
+                              </div>
+                            </div>
                           </div>
                         </Card>
                       )}
