@@ -367,8 +367,8 @@ export default function Efimagem() {
                       {generatedImages.map((img) => (
                         <Card key={img.id} className="overflow-hidden">
                           <div className="relative group">
-                            <div 
-                              className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity"
+                            <div
+                              className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
                               onClick={() => setSelectedImage(img.url)}
                             >
                               <img
@@ -376,6 +376,7 @@ export default function Efimagem() {
                                 alt={`Gerado - ${img.character}`}
                                 className="w-full h-full object-cover"
                               />
+                              <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
                             </div>
                             <Button
                               variant="destructive"
@@ -388,12 +389,6 @@ export default function Efimagem() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                          </div>
-                          <div className="p-4">
-                            <Badge className="mb-2">{img.character}</Badge>
-                            <p className="text-sm text-muted-foreground">
-                              {img.prompt}
-                            </p>
                           </div>
                         </Card>
                       ))}
