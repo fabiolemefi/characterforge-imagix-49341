@@ -31,6 +31,7 @@ const App = () => (
           <Route path="/plugin/:id" element={<ProtectedRoute><PluginDetails /></ProtectedRoute>} />
           <Route path="/efimail" element={<ProtectedRoute><Efimail /></ProtectedRoute>} />
           <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
+          <Route path="/email-builder" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
           <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
