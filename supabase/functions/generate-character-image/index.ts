@@ -28,12 +28,16 @@ serve(async (req) => {
         status: 400,
       });
 
+    // Limitar a 3 imagens para evitar erro do modelo
+    const limitedImageUrls = imageUrls.slice(0, 3);
+    console.log(`Using ${limitedImageUrls.length} images from ${imageUrls.length} total`);
+
     const output = await replicate.run(
-      "google/nano-banana", // versão atual
+      "google/nano-banana",
       {
         input: {
           prompt,
-          image_input: imageUrls,
+          image_input: limitedImageUrls,
           aspect_ratio: "1:1",
           output_format: "png",
         },
