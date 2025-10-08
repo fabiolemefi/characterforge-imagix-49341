@@ -58,33 +58,15 @@ serve(async (req) => {
     const generatedImageUrl = typeof generatedOutput === "string" ? generatedOutput : generatedOutput[0];
     console.log("Generated image URL:", generatedImageUrl);
 
-    // Etapa 2: Remover background
-    console.log("Step 2: Removing background");
-    const bgRemovedOutput = await replicate.run(
-      "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
-      {
-        input: {
-          image: generatedImageUrl,
-          format: "png",
-          reverse: false,
-          threshold: 0,
-          background_type: "rgba",
-        },
-      },
-    );
-
-    const finalImageUrl = typeof bgRemovedOutput === "string" ? bgRemovedOutput : bgRemovedOutput[0];
-    console.log("Background removed image URL:", finalImageUrl);
-
-    // Etapa 3: Baixar a imagem
-    console.log("Step 3: Downloading processed image");
-    const imageResponse = await fetch(finalImageUrl);
+    // Etapa 2: Baixar a imagem
+    console.log("Step 2: Downloading processed image");
+    const imageResponse = await fetch(generatedImageUrl);
     if (!imageResponse.ok) throw new Error("Failed to download processed image");
     const imageBlob = await imageResponse.blob();
     const imageBuffer = await imageBlob.arrayBuffer();
 
-    // Etapa 4: Fazer upload para o storage
-    console.log("Step 4: Uploading to Supabase storage");
+    // Etapa 3: Fazer upload para o storage
+    console.log("Step 3: Uploading to Supabase storage");
     const fileName = `generated-${Date.now()}-${Math.random()}.png`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("plugin-images")
@@ -98,7 +80,7 @@ serve(async (req) => {
       throw new Error(`Failed to upload image: ${uploadError.message}`);
     }
 
-    // Etapa 5: Obter URL pública
+    // Etapa 4: Obter URL pública
     const {
       data: { publicUrl },
     } = supabase.storage.from("plugin-images").getPublicUrl(fileName);

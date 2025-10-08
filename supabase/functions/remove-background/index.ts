@@ -23,40 +23,44 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { imageUrl, prompt } = await req.json();
+    const { imageUrl } = await req.json();
 
-    if (!imageUrl || !prompt) {
-      throw new Error('imageUrl and prompt are required');
+    if (!imageUrl) {
+      throw new Error('imageUrl is required');
     }
 
-    console.log('Editing image with prompt:', prompt);
+    console.log('Removing background from image:', imageUrl);
 
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
-    // Etapa 1: Editar imagem com nano-banana
-    console.log("Step 1: Editing image with nano-banana");
-    const editedOutput = await replicate.run("google/nano-banana", {
-      input: {
-        prompt: prompt,
-        image_input: [imageUrl],
-        aspect_ratio: "1:1",
-        output_format: "png",
+    // Remover background
+    console.log("Removing background");
+    const bgRemovedOutput = await replicate.run(
+      "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
+      {
+        input: {
+          image: imageUrl,
+          format: "png",
+          reverse: false,
+          threshold: 0,
+          background_type: "rgba",
+        },
       },
-    });
+    );
 
-    const editedImageUrl = typeof editedOutput === "string" ? editedOutput : editedOutput[0];
-    console.log("Edited image URL:", editedImageUrl);
+    const finalImageUrl = typeof bgRemovedOutput === "string" ? bgRemovedOutput : bgRemovedOutput[0];
+    console.log("Background removed image URL:", finalImageUrl);
 
-    // Etapa 2: Baixar a imagem
-    console.log("Step 2: Downloading processed image");
-    const imageResponse = await fetch(editedImageUrl);
+    // Baixar a imagem
+    console.log("Downloading processed image");
+    const imageResponse = await fetch(finalImageUrl);
     if (!imageResponse.ok) throw new Error("Failed to download processed image");
     const imageBlob = await imageResponse.blob();
     const imageBuffer = await imageBlob.arrayBuffer();
 
-    // Etapa 3: Fazer upload para o storage
-    console.log("Step 3: Uploading to Supabase storage");
-    const fileName = `edited-${Date.now()}-${Math.random()}.png`;
+    // Fazer upload para o storage
+    console.log("Uploading to Supabase storage");
+    const fileName = `no-bg-${Date.now()}-${Math.random()}.png`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("plugin-images")
       .upload(fileName, imageBuffer, {
@@ -69,7 +73,7 @@ serve(async (req) => {
       throw new Error(`Failed to upload image: ${uploadError.message}`);
     }
 
-    // Etapa 4: Obter URL pública
+    // Obter URL pública
     const {
       data: { publicUrl },
     } = supabase.storage.from("plugin-images").getPublicUrl(fileName);
@@ -86,7 +90,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error editing image:', error);
+    console.error('Error removing background:', error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     return new Response(
       JSON.stringify({ error: errorMessage }),

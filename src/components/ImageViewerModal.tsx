@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Copy, Edit, Loader2, ChevronDown } from "lucide-react";
+import { Download, Copy, Edit, Loader2, ChevronDown, Eraser } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,13 +154,47 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
     setCurrentImageUrl(imageHistory[index]);
   };
 
+  const handleRemoveBackground = async () => {
+    setIsGenerating(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("remove-background", {
+        body: {
+          imageUrl: currentImageUrl,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.output) {
+        const newImageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
+        setProgress(100);
+        
+        setTimeout(() => {
+          setImageHistory((prev) => [...prev, newImageUrl]);
+          setCurrentImageUrl(newImageUrl);
+          setSelectedHistoryIndex(imageHistory.length);
+          setIsGenerating(false);
+          setProgress(0);
+          toast.success("Background removido com sucesso!");
+        }, 500);
+      }
+    } catch (error: any) {
+      console.error("Erro ao remover background:", error);
+      toast.error("Erro ao remover background: " + error.message);
+      setIsGenerating(false);
+      setProgress(0);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl p-0 overflow-hidden flex flex-col max-h-[95vh]">
         <VisuallyHidden>
           <DialogTitle>Visualizar e Editar Imagem</DialogTitle>
         </VisuallyHidden>
-        <div className="relative flex flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="flex-1 max-h-[95vh]">
+          <div className="relative flex overflow-hidden min-h-0">
           {/* History sidebar */}
           {imageHistory.length > 1 && (
             <div className="w-24 bg-muted/50 p-2 space-y-2 overflow-y-auto">
@@ -268,6 +303,10 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                       <Edit className="w-4 h-4 mr-2" />
                       {isEditing ? "Cancelar edição" : "Editar"}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleRemoveBackground} disabled={isGenerating}>
+                      <Eraser className="w-4 h-4 mr-2" />
+                      Remover background
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -313,7 +352,8 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
               </div>
             )}
           </div>
-        </div>
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
