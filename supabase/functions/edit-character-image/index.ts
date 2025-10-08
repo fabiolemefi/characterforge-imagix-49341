@@ -25,16 +25,22 @@ serve(async (req) => {
       auth: Deno.env.get('REPLICATE_API_KEY'),
     });
 
-    // Use instruct-pix2pix for image editing
+    // Use SDXL img2img for image editing
     const output = await replicate.run(
-      "timothybrooks/instruct-pix2pix:30c1d0b916a6f8efce20493a5ba90ab3786780427b98ee7b0465c10f66ee2b30",
+      "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
           image: imageUrl,
           prompt: prompt,
-          num_inference_steps: 20,
+          refine: "expert_ensemble_refiner",
+          scheduler: "K_EULER",
+          lora_scale: 0.6,
+          num_outputs: 1,
           guidance_scale: 7.5,
-          image_guidance_scale: 1.5,
+          apply_watermark: false,
+          high_noise_frac: 0.8,
+          prompt_strength: 0.8,
+          num_inference_steps: 25
         }
       }
     );

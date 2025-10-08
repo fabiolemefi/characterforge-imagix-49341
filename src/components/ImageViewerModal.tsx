@@ -1,10 +1,11 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Copy, Edit, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface ImageViewerModalProps {
   open: boolean;
@@ -149,6 +150,9 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+        <VisuallyHidden>
+          <DialogTitle>Visualizar e Editar Imagem</DialogTitle>
+        </VisuallyHidden>
         <div className="relative flex flex-1 overflow-hidden">
           {/* History sidebar */}
           {imageHistory.length > 1 && (
