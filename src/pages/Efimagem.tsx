@@ -53,6 +53,32 @@ export default function Efimagem() {
     loadCharacters();
     loadGeneratedImages();
     loadGeneralPrompt();
+
+    // Setup realtime subscription for new generated images
+    const channel = supabase
+      .channel('generated_images_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'generated_images'
+        },
+        (payload) => {
+          const newImage = payload.new;
+          setGeneratedImages((prev) => [{
+            id: newImage.id,
+            url: newImage.image_url,
+            character: newImage.character_name,
+            prompt: newImage.prompt,
+          }, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -91,9 +117,6 @@ export default function Efimagem() {
 
   useEffect(() => {
     if (imageReady && minTimePassed) {
-      if (readyImage) {
-        setGeneratedImages((prev) => [readyImage, ...prev]);
-      }
       setLoading(false);
       toast({
         title: "Imagem gerada!",
@@ -101,7 +124,7 @@ export default function Efimagem() {
       });
       setPrompt("");
     }
-  }, [imageReady, minTimePassed, readyImage, toast]);
+  }, [imageReady, minTimePassed, toast]);
 
   const loadGeneralPrompt = async () => {
     try {
