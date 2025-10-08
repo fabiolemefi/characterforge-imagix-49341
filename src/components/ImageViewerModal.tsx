@@ -1,7 +1,13 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Copy, Edit, Loader2 } from "lucide-react";
+import { Download, Copy, Edit, Loader2, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -236,36 +242,34 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
               </div>
 
               {/* Action buttons */}
-              <div className="absolute top-4 right-4 flex gap-2">
-                <Button
-                  onClick={handleDownload}
-                  size="sm"
-                  className="shadow-lg"
-                  disabled={isGenerating}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </Button>
-                <Button
-                  onClick={handleCopyImage}
-                  variant="secondary"
-                  size="sm"
-                  className="shadow-lg"
-                  disabled={isGenerating}
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copiar
-                </Button>
-                <Button
-                  onClick={() => setIsEditing(!isEditing)}
-                  variant={isEditing ? "default" : "secondary"}
-                  size="sm"
-                  className="shadow-lg"
-                  disabled={isGenerating}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
+              <div className="absolute top-4 left-4">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="shadow-lg"
+                      disabled={isGenerating}
+                    >
+                      Ações
+                      <ChevronDown className="w-4 h-4 ml-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="z-50">
+                    <DropdownMenuItem onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleCopyImage}>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copiar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsEditing(!isEditing)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      {isEditing ? "Cancelar edição" : "Editar"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -280,19 +284,11 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                   disabled={isGenerating}
                   className="mb-3"
                 />
-                <div className="flex gap-2 justify-end">
-                  {currentImageUrl !== imageUrl && (
-                    <Button
-                      onClick={handleSaveEdited}
-                      variant="outline"
-                      disabled={isGenerating}
-                    >
-                      Salvar e fechar
-                    </Button>
-                  )}
+                <div className="flex flex-col gap-2">
                   <Button
                     onClick={handleGenerateEdit}
                     disabled={isGenerating || !editPrompt.trim()}
+                    className="w-full"
                   >
                     {isGenerating ? (
                       <>
@@ -303,6 +299,16 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                       "Gerar edição"
                     )}
                   </Button>
+                  {currentImageUrl !== imageUrl && (
+                    <Button
+                      onClick={handleSaveEdited}
+                      variant="outline"
+                      disabled={isGenerating}
+                      className="w-full"
+                    >
+                      Salvar e fechar
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
