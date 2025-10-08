@@ -43,8 +43,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Processing upload request for:", assetData.name);
 
-    // Forward to PHP proxy
-    const response = await fetch("https://proxyaccess.free.nf/sfmc", {
+    // Forward to Cloudflare Worker
+    const response = await fetch("https://proxyaccess.duarteleme.workers.dev/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
