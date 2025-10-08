@@ -16,12 +16,15 @@ export default function Login() {
 
   // Check if user is already logged in
   useEffect(() => {
+    console.log('[Login] Verificando sessão existente...');
     supabase.auth.getSession().then(({
       data: {
         session
       }
     }) => {
+      console.log('[Login] Sessão:', session ? 'Encontrada' : 'Não encontrada');
       if (session) {
+        console.log('[Login] Redirecionando para /');
         navigate('/');
       }
     });

@@ -17,19 +17,23 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     const initAuth = async () => {
       try {
+        console.log('[ProtectedRoute] Iniciando verificação de autenticação...');
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[ProtectedRoute] Sessão:', session ? 'Encontrada' : 'Não encontrada');
         
         if (!mounted) return;
 
         if (!session) {
+          console.log('[ProtectedRoute] Sem sessão, redirecionando para login...');
           setAuthenticated(false);
           setLoading(false);
           return;
         }
 
+        console.log('[ProtectedRoute] Verificando status do usuário...');
         await checkUserStatus(session.user.id, mounted);
       } catch (error) {
-        console.error("Error initializing auth:", error);
+        console.error("[ProtectedRoute] Error initializing auth:", error);
         if (mounted) {
           setAuthenticated(false);
           setLoading(false);
@@ -64,17 +68,21 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   const checkUserStatus = async (userId: string, mounted: boolean) => {
     try {
+      console.log('[ProtectedRoute] Buscando perfil do usuário...');
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("is_active")
         .eq("id", userId)
         .maybeSingle();
 
+      console.log('[ProtectedRoute] Perfil:', profile);
+      console.log('[ProtectedRoute] Erro:', error);
+
       if (!mounted) return;
 
       // If there's an error fetching profile, logout and redirect
       if (error) {
-        console.error("Error fetching profile:", error);
+        console.error("[ProtectedRoute] Error fetching profile:", error);
         await supabase.auth.signOut();
         toast({
           title: "Erro de autenticação",
@@ -88,12 +96,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       // If no profile exists, allow access (first time user)
       if (!profile) {
+        console.log('[ProtectedRoute] Sem perfil, permitindo acesso...');
         setAuthenticated(true);
         setLoading(false);
         return;
       }
 
       if (!profile.is_active) {
+        console.log('[ProtectedRoute] Usuário inativo');
         await supabase.auth.signOut();
         toast({
           title: "Acesso bloqueado",
@@ -103,11 +113,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         setAuthenticated(false);
         setLoading(false);
       } else {
+        console.log('[ProtectedRoute] Usuário autenticado e ativo');
         setAuthenticated(true);
         setLoading(false);
       }
     } catch (error) {
-      console.error("Unexpected error:", error);
+      console.error("[ProtectedRoute] Unexpected error:", error);
       if (mounted) {
         await supabase.auth.signOut();
         setAuthenticated(false);
@@ -117,16 +128,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   };
 
   if (loading) {
+    console.log('[ProtectedRoute] Estado: Loading');
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (!authenticated) {
+    console.log('[ProtectedRoute] Estado: Não autenticado, redirecionando para /login');
     return <Navigate to="/login" replace />;
   }
 
+  console.log('[ProtectedRoute] Estado: Autenticado, renderizando children');
   return <>{children}</>;
 }
