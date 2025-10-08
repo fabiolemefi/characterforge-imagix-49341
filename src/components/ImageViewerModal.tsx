@@ -189,41 +189,44 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden flex flex-col max-h-[95vh]">
+      <DialogContent className="max-w-3xl p-0 gap-0 flex flex-col max-h-[90vh]">
         <VisuallyHidden>
           <DialogTitle>Visualizar e Editar Imagem</DialogTitle>
         </VisuallyHidden>
-        <ScrollArea className="flex-1 max-h-[95vh]">
-          <div className="relative flex overflow-hidden min-h-0">
+        
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* History sidebar */}
           {imageHistory.length > 1 && (
-            <div className="w-24 bg-muted/50 p-2 space-y-2 overflow-y-auto">
-              <p className="text-xs text-muted-foreground text-center mb-2">Histórico</p>
-              {imageHistory.map((url, index) => (
-                <div
-                  key={index}
-                  onClick={() => handleSelectHistoryImage(index)}
-                  className={`cursor-pointer rounded border-2 transition-all ${
-                    selectedHistoryIndex === index
-                      ? "border-primary"
-                      : "border-transparent hover:border-primary/50"
-                  }`}
-                >
-                  <img
-                    src={url}
-                    alt={`Versão ${index + 1}`}
-                    className="w-full aspect-square object-cover rounded"
-                  />
-                  <p className="text-xs text-center mt-1">v{index + 1}</p>
-                </div>
-              ))}
-            </div>
+            <ScrollArea className="w-24 bg-muted/50 border-r">
+              <div className="p-2 space-y-2">
+                <p className="text-xs text-muted-foreground text-center mb-2">Histórico</p>
+                {imageHistory.map((url, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleSelectHistoryImage(index)}
+                    className={`cursor-pointer rounded border-2 transition-all ${
+                      selectedHistoryIndex === index
+                        ? "border-primary"
+                        : "border-transparent hover:border-primary/50"
+                    }`}
+                  >
+                    <img
+                      src={url}
+                      alt={`Versão ${index + 1}`}
+                      className="w-full aspect-square object-cover rounded"
+                    />
+                    <p className="text-xs text-center mt-1">v{index + 1}</p>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
           )}
 
-          {/* Main content */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Checkered background pattern */}
-            <div className="relative aspect-square w-full">
+          {/* Main content with scroll */}
+          <ScrollArea className="flex-1">
+            <div className="flex flex-col">
+              {/* Checkered background pattern */}
+              <div className="relative w-full min-h-[400px]">
               <div 
                 className="absolute inset-0 opacity-30"
                 style={{
@@ -238,122 +241,122 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                 }}
               />
               
-              {/* Image */}
-              <div className="relative p-8 flex items-center justify-center h-full">
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <img 
-                    src={currentImageUrl} 
-                    alt="Imagem gerada" 
-                    className="max-w-full max-h-full object-contain"
-                    style={{
-                      opacity: isGenerating ? 0.5 : 1,
-                      animation: isGenerating ? 'pulse 0.5s ease-in-out infinite alternate' : 'none'
-                    }}
-                  />
-                  {isGenerating && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="relative w-20 h-20">
-                        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
-                          <circle cx="50" cy="50" r="40" stroke="hsl(var(--muted))" strokeWidth="4" fill="none"></circle>
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="40"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth="4"
-                            fill="none"
-                            strokeDasharray={`${(progress / 100) * 251} 251`}
-                            strokeLinecap="round"
-                            style={{ transition: "stroke-dasharray 0.1s ease" }}
-                          ></circle>
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-sm font-medium">{Math.floor(progress)}%</span>
+                {/* Image */}
+                <div className="relative p-8 flex items-center justify-center">
+                  <div className="relative flex items-center justify-center">
+                    <img 
+                      src={currentImageUrl} 
+                      alt="Imagem gerada" 
+                      className="max-w-full w-auto h-auto max-h-[60vh] object-contain"
+                      style={{
+                        opacity: isGenerating ? 0.5 : 1,
+                        animation: isGenerating ? 'pulse 0.5s ease-in-out infinite alternate' : 'none'
+                      }}
+                    />
+                    {isGenerating && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="relative w-20 h-20">
+                          <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="40" stroke="hsl(var(--muted))" strokeWidth="4" fill="none"></circle>
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r="40"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth="4"
+                              fill="none"
+                              strokeDasharray={`${(progress / 100) * 251} 251`}
+                              strokeLinecap="round"
+                              style={{ transition: "stroke-dasharray 0.1s ease" }}
+                            ></circle>
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm font-medium">{Math.floor(progress)}%</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="absolute top-4 left-4">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="shadow-lg"
+                        disabled={isGenerating}
+                      >
+                        Ações
+                        <ChevronDown className="w-4 h-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="z-50">
+                      <DropdownMenuItem onClick={handleDownload}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleCopyImage}>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copiar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setIsEditing(!isEditing)}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        {isEditing ? "Cancelar edição" : "Editar"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleRemoveBackground} disabled={isGenerating}>
+                        <Eraser className="w-4 h-4 mr-2" />
+                        Remover background
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="absolute top-4 left-4">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+              {/* Edit section */}
+              {isEditing && (
+                <div className="p-4 border-t bg-background/95 backdrop-blur">
+                  <Textarea
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="Descreva as alterações que deseja fazer na imagem..."
+                    rows={3}
+                    disabled={isGenerating}
+                    className="mb-3"
+                  />
+                  <div className="flex flex-col gap-2">
                     <Button
-                      size="sm"
-                      variant="secondary"
-                      className="shadow-lg"
-                      disabled={isGenerating}
-                    >
-                      Ações
-                      <ChevronDown className="w-4 h-4 ml-2" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="z-50">
-                    <DropdownMenuItem onClick={handleDownload}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleCopyImage}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copiar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setIsEditing(!isEditing)}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      {isEditing ? "Cancelar edição" : "Editar"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleRemoveBackground} disabled={isGenerating}>
-                      <Eraser className="w-4 h-4 mr-2" />
-                      Remover background
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            {/* Edit section */}
-            {isEditing && (
-              <div className="p-4 border-t bg-background/95 backdrop-blur">
-                <Textarea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="Descreva as alterações que deseja fazer na imagem..."
-                  rows={3}
-                  disabled={isGenerating}
-                  className="mb-3"
-                />
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={handleGenerateEdit}
-                    disabled={isGenerating || !editPrompt.trim()}
-                    className="w-full"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Gerando...
-                      </>
-                    ) : (
-                      "Gerar edição"
-                    )}
-                  </Button>
-                  {currentImageUrl !== imageUrl && (
-                    <Button
-                      onClick={handleSaveEdited}
-                      variant="outline"
-                      disabled={isGenerating}
+                      onClick={handleGenerateEdit}
+                      disabled={isGenerating || !editPrompt.trim()}
                       className="w-full"
                     >
-                      Salvar e fechar
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        "Gerar edição"
+                      )}
                     </Button>
-                  )}
+                    {currentImageUrl !== imageUrl && (
+                      <Button
+                        onClick={handleSaveEdited}
+                        variant="outline"
+                        disabled={isGenerating}
+                        className="w-full"
+                      >
+                        Salvar e fechar
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-          </div>
-        </ScrollArea>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
