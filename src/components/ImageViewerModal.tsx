@@ -326,32 +326,34 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                     disabled={isGenerating}
                     className="mb-3"
                   />
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      onClick={handleGenerateEdit}
-                      disabled={isGenerating || !editPrompt.trim()}
-                      className="w-full"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        "Gerar edição"
-                      )}
-                    </Button>
-                    {currentImageUrl !== imageUrl && (
-                      <Button
-                        onClick={handleSaveEdited}
-                        variant="outline"
-                        disabled={isGenerating}
-                        className="w-full"
-                      >
-                        Salvar e fechar
-                      </Button>
+                  <Button
+                    onClick={handleGenerateEdit}
+                    disabled={isGenerating || !editPrompt.trim()}
+                    className="w-full"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      "Gerar edição"
                     )}
-                  </div>
+                  </Button>
+                </div>
+              )}
+              
+              {/* Save button - shown when image has changed */}
+              {currentImageUrl !== imageUrl && (
+                <div className="p-4 border-t bg-background/95 backdrop-blur">
+                  <Button
+                    onClick={handleSaveEdited}
+                    variant="default"
+                    disabled={isGenerating}
+                    className="w-full"
+                  >
+                    Salvar e fechar
+                  </Button>
                 </div>
               )}
             </div>
