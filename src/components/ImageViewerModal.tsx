@@ -149,7 +149,7 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl p-0 overflow-hidden flex flex-col aspect-square">
         <VisuallyHidden>
           <DialogTitle>Visualizar e Editar Imagem</DialogTitle>
         </VisuallyHidden>
@@ -199,11 +199,11 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
               
               {/* Image */}
               <div className="relative p-8 flex items-center justify-center h-full">
-                <div className="relative">
+                <div className="relative w-full h-full flex items-center justify-center">
                   <img 
                     src={currentImageUrl} 
                     alt="Imagem gerada" 
-                    className="max-w-full max-h-[50vh] object-contain"
+                    className="max-w-full max-h-full object-contain"
                     style={{
                       opacity: isGenerating ? 0.5 : 1,
                       animation: isGenerating ? 'pulse 0.5s ease-in-out infinite alternate' : 'none'
