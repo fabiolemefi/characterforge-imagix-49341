@@ -74,6 +74,18 @@ export default function Efimagem() {
           }, ...prev]);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'generated_images'
+        },
+        (payload) => {
+          const deletedImage = payload.old;
+          setGeneratedImages((prev) => prev.filter(img => img.id !== deletedImage.id));
+        }
+      )
       .subscribe();
 
     return () => {
