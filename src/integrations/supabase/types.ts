@@ -252,7 +252,7 @@ export type Database = {
       plugin_characters: {
         Row: {
           created_at: string
-          general_prompt: string
+          general_prompt: string | null
           id: string
           name: string
           plugin_id: string
@@ -260,7 +260,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          general_prompt?: string
+          general_prompt?: string | null
           id?: string
           name: string
           plugin_id: string
@@ -268,7 +268,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          general_prompt?: string
+          general_prompt?: string | null
           id?: string
           name?: string
           plugin_id?: string
