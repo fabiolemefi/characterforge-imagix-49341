@@ -116,3 +116,12 @@
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+@keyframes pulse {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 0.9;
+  }
+}

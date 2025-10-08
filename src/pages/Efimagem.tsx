@@ -448,7 +448,16 @@ export default function Efimagem() {
                 <ImageViewerModal
                   open={!!selectedImage}
                   onOpenChange={(open) => !open && setSelectedImage(null)}
-                  imageUrl={selectedImage || ""}
+                  imageUrl={generatedImages.find(img => img.url === selectedImage)?.url || ""}
+                  imageId={generatedImages.find(img => img.url === selectedImage)?.id || ""}
+                  onImageUpdate={(newUrl) => {
+                    setGeneratedImages(prev => 
+                      prev.map(img => 
+                        img.url === selectedImage ? { ...img, url: newUrl } : img
+                      )
+                    );
+                    setSelectedImage(newUrl);
+                  }}
                 />
               </div>
             </main>
