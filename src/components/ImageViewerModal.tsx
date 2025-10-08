@@ -149,11 +149,11 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden flex flex-col aspect-square">
+      <DialogContent className="max-w-3xl p-0 overflow-hidden flex flex-col max-h-[95vh]">
         <VisuallyHidden>
           <DialogTitle>Visualizar e Editar Imagem</DialogTitle>
         </VisuallyHidden>
-        <div className="relative flex flex-1 overflow-hidden">
+        <div className="relative flex flex-1 overflow-hidden min-h-0">
           {/* History sidebar */}
           {imageHistory.length > 1 && (
             <div className="w-24 bg-muted/50 p-2 space-y-2 overflow-y-auto">
@@ -180,9 +180,9 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
           )}
 
           {/* Main content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col min-h-0">
             {/* Checkered background pattern */}
-            <div className="relative flex-1">
+            <div className="relative aspect-square w-full">
               <div 
                 className="absolute inset-0 opacity-30"
                 style={{
