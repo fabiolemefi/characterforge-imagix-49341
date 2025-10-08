@@ -258,13 +258,12 @@ export default function Efimagem() {
       }
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
+      setLoading(false);
       toast({
         title: "Erro ao gerar imagem",
         description: error.message || "Ocorreu um erro ao gerar a imagem. Tente novamente.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
