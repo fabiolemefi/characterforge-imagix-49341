@@ -5,6 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface SFMCTokenResponse {
+  access_token: string;
+  expires_in: number;
+}
+
 interface UploadAssetRequest {
   assetType: {
     name: string;
@@ -33,21 +38,48 @@ interface UploadAssetRequest {
   };
 }
 
-async function uploadAsset(assetData: UploadAssetRequest) {
-  const proxyUrl = 'https://proxyaccess.free.nf/sfmc';
-
-  console.log('Uploading asset via PHP proxy:', assetData.name);
-
-  const response = await fetch(proxyUrl, {
+async function getSFMCToken(): Promise<string> {
+  const authUrl = `${Deno.env.get('SFMC_AUTH_BASE_URI')}`;
+  
+  const response = await fetch(authUrl, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      grant_type: 'client_credentials',
+      client_id: Deno.env.get('SFMC_CLIENT_ID'),
+      client_secret: Deno.env.get('SFMC_CLIENT_SECRET'),
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('SFMC Auth Error:', error);
+    throw new Error(`Failed to authenticate with SFMC: ${response.status}`);
+  }
+
+  const data: SFMCTokenResponse = await response.json();
+  return data.access_token;
+}
+
+async function uploadAsset(token: string, assetData: UploadAssetRequest) {
+  const subdomain = Deno.env.get('SFMC_SUBDOMAIN');
+  const uploadUrl = `https://${subdomain}.rest.marketingcloudapis.com/asset/v1/content/assets`;
+
+  console.log('Uploading asset:', assetData.name);
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(assetData),
   });
 
   const responseText = await response.text();
-  console.log('PHP Proxy Response:', response.status, responseText);
+  console.log('SFMC Response:', response.status, responseText);
 
   if (!response.ok) {
     // 400 pode significar que o asset já existe
@@ -59,7 +91,7 @@ async function uploadAsset(assetData: UploadAssetRequest) {
         details: responseText,
       };
     }
-    throw new Error(`Failed to upload asset via proxy: ${response.status} - ${responseText}`);
+    throw new Error(`Failed to upload asset: ${response.status} - ${responseText}`);
   }
 
   return {
@@ -78,7 +110,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('Processing upload request for:', assetData.name);
 
-    const result = await uploadAsset(assetData);
+    const token = await getSFMCToken();
+    const result = await uploadAsset(token, assetData);
 
     return new Response(JSON.stringify(result), {
       status: result.success ? 200 : 400,
