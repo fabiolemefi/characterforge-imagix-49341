@@ -11,6 +11,20 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CharacterImage {
   id: string;
@@ -47,6 +61,7 @@ export default function Efimagem() {
   const [imageReady, setImageReady] = useState(false);
   const [readyImage, setReadyImage] = useState<GeneratedImage | null>(null);
   const [minTimePassed, setMinTimePassed] = useState(false);
+  const [characterFilter, setCharacterFilter] = useState<string>("all");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -348,73 +363,101 @@ export default function Efimagem() {
                       Nenhum personagem cadastrado ainda. Entre em contato com o administrador.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                      {characters.map((character) => (
-                        <label
-                          key={character.id}
-                          className={`cursor-pointer p-4 border-2 rounded-lg transition-all ${
-                            selectedCharacter === character.id
-                              ? "border-primary bg-primary/10"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="character"
-                            value={character.id}
-                            checked={selectedCharacter === character.id}
-                            onChange={(e) => setSelectedCharacter(e.target.value)}
-                            className="sr-only"
-                          />
-                          <div className="text-center">
-                            {character.coverImage && (
-                              <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
-                                <img
-                                  src={character.coverImage}
-                                  alt={character.name}
-                                  className="w-full h-full object-cover"
-                                />
+                    <Carousel
+                      opts={{
+                        align: "start",
+                        loop: true,
+                      }}
+                      className="w-full mb-6"
+                    >
+                      <CarouselContent className="-ml-2 md:-ml-4">
+                        {characters.map((character) => (
+                          <CarouselItem key={character.id} className="pl-2 md:pl-4 basis-1/2 md:basis-1/4">
+                            <label
+                              className={`cursor-pointer p-4 border-2 rounded-lg transition-all block h-full ${
+                                selectedCharacter === character.id
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="character"
+                                value={character.id}
+                                checked={selectedCharacter === character.id}
+                                onChange={(e) => setSelectedCharacter(e.target.value)}
+                                className="sr-only"
+                              />
+                              <div className="text-center">
+                                {character.coverImage && (
+                                  <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
+                                    <img
+                                      src={character.coverImage}
+                                      alt={character.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+                                <div className="text-lg font-medium text-white">{character.name}</div>
                               </div>
-                            )}
-                            <div className="text-lg font-medium text-white">{character.name}</div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
+                            </label>
+                          </CarouselItem>
+                        ))}
+                      </CarouselContent>
+                      <CarouselPrevious />
+                      <CarouselNext />
+                    </Carousel>
                   )}
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
-                      <Textarea
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="Ex: sentado em uma cadeira de escritório, olhando para o computador"
-                        rows={4}
-                        disabled={loading}
-                      />
-                    </div>
+                  {selectedCharacter && (
+                    <div className="space-y-4 animate-fade-in">
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
+                        <Textarea
+                          value={prompt}
+                          onChange={(e) => setPrompt(e.target.value)}
+                          placeholder="Ex: sentado em uma cadeira de escritório, olhando para o computador"
+                          rows={4}
+                          disabled={loading}
+                        />
+                      </div>
 
-                    <Button
-                      onClick={handleGenerate}
-                      disabled={loading || !selectedCharacter || !prompt.trim()}
-                      className="w-full"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Gerando imagem...
-                        </>
-                      ) : (
-                        "Gerar Imagem"
-                      )}
-                    </Button>
-                  </div>
+                      <Button
+                        onClick={handleGenerate}
+                        disabled={loading || !prompt.trim()}
+                        className="w-full"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Gerando imagem...
+                          </>
+                        ) : (
+                          "Gerar Imagem"
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </Card>
 
                 {(generatedImages.length > 0 || loading) && (
                   <div>
-                    <h2 className="text-2xl font-semibold text-white mb-4">Imagens Geradas</h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-2xl font-semibold text-white">Imagens Geradas</h2>
+                      <Select value={characterFilter} onValueChange={setCharacterFilter}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Filtrar por todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Filtrar por todos</SelectItem>
+                          {characters.map((char) => (
+                            <SelectItem key={char.id} value={char.name}>
+                              Filtrar por {char.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {loading && (
                         <Card
@@ -445,9 +488,11 @@ export default function Efimagem() {
                               </div>
                             </div>
                           </div>
-                        </Card>
-                      )}
-                      {generatedImages.map((img) => (
+                          </Card>
+                        )}
+                      {generatedImages
+                        .filter((img) => characterFilter === "all" || img.character === characterFilter)
+                        .map((img) => (
                         <Card key={img.id} className="overflow-hidden">
                           <div className="relative group">
                             <div
