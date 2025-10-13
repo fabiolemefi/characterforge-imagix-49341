@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -11,6 +11,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 
 const menuItems = [
   {
@@ -42,6 +43,25 @@ export function AdminSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/"
+                    className="hover:bg-muted"
+                  >
+                    <Home className="h-4 w-4" />
+                    {!collapsed && <span>Home</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Administração</SidebarGroupLabel>
           <SidebarGroupContent>

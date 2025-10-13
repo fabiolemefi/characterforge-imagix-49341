@@ -16,27 +16,18 @@ export default function Login() {
 
   // Check if user is already logged in
   useEffect(() => {
-    console.log('[Login] Verificando sessão existente...');
-    supabase.auth.getSession().then(({
-      data: {
-        session
-      }
-    }) => {
-      console.log('[Login] Sessão:', session ? 'Encontrada' : 'Não encontrada');
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        console.log('[Login] Redirecionando para /');
         navigate('/');
       }
     });
-    const {
-      data: {
-        subscription
-      }
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         navigate('/');
       }
     });
+    
     return () => subscription.unsubscribe();
   }, [navigate]);
   const handleSubmit = async (e: React.FormEvent) => {
