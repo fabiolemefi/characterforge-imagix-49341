@@ -200,11 +200,13 @@ export default function Efimagem() {
 
       if (pluginError) throw pluginError;
 
-      // Get characters for this plugin
+      // Get characters for this plugin (only active ones)
       const { data: charactersData, error: charsError } = await supabase
         .from("plugin_characters")
         .select("id, name, general_prompt")
-        .eq("plugin_id", pluginData.id);
+        .eq("plugin_id", pluginData.id)
+        .eq("is_active", true)
+        .order("position", { ascending: true });
 
       if (charsError) throw charsError;
 
@@ -366,7 +368,7 @@ export default function Efimagem() {
                     <Carousel
                       opts={{
                         align: "start",
-                        loop: true,
+                        loop: false,
                       }}
                       className="w-full mb-6"
                     >

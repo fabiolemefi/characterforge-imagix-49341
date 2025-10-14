@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,11 +13,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 interface Character {
   id: string;
   name: string;
   general_prompt: string;
+  is_active: boolean;
+  position: number;
   images: { id: string; image_url: string; position: number; is_cover: boolean }[];
 }
 
@@ -30,12 +34,14 @@ interface CharactersModalProps {
 export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModalProps) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingCharacter, setEditingCharacter] = useState<string | null>(null);
   const [newCharacterName, setNewCharacterName] = useState("");
   const [newCharacterPrompt, setNewCharacterPrompt] = useState("");
+  const [characterIsActive, setCharacterIsActive] = useState(true);
+  const [characterPosition, setCharacterPosition] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [editingCharacterPrompt, setEditingCharacterPrompt] = useState<string | null>(null);
-  const [characterPromptValue, setCharacterPromptValue] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,8 +55,9 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
     try {
       const { data: charactersData, error: charsError } = await supabase
         .from("plugin_characters")
-        .select("id, name, general_prompt")
-        .eq("plugin_id", pluginId);
+        .select("id, name, general_prompt, is_active, position")
+        .eq("plugin_id", pluginId)
+        .order("position", { ascending: true });
 
       if (charsError) throw charsError;
 
@@ -149,6 +156,9 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
         .insert({
           plugin_id: pluginId,
           name: newCharacterName.trim(),
+          general_prompt: newCharacterPrompt.trim(),
+          is_active: characterIsActive,
+          position: characterPosition,
         })
         .select()
         .single();
@@ -177,7 +187,11 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
       });
 
       setNewCharacterName("");
+      setNewCharacterPrompt("");
+      setCharacterIsActive(true);
+      setCharacterPosition(0);
       setSelectedFiles([]);
+      setShowAddForm(false);
       loadCharacters();
     } catch (error: any) {
       toast({
@@ -295,43 +309,88 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleEditCharacterPrompt = (characterId: string, currentPrompt: string) => {
-    setEditingCharacterPrompt(characterId);
-    setCharacterPromptValue(currentPrompt);
+  const handleStartEdit = (character: Character) => {
+    setEditingCharacter(character.id);
+    setNewCharacterName(character.name);
+    setNewCharacterPrompt(character.general_prompt);
+    setCharacterIsActive(character.is_active);
+    setCharacterPosition(character.position);
   };
 
-  const handleSaveCharacterPrompt = async () => {
-    if (!editingCharacterPrompt) return;
+  const handleSaveEdit = async () => {
+    if (!editingCharacter) return;
 
+    setUploading(true);
     try {
+      const updateData: any = {
+        name: newCharacterName.trim(),
+        general_prompt: newCharacterPrompt.trim(),
+        is_active: characterIsActive,
+        position: characterPosition,
+      };
+
       const { error } = await supabase
         .from("plugin_characters")
-        .update({ general_prompt: characterPromptValue })
-        .eq("id", editingCharacterPrompt);
+        .update(updateData)
+        .eq("id", editingCharacter);
 
       if (error) throw error;
 
+      // Add new images if selected
+      if (selectedFiles.length > 0) {
+        const imageUrls = await uploadImages(selectedFiles);
+        const character = characters.find(c => c.id === editingCharacter);
+        const maxPosition = character ? Math.max(...character.images.map(img => img.position), -1) : -1;
+        
+        const imageRecords = imageUrls.map((url, index) => ({
+          character_id: editingCharacter,
+          image_url: url,
+          position: maxPosition + index + 1,
+        }));
+
+        const { error: imagesError } = await supabase
+          .from("character_images")
+          .insert(imageRecords);
+
+        if (imagesError) throw imagesError;
+      }
+
       toast({
-        title: "Prompt atualizado",
-        description: "O prompt geral do personagem foi atualizado com sucesso.",
+        title: "Personagem atualizado",
+        description: "As alterações foram salvas com sucesso.",
       });
 
-      setEditingCharacterPrompt(null);
-      setCharacterPromptValue("");
+      setEditingCharacter(null);
+      setNewCharacterName("");
+      setNewCharacterPrompt("");
+      setCharacterIsActive(true);
+      setCharacterPosition(0);
+      setSelectedFiles([]);
       loadCharacters();
     } catch (error: any) {
-      console.error("Erro ao salvar prompt:", error);
+      console.error("Erro ao atualizar personagem:", error);
       toast({
-        title: "Erro ao salvar prompt",
+        title: "Erro ao atualizar personagem",
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleCancelEditPrompt = () => {
-    setEditingCharacterPrompt(null);
-    setCharacterPromptValue("");
+  const handleCancelEdit = () => {
+    setEditingCharacter(null);
+    setNewCharacterName("");
+    setNewCharacterPrompt("");
+    setCharacterIsActive(true);
+    setCharacterPosition(0);
+    setSelectedFiles([]);
+  };
+
+  const getCoverImage = (character: Character) => {
+    const coverImg = character.images.find(img => img.is_cover);
+    return coverImg?.image_url || character.images[0]?.image_url || "";
   };
 
   return (
@@ -341,72 +400,152 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
           <DialogTitle>Gerenciar Personagens</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 mb-6">{/* Empty gap at top */}
+        <div className="space-y-6 mb-6">
+          {/* Add new character button and form */}
+          {!showAddForm && !editingCharacter && (
+            <Button onClick={() => setShowAddForm(true)} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Novo Personagem
+            </Button>
+          )}
 
-          {/* Add new character form */}
-          <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Adicionar Novo Personagem</h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="character-name">Nome do Personagem</Label>
-                <Input
-                  id="character-name"
-                  value={newCharacterName}
-                  onChange={(e) => setNewCharacterName(e.target.value)}
-                  placeholder="Ex: Fubá, Rubens, Rubí..."
-                  disabled={uploading}
-                />
-              </div>
+          {(showAddForm || editingCharacter) && (
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-4">
+                {editingCharacter ? "Editar Personagem" : "Adicionar Novo Personagem"}
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="character-name">Nome do Personagem</Label>
+                  <Input
+                    id="character-name"
+                    value={newCharacterName}
+                    onChange={(e) => setNewCharacterName(e.target.value)}
+                    placeholder="Ex: Fubá, Rubens, Rubí..."
+                    disabled={uploading}
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="character-images">
-                  Imagens (até 10 imagens)
-                </Label>
-                <Input
-                  id="character-images"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileChange}
-                  disabled={uploading}
-                />
-                {selectedFiles.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedFiles.map((file, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={URL.createObjectURL(file)}
-                          alt={`Preview ${index + 1}`}
-                          className="w-20 h-20 object-cover rounded"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeFile(index)}
-                          className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1"
-                          disabled={uploading}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+                <div>
+                  <Label htmlFor="character-prompt">Prompt Geral</Label>
+                  <Textarea
+                    id="character-prompt"
+                    value={newCharacterPrompt}
+                    onChange={(e) => setNewCharacterPrompt(e.target.value)}
+                    placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
+                    rows={3}
+                    disabled={uploading}
+                  />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="character-active"
+                      checked={characterIsActive}
+                      onCheckedChange={setCharacterIsActive}
+                      disabled={uploading}
+                    />
+                    <Label htmlFor="character-active">Ativo</Label>
                   </div>
-                )}
-              </div>
 
-              <Button
-                onClick={handleAddCharacter}
-                disabled={uploading}
-                className="w-full"
-              >
-                {uploading ? "Criando..." : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar Personagem
-                  </>
-                )}
-              </Button>
-            </div>
-          </Card>
+                  <div className="flex-1">
+                    <Label htmlFor="character-position">Posição/Ordem</Label>
+                    <Input
+                      id="character-position"
+                      type="number"
+                      value={characterPosition}
+                      onChange={(e) => setCharacterPosition(parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      disabled={uploading}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="character-images">
+                    {editingCharacter ? "Adicionar Imagens (até 10 imagens)" : "Imagens (até 10 imagens)"}
+                  </Label>
+                  <Input
+                    id="character-images"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileChange}
+                    disabled={uploading}
+                  />
+                  {selectedFiles.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedFiles.map((file, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={`Preview ${index + 1}`}
+                            className="w-20 h-20 object-cover rounded"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1"
+                            disabled={uploading}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  {editingCharacter ? (
+                    <>
+                      <Button
+                        onClick={handleSaveEdit}
+                        disabled={uploading}
+                        className="flex-1"
+                      >
+                        {uploading ? "Salvando..." : "Salvar Alterações"}
+                      </Button>
+                      <Button
+                        onClick={handleCancelEdit}
+                        disabled={uploading}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={handleAddCharacter}
+                        disabled={uploading}
+                        className="flex-1"
+                      >
+                        {uploading ? "Criando..." : "Adicionar Personagem"}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setShowAddForm(false);
+                          setNewCharacterName("");
+                          setNewCharacterPrompt("");
+                          setCharacterIsActive(true);
+                          setCharacterPosition(0);
+                          setSelectedFiles([]);
+                        }}
+                        disabled={uploading}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Cancelar
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Existing characters list */}
           <div>
@@ -418,93 +557,89 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
                 Nenhum personagem cadastrado ainda
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {characters.map((character) => (
-                  <Card key={character.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-medium text-lg mb-2">
+                  <Card key={character.id} className="p-3">
+                    <div className="relative">
+                      {getCoverImage(character) && (
+                        <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
+                          <img
+                            src={getCoverImage(character)}
+                            alt={character.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm truncate flex-1">
                           {character.name}
                         </h4>
-
-                        {/* Character prompt section */}
-                        <div className="mb-3 p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <Label className="text-sm font-medium">Prompt Geral</Label>
-                            {editingCharacterPrompt === character.id ? (
-                              <div className="flex gap-1">
-                                <Button size="sm" onClick={handleSaveCharacterPrompt} variant="default">
-                                  Salvar
-                                </Button>
-                                <Button size="sm" onClick={handleCancelEditPrompt} variant="outline">
-                                  Cancelar
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEditCharacterPrompt(character.id, character.general_prompt)}
-                              >
-                                Editar
-                              </Button>
-                            )}
-                          </div>
-                          {editingCharacterPrompt === character.id ? (
-                            <Textarea
-                              value={characterPromptValue}
-                              onChange={(e) => setCharacterPromptValue(e.target.value)}
-                              placeholder="Ex: Crie uma imagem profissional e de alta qualidade de"
-                              rows={2}
-                            />
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              {character.general_prompt || "Nenhum prompt definido"}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2 flex-wrap">
-                          {character.images.map((img) => (
-                            <div key={img.id} className="relative group">
-                              <img
-                                src={img.image_url}
-                                alt={character.name}
-                                className="w-20 h-20 object-cover rounded"
-                              />
-                              <Button
-                                size="sm"
-                                variant={img.is_cover ? "default" : "secondary"}
-                                className="absolute bottom-1 left-1 right-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleToggleCover(character.id, img.id)}
-                              >
-                                {img.is_cover ? "Capa" : "Definir"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="absolute -top-1 -right-1 p-0.5 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleDeleteImage(img.id)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
+                        {!character.is_active && (
+                          <Badge variant="secondary" className="text-xs ml-1">Inativo</Badge>
+                        )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteCharacter(character.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStartEdit(character)}
+                          className="flex-1"
+                          disabled={editingCharacter !== null || showAddForm}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteCharacter(character.id)}
+                          disabled={editingCharacter !== null || showAddForm}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Edit character details section */}
+          {editingCharacter && (
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-4">Imagens do Personagem</h3>
+              <div className="flex gap-2 flex-wrap">
+                {characters
+                  .find(c => c.id === editingCharacter)
+                  ?.images.map((img) => (
+                    <div key={img.id} className="relative group">
+                      <img
+                        src={img.image_url}
+                        alt="Personagem"
+                        className="w-24 h-24 object-cover rounded"
+                      />
+                      <Button
+                        size="sm"
+                        variant={img.is_cover ? "default" : "secondary"}
+                        className="absolute bottom-1 left-1 right-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleToggleCover(editingCharacter, img.id)}
+                      >
+                        {img.is_cover ? "Capa" : "Definir"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="absolute -top-1 -right-1 p-0.5 w-5 h-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteImage(img.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
         </div>
       </DialogContent>
     </Dialog>

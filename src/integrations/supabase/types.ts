@@ -254,24 +254,30 @@ export type Database = {
           created_at: string
           general_prompt: string | null
           id: string
+          is_active: boolean
           name: string
           plugin_id: string
+          position: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           general_prompt?: string | null
           id?: string
+          is_active?: boolean
           name: string
           plugin_id: string
+          position?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           general_prompt?: string | null
           id?: string
+          is_active?: boolean
           name?: string
           plugin_id?: string
+          position?: number
           updated_at?: string
         }
         Relationships: [
