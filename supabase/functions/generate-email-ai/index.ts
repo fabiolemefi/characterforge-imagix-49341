@@ -9,7 +9,7 @@ const corsHeaders = {
 const SYSTEM_PROMPT = `Você é um especialista em criação de emails marketing profissionais HTML.
 
 BLOCOS DISPONÍVEIS NO BANCO DE DADOS:
-1. Header (categoria: header) - Cabeçalho com logo
+1. Header (categoria: header) - Cabeçalho com logo e categoria
 2. Welcome (categoria: header) - Mensagem de boas-vindas com título personalizado
 3. Image (categoria: content) - Imagem hero ou ilustrativa
 4. Title (categoria: content) - Título de seção
@@ -31,6 +31,7 @@ REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRATURAL:
 10. SEMPRE TERMINAR com "Signature" (category: content, name: Signature)
 
 FORMATO DE CONTEÚDO:
+- Para "Header": forneça category (Palavra que resume o email)
 - Para "Welcome": forneça title (texto principal de boas-vindas)
 - Para "Title": forneça title (título da seção)
 - Para "Paragrafo": forneça text (HTML rica: <p><strong>destacado</strong></p><p>mais conteúdo...</p>)
@@ -42,7 +43,7 @@ EXEMPLOS PRÁTICOS DE DESENVOLVIMENTO:
 
 EXEMPLO 1 - Tema Páscoa com múltiplas seções:
 [
-  {"name": "Header", "category": "header", "content": null},
+  {"name": "Header", "category": "header", "content": "comunicado"},
   {"name": "Image", "category": "content", "content": null},
   {"name": "Welcome", "category": "header", "content": {"title": "Olá, Pedro!"}},
   {"name": "Title", "category": "content", "content": {"title": "Feliz Páscoa!"}},
