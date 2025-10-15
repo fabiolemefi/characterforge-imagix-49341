@@ -37,38 +37,57 @@ const applyContentToHtml = (htmlTemplate: string, content: any): string => {
   
   let html = htmlTemplate;
   
-  // Replace common placeholders
+  // Replace ALL placeholders first (case insensitive)
   if (content.title) {
+    html = html.replace(/\{\{titulo\}\}/gi, content.title);
     html = html.replace(/\{\{title\}\}/gi, content.title);
-    html = html.replace(/<h1>.*?<\/h1>/i, `<h1>${content.title}</h1>`);
-    html = html.replace(/<h2>.*?<\/h2>/i, `<h2>${content.title}</h2>`);
+    html = html.replace(/\{\{texto\}\}/gi, content.title);
+    html = html.replace(/\{\{text\}\}/gi, content.title);
   }
   
   if (content.subtitle) {
+    html = html.replace(/\{\{subtitulo\}\}/gi, content.subtitle);
     html = html.replace(/\{\{subtitle\}\}/gi, content.subtitle);
-    html = html.replace(/<p>.*?<\/p>/i, `<p>${content.subtitle}</p>`);
+    html = html.replace(/\{\{descricao\}\}/gi, content.subtitle);
+    html = html.replace(/\{\{description\}\}/gi, content.subtitle);
   }
   
   if (content.text) {
+    // Replace all text placeholders
+    html = html.replace(/\{\{texto\}\}/gi, content.text);
     html = html.replace(/\{\{text\}\}/gi, content.text);
-    // For text blocks, replace the entire content area
-    const contentMatch = html.match(/<td[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/td>/is);
-    if (contentMatch) {
-      html = html.replace(contentMatch[1], content.text);
-    } else {
-      // Fallback: replace first paragraph or div content
-      html = html.replace(/<p[^>]*>.*?<\/p>/i, `<p>${content.text}</p>`);
-    }
+    html = html.replace(/\{\{conteudo\}\}/gi, content.text);
+    html = html.replace(/\{\{content\}\}/gi, content.text);
+    
+    // Find and replace content inside span tags with specific patterns
+    html = html.replace(/(<span[^>]*>)[^<]*(<\/span>)/gi, (match, open, close) => {
+      // Only replace if it's a main content span (has styling, not empty)
+      if (open.includes('font-size') && open.includes('color')) {
+        return `${open}${content.text}${close}`;
+      }
+      return match;
+    });
   }
   
   if (content.button_text) {
+    html = html.replace(/\{\{botao\}\}/gi, content.button_text);
     html = html.replace(/\{\{button_text\}\}/gi, content.button_text);
-    html = html.replace(/(<a[^>]*>).*?(<\/a>)/i, `$1${content.button_text}$2`);
+    html = html.replace(/\{\{button\}\}/gi, content.button_text);
+    
+    // Replace button/link text
+    html = html.replace(/(<a[^>]*>)[^<]*(<\/a>)/gi, (match, open, close) => {
+      if (open.includes('href')) {
+        return `${open}${content.button_text}${close}`;
+      }
+      return match;
+    });
   }
   
   if (content.url) {
-    html = html.replace(/href="#"/g, `href="${content.url}"`);
-    html = html.replace(/href=""/g, `href="${content.url}"`);
+    html = html.replace(/href="#"/gi, `href="${content.url}"`);
+    html = html.replace(/href=""/gi, `href="${content.url}"`);
+    html = html.replace(/href='#'/gi, `href="${content.url}"`);
+    html = html.replace(/href=''/gi, `href="${content.url}"`);
   }
   
   return html;
@@ -122,6 +141,8 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
       // 3. Map AI blocks to real database blocks
       const selectedBlocks = emailStructure.blocks.map((aiBlock, index) => {
+        console.log(`Mapeando bloco ${index}:`, aiBlock.type, aiBlock.category);
+        
         // Find a matching block by category
         const matchingBlock = allBlocks.find(
           (dbBlock: EmailBlock) => dbBlock.category.toLowerCase() === aiBlock.category.toLowerCase()
@@ -132,8 +153,12 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
           return null;
         }
 
+        console.log(`Bloco encontrado: ${matchingBlock.name}, aplicando conteúdo:`, aiBlock.content);
+
         // Apply content to the HTML template
         const customHtml = applyContentToHtml(matchingBlock.html_template, aiBlock.content);
+        
+        console.log(`HTML customizado (primeiros 200 chars):`, customHtml.substring(0, 200));
 
         return {
           ...matchingBlock,
