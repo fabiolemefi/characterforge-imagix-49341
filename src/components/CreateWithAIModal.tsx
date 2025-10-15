@@ -27,17 +27,27 @@ interface AIResponse {
   blocks: AIBlock[];
 }
 
-const applyContentToHtml = (htmlTemplate: string, content: any): string => {
+const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
 
   let html = htmlTemplate;
 
   // Replace title placeholders (for Welcome and Title blocks)
   if (content.title) {
-    html = html.replace(/\{\{titulo\}\}/gi, content.title);
-    html = html.replace(/\{\{title\}\}/gi, content.title);
-    html = html.replace(/\{\{texto\}\}/gi, content.title);
-    html = html.replace(/\{\{text\}\}/gi, content.title);
+    // Special handling for Welcome block - replace both the greeting and the main title
+    if (blockName === "Welcome") {
+      // Replace "Olá, Pedro." with the title
+      html = html.replace(/Olá, Pedro\./gi, content.title);
+      // Also replace the {{texto}} placeholder - remove it since we already used the title
+      html = html.replace(/\{\{texto\}\}/gi, "");
+      html = html.replace(/\{\{text\}\}/gi, "");
+    } else {
+      // For other blocks, replace placeholders normally
+      html = html.replace(/\{\{titulo\}\}/gi, content.title);
+      html = html.replace(/\{\{title\}\}/gi, content.title);
+      html = html.replace(/\{\{texto\}\}/gi, content.title);
+      html = html.replace(/\{\{text\}\}/gi, content.title);
+    }
   }
 
   // Replace text content (for Paragrafo blocks)
@@ -153,7 +163,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
           }
 
           // Apply content to the HTML template
-          const customHtml = applyContentToHtml(matchingBlock.html_template, contentToApply);
+          const customHtml = applyContentToHtml(matchingBlock.html_template, contentToApply, matchingBlock.name);
 
           console.log(`HTML customizado (primeiros 200 chars):`, customHtml.substring(0, 200));
 
