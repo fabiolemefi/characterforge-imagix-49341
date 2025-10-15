@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { Sidebar } from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadEmailHtml } from '@/lib/emailExporter';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CreateWithAIModal } from '@/components/CreateWithAIModal';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -45,6 +46,7 @@ const EmailTemplates = () => {
   const models = templates.filter(t => t.is_model);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUseModelDialogOpen, setIsUseModelDialogOpen] = useState(false);
+  const [isCreateWithAIModalOpen, setIsCreateWithAIModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [newTemplate, setNewTemplate] = useState({
@@ -152,6 +154,13 @@ const EmailTemplates = () => {
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setIsUseModelDialogOpen(true)}>
                   Usar Modelo
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsCreateWithAIModalOpen(true)}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Criar com IA
                 </Button>
                 <Button onClick={() => setIsCreateModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -446,6 +455,11 @@ const EmailTemplates = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CreateWithAIModal 
+        open={isCreateWithAIModalOpen} 
+        onClose={() => setIsCreateWithAIModalOpen(false)} 
+      />
     </div>
   );
 };
