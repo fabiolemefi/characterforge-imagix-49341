@@ -21,7 +21,7 @@ interface CreateWithAIModalProps {
 }
 
 interface AIBlock {
-  type: string;
+  name: string;
   category: string;
   content?: any;
 }
@@ -37,7 +37,7 @@ const applyContentToHtml = (htmlTemplate: string, content: any): string => {
   
   let html = htmlTemplate;
   
-  // Replace ALL placeholders first (case insensitive)
+  // Replace title placeholders (for Welcome and Title blocks)
   if (content.title) {
     html = html.replace(/\{\{titulo\}\}/gi, content.title);
     html = html.replace(/\{\{title\}\}/gi, content.title);
@@ -45,41 +45,33 @@ const applyContentToHtml = (htmlTemplate: string, content: any): string => {
     html = html.replace(/\{\{text\}\}/gi, content.title);
   }
   
-  if (content.subtitle) {
-    html = html.replace(/\{\{subtitulo\}\}/gi, content.subtitle);
-    html = html.replace(/\{\{subtitle\}\}/gi, content.subtitle);
-    html = html.replace(/\{\{descricao\}\}/gi, content.subtitle);
-    html = html.replace(/\{\{description\}\}/gi, content.subtitle);
-  }
-  
+  // Replace text content (for Paragrafo blocks)
   if (content.text) {
-    // Replace all text placeholders
+    // Replace text placeholders
     html = html.replace(/\{\{texto\}\}/gi, content.text);
     html = html.replace(/\{\{text\}\}/gi, content.text);
     html = html.replace(/\{\{conteudo\}\}/gi, content.text);
     html = html.replace(/\{\{content\}\}/gi, content.text);
     
-    // Find and replace content inside span tags with specific patterns
-    html = html.replace(/(<span[^>]*>)[^<]*(<\/span>)/gi, (match, open, close) => {
-      // Only replace if it's a main content span (has styling, not empty)
-      if (open.includes('font-size') && open.includes('color')) {
+    // Find span tags with large font-size (likely main content, not button text)
+    html = html.replace(/(<span[^>]*font-size:\s*(?:2[0-9]|3[0-9]|4[0-9]|[5-9][0-9])[^>]*>)[^<]*(<\/span>)/gi, (match, open, close) => {
+      // Only replace if it contains color styling (main content areas)
+      if (open.includes('color:')) {
         return `${open}${content.text}${close}`;
       }
       return match;
     });
   }
   
+  // Replace button text and URL (ONLY for button blocks)
   if (content.button_text) {
     html = html.replace(/\{\{botao\}\}/gi, content.button_text);
     html = html.replace(/\{\{button_text\}\}/gi, content.button_text);
     html = html.replace(/\{\{button\}\}/gi, content.button_text);
     
-    // Replace button/link text
-    html = html.replace(/(<a[^>]*>)[^<]*(<\/a>)/gi, (match, open, close) => {
-      if (open.includes('href')) {
-        return `${open}${content.button_text}${close}`;
-      }
-      return match;
+    // Replace text inside <a> tags (for buttons)
+    html = html.replace(/(<a[^>]*href[^>]*>)[^<]*(<\/a>)/gi, (match, open, close) => {
+      return `${open}${content.button_text}${close}`;
     });
   }
   
@@ -141,15 +133,22 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
       // 3. Map AI blocks to real database blocks
       const selectedBlocks = emailStructure.blocks.map((aiBlock, index) => {
-        console.log(`Mapeando bloco ${index}:`, aiBlock.type, aiBlock.category);
+        console.log(`Mapeando bloco ${index}:`, aiBlock.name, aiBlock.category);
         
-        // Find a matching block by category
-        const matchingBlock = allBlocks.find(
-          (dbBlock: EmailBlock) => dbBlock.category.toLowerCase() === aiBlock.category.toLowerCase()
+        // Find a matching block by exact name first, then by category
+        let matchingBlock = allBlocks.find(
+          (dbBlock: EmailBlock) => dbBlock.name === aiBlock.name
         );
 
+        // Fallback: try to find by category if name doesn't match
         if (!matchingBlock) {
-          console.warn(`Nenhum bloco encontrado para categoria: ${aiBlock.category}`);
+          matchingBlock = allBlocks.find(
+            (dbBlock: EmailBlock) => dbBlock.category.toLowerCase() === aiBlock.category.toLowerCase()
+          );
+        }
+
+        if (!matchingBlock) {
+          console.warn(`Nenhum bloco encontrado para: ${aiBlock.name} (${aiBlock.category})`);
           return null;
         }
 
