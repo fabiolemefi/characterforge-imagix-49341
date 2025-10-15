@@ -34,11 +34,11 @@ FORMATO DE CONTEÚDO:
 - Para "Header": SEMPRE content: null (a categoria será definida no nível do email)
 - Para "Image": SEMPRE content: null
 - Para "Divisor": SEMPRE content: null
-- Para "Welcome": forneça APENAS title com a saudação completa (ex: "Olá, amor!" ou "Feliz Páscoa!") - este será o texto de destaque principal
+- Para "Welcome": forneça hi (saudação curta ex: "Olá, amor!" ou "Oi, Pedro!") E title (título principal ex: "Feliz Páscoa!" ou "Promoção Especial")
 - Para "Title": forneça title (título da seção)
 - Para "Paragrafo": forneça text (conteúdo em texto puro ou HTML simples com <p>, <strong>, <em>, <br>)
 - Para "button": forneça button_text e url (apenas se houver ação específica)
-- Para "Signature": OPCIONAL: content.text (ex: "Atenciosamente,<br>Equipe Marketing") OU null para usar assinatura padrão
+- Para "Signature": OPCIONAL: content com text no formato "Primeira linha,<br>Segunda linha" (ex: "Abraços,<br>Equipe Marketing" ou "Um beijo,<br>Equipe Efi Bank") OU null para usar assinatura padrão
 
 EXEMPLOS PRÁTICOS DE DESENVOLVIMENTO:
 
@@ -50,7 +50,7 @@ EXEMPLO 1 - Tema Páscoa com múltiplas seções:
   "blocks": [
     {"name": "Header", "category": "header", "content": null},
     {"name": "Image", "category": "content", "content": null},
-    {"name": "Welcome", "category": "header", "content": {"title": "Feliz Páscoa!"}},
+    {"name": "Welcome", "category": "header", "content": {"hi": "Olá, colaborador!", "title": "Feliz Páscoa!"}},
     {"name": "Title", "category": "content", "content": {"title": "O Coelhinho está vindo!"}},
     {"name": "Paragrafo", "category": "content", "content": {"text": "O Coelhinho da Páscoa está chegando com novidades emocionantes para toda a família! Preparem-se para receber ovos deliciosos e surpresas encantadoras. Nossos colaboradores receberão cestas especiais em casa com produtos frescos e artesanais, pensados com carinho para tornar sua Páscoa ainda mais especial."}},
     {"name": "Image", "category": "content", "content": null},

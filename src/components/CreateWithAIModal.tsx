@@ -32,22 +32,37 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
 
   let html = htmlTemplate;
 
-  // Replace title placeholders (for Welcome and Title blocks)
-  if (content.title) {
-    // Special handling for Welcome block - replace both the greeting and the main title
-    if (blockName === "Welcome") {
-      // Replace "Olá, Pedro." with the title
-      html = html.replace(/Olá, Pedro\./gi, content.title);
-      // Also replace the {{texto}} placeholder - remove it since we already used the title
-      html = html.replace(/\{\{texto\}\}/gi, "");
-      html = html.replace(/\{\{text\}\}/gi, "");
-    } else {
-      // For other blocks, replace placeholders normally
-      html = html.replace(/\{\{titulo\}\}/gi, content.title);
-      html = html.replace(/\{\{title\}\}/gi, content.title);
+  // Special handling for Welcome block - has both greeting (hi) and title
+  if (blockName === "Welcome") {
+    if (content.hi) {
+      // Replace "Olá, Pedro." with the greeting
+      html = html.replace(/Olá, Pedro\./gi, content.hi);
+    }
+    if (content.title) {
+      // Replace {{texto}} placeholder with the main title
       html = html.replace(/\{\{texto\}\}/gi, content.title);
       html = html.replace(/\{\{text\}\}/gi, content.title);
     }
+  }
+  // Special handling for Signature block - replace the full signature text
+  else if (blockName === "Signature" && content.text) {
+    // Replace the entire signature content (both "Abraços," and "Equipe Efí Bank")
+    // Find and replace the two paragraphs
+    html = html.replace(
+      /(<p style="Margin:0;mso-line-height-alt:20px;">)<span[^>]*>Abraços,<\/span>(<\/p>)/gi,
+      `$1<span style="font-size:14px;font-family:'Arial',sans-serif;font-weight:400;color:#586476;line-height:143%;mso-line-height-alt:20px;">${content.text.split('<br>')[0]}</span>$2`
+    );
+    html = html.replace(
+      /(<p style="Margin:0;mso-line-height-alt:20px;">)<span[^>]*>Equipe Efí Bank<\/span>(<\/p>)/gi,
+      `$1<span style="font-size:14px;font-family:'Arial',sans-serif;font-weight:700;color:#f37021;line-height:143%;mso-line-height-alt:20px;">${content.text.split('<br>')[1] || ''}</span>$2`
+    );
+  }
+  // Regular title placeholders (for Title blocks)
+  else if (content.title) {
+    html = html.replace(/\{\{titulo\}\}/gi, content.title);
+    html = html.replace(/\{\{title\}\}/gi, content.title);
+    html = html.replace(/\{\{texto\}\}/gi, content.title);
+    html = html.replace(/\{\{text\}\}/gi, content.title);
   }
 
   // Replace text content (for Paragrafo blocks)
