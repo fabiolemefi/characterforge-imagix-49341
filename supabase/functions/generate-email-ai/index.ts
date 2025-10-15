@@ -92,20 +92,22 @@ serve(async (req) => {
     })
 
     const output = await replicate.run(
-      "meta/llama-2-70b-chat:latest",
+      "meta/meta-llama-3.1-405b-instruct",
       {
         input: {
-          system_prompt: SYSTEM_PROMPT,
-          prompt: `Crie a estrutura de um email marketing profissional baseado nesta descrição: "${description}"
+          prompt: `${SYSTEM_PROMPT}
+
+DESCRIÇÃO DO EMAIL:
+${description}
 
 Lembre-se:
 - Sempre começar com header
 - Sempre terminar com footer
 - Use hero para a chamada principal
 - Use separator com moderação (só entre seções diferentes)
-- Retorne APENAS o JSON, sem markdown`,
+- Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown`,
           temperature: 0.7,
-          max_new_tokens: 3000,
+          max_tokens: 3000,
           top_p: 0.9,
         }
       }
