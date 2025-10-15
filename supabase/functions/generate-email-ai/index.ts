@@ -18,12 +18,12 @@ BLOCOS DISPONÍVEIS NO BANCO DE DADOS:
 7. Divisor (categoria: content) - Linha separadora
 8. Signature (categoria: content) - Assinatura personalizada (opcional) ou despedida padrão
 
-REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRATURAL:
-1. SEMPRE COMEÇAR com "Header" (category: header, name: Header)
-2. Após Header, usar "Image" como hero/banner quando houver tema visual forte
+REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRUTURAL:
+1. SEMPRE COMEÇAR com "Header" (category: header, name: Header) com content: null
+2. SEMPRE adicionar "Image" logo após Header como banner/hero (category: content, name: Image) com content: null
 3. Usar "Welcome" SE houver mensagem de boas-vindas personalizada
 4. USAR "Title" + "Paragrafo" SEMPRE: Cada título deve ser seguido por parágrafo rico explicativo
-5. Para "Paragrafo": DESENVOLVER conteúdo substancial com pelo menos 2-3 frases interessantes, usando <strong>, <em>, <br> para formatação
+5. Para "Paragrafo": DESENVOLVER conteúdo substancial com pelo menos 2-3 frases interessantes, usando <strong>, <em>, <br> para formatação HTML
 6. Usar "Image" (ilustrativa) antes de seções importantes para quebrar texto
 7. Usar "button" APENAS quando existir ação específica e URL conhecida
 8. Usar "Divisor" entre tópicos DIFERENTES (não overuse)
@@ -31,29 +31,35 @@ REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRATURAL:
 10. SEMPRE TERMINAR com "Signature" (category: content, name: Signature)
 
 FORMATO DE CONTEÚDO:
-- Para "Header": forneça category (Palavra que resume o email)
+- Para "Header": SEMPRE content: null (a categoria será definida no nível do email)
+- Para "Image": SEMPRE content: null
+- Para "Divisor": SEMPRE content: null
 - Para "Welcome": forneça title (texto principal de boas-vindas)
 - Para "Title": forneça title (título da seção)
-- Para "Paragrafo": forneça text (HTML rica: <p><strong>destacado</strong></p><p>mais conteúdo...</p>)
-- Para "Signature": OPCIONAL: content.text (ex: "<p>Atenciosamente,<br><strong>Equipe Marketing</strong></p>") OU null
+- Para "Paragrafo": forneça text (conteúdo em texto puro ou HTML simples com <p>, <strong>, <em>, <br>)
 - Para "button": forneça button_text e url (apenas se houver ação específica)
-- Para "Header", "Divisor", "Image": content: null
+- Para "Signature": OPCIONAL: content.text (ex: "Atenciosamente,<br>Equipe Marketing") OU null para usar assinatura padrão
 
 EXEMPLOS PRÁTICOS DE DESENVOLVIMENTO:
 
 EXEMPLO 1 - Tema Páscoa com múltiplas seções:
-[
-  {"name": "Header", "category": "header", "content": "comunicado"},
-  {"name": "Image", "category": "content", "content": null},
-  {"name": "Welcome", "category": "header", "content": {"title": "Olá, Pedro!"}},
-  {"name": "Title", "category": "content", "content": {"title": "Feliz Páscoa!"}},
-  {"name": "Paragrafo", "category": "content", "content": {"text": "<p>O <strong>Coelhinho da Páscoa</strong> está chegando com novidades emocionantes para toda a família! Preparem-se para receber ovos deliciosos e surpresas encantadoras.</p><p>Nossos colaboradores receberão cestas especiais em casa com produtos frescos e artesanais, pensados com carinho para tornar sua Páscoa ainda mais especial.</p>"}},
-  {"name": "Image", "category": "content", "content": null},
-  {"name": "Title", "category": "content", "content": {"title": "Atualizar Endereço"}},
-  {"name": "Paragrafo", "category": "content", "content": {"text": "<p>Para garantir a entrega da sua cesta, atualize seus dados cadastrais clicando abaixo.</p>"}},
-  {"name": "button", "category": "content", "content": {"button_text": "Atualizar Endereço", "url": "https://empresa.com/atualizar"}},
-  {"name": "Signature", "category": "content", "content": {"text": "<p>Abraços,<br><em>Equipe de RH</em></p>"}}
-]
+{
+  "subject": "Feliz Páscoa - Cestas Especiais",
+  "preview_text": "O Coelhinho está chegando com surpresas!",
+  "category": "Páscoa",
+  "blocks": [
+    {"name": "Header", "category": "header", "content": null},
+    {"name": "Image", "category": "content", "content": null},
+    {"name": "Welcome", "category": "header", "content": {"title": "Olá, Pedro!"}},
+    {"name": "Title", "category": "content", "content": {"title": "Feliz Páscoa!"}},
+    {"name": "Paragrafo", "category": "content", "content": {"text": "O Coelhinho da Páscoa está chegando com novidades emocionantes para toda a família! Preparem-se para receber ovos deliciosos e surpresas encantadoras. Nossos colaboradores receberão cestas especiais em casa com produtos frescos e artesanais, pensados com carinho para tornar sua Páscoa ainda mais especial."}},
+    {"name": "Image", "category": "content", "content": null},
+    {"name": "Title", "category": "content", "content": {"title": "Atualizar Endereço"}},
+    {"name": "Paragrafo", "category": "content", "content": {"text": "Para garantir a entrega da sua cesta, atualize seus dados cadastrais clicando abaixo."}},
+    {"name": "button", "category": "content", "content": {"button_text": "Atualizar Endereço", "url": "https://empresa.com/atualizar"}},
+    {"name": "Signature", "category": "content", "content": {"text": "Abraços,<br>Equipe de RH"}}
+  ]
+}
 
 IMPORTANTE: Use o campo "name" exatamente como listado acima (case-sensitive)! Retorne APENAS o JSON válido, sem markdown, sem explicações.`;
 

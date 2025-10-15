@@ -42,28 +42,17 @@ const applyContentToHtml = (htmlTemplate: string, content: any): string => {
 
   // Replace text content (for Paragrafo blocks)
   if (content.text) {
-    // Replace text placeholders - try multiple variations
     html = html.replace(/\{\{texto\}\}/gi, content.text);
     html = html.replace(/\{\{text\}\}/gi, content.text);
     html = html.replace(/\{\{conteudo\}\}/gi, content.text);
     html = html.replace(/\{\{content\}\}/gi, content.text);
+  }
 
-    // Replace content between tags that should contain text
-    // Look for spans or divs that contain only placeholder text
-    html = html.replace(/(<[^>]+>)\{\{[^}]+\}\}<\/[^>]+>/g, (match, openTag) => {
-      // Extract tag name to ensure it's a text container
-      const tagMatch = openTag.match(/<(\w+)/);
-      if (tagMatch && ["span", "div", "p", "td", "font"].includes(tagMatch[1])) {
-        const closeTag = match.match(/<\/([^>]+)>$/);
-        if (closeTag && closeTag[1] === tagMatch[1]) {
-          return `${openTag}${content.text}</${tagMatch[1]}>`;
-        }
-      }
-      return match;
-    });
-
-    // Fallback: replace any remaining {{content}} patterns
-    html = html.replace(/\{\{[^}]+\}\}/g, content.text);
+  // Replace category (for Header blocks)
+  if (content.category) {
+    html = html.replace(/\{\{texto\}\}/gi, content.category);
+    html = html.replace(/\{\{text\}\}/gi, content.category);
+    html = html.replace(/\{\{category\}\}/gi, content.category);
   }
 
   // Replace button text and URL (ONLY for button blocks)
@@ -134,7 +123,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
       console.log("Blocos disponíveis:", allBlocks.length);
 
-      // 3. Map AI blocks to real database blocks
+      // 3. Map AI blocks to real database blocks and add category to Header
       const selectedBlocks = emailStructure.blocks
         .map((aiBlock, index) => {
           console.log(`Mapeando bloco ${index}:`, aiBlock.name, aiBlock.category);
@@ -156,8 +145,15 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
           console.log(`Bloco encontrado: ${matchingBlock.name}, aplicando conteúdo:`, aiBlock.content);
 
+          // Special handling for Header: add category from email structure
+          let contentToApply = aiBlock.content;
+          if (matchingBlock.name === "Header" && emailStructure.category) {
+            contentToApply = { category: emailStructure.category };
+            console.log(`Aplicando categoria ao Header:`, emailStructure.category);
+          }
+
           // Apply content to the HTML template
-          const customHtml = applyContentToHtml(matchingBlock.html_template, aiBlock.content);
+          const customHtml = applyContentToHtml(matchingBlock.html_template, contentToApply);
 
           console.log(`HTML customizado (primeiros 200 chars):`, customHtml.substring(0, 200));
 
