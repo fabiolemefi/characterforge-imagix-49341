@@ -1,6 +1,5 @@
 import { ImageUploader } from './ImageUploader';
 import { InlineTextEditor } from './InlineTextEditor';
-import { useBrandGuide } from '@/hooks/useBrandGuide';
 import { useState } from 'react';
 
 interface TwoColumnBlockProps {
@@ -13,34 +12,34 @@ interface TwoColumnBlockProps {
     }>;
   };
   isAdmin: boolean;
+  onContentChange: (content: any) => void;
 }
 
-export const TwoColumnBlock = ({ blockId, content, isAdmin }: TwoColumnBlockProps) => {
-  const { updateBlock } = useBrandGuide();
+export const TwoColumnBlock = ({ blockId, content, isAdmin, onContentChange }: TwoColumnBlockProps) => {
   const [localContent, setLocalContent] = useState(content);
 
-  const handleImageUpload = async (columnIndex: number, url: string) => {
+  const handleImageUpload = async (columnIndex: number, file: File) => {
     const newColumns = [...localContent.columns];
-    newColumns[columnIndex] = { ...newColumns[columnIndex], image_url: url };
+    newColumns[columnIndex] = { ...newColumns[columnIndex], image_url: URL.createObjectURL(file), imageFile: file } as any;
     const newContent = { columns: newColumns };
     setLocalContent(newContent);
-    await updateBlock(blockId, newContent);
+    onContentChange(newContent);
   };
 
-  const handleTitleChange = async (columnIndex: number, title: string) => {
+  const handleTitleChange = (columnIndex: number, title: string) => {
     const newColumns = [...localContent.columns];
     newColumns[columnIndex] = { ...newColumns[columnIndex], title };
     const newContent = { columns: newColumns };
     setLocalContent(newContent);
-    await updateBlock(blockId, newContent);
+    onContentChange(newContent);
   };
 
-  const handleDescriptionChange = async (columnIndex: number, description: string) => {
+  const handleDescriptionChange = (columnIndex: number, description: string) => {
     const newColumns = [...localContent.columns];
     newColumns[columnIndex] = { ...newColumns[columnIndex], description };
     const newContent = { columns: newColumns };
     setLocalContent(newContent);
-    await updateBlock(blockId, newContent);
+    onContentChange(newContent);
   };
 
   return (
@@ -49,7 +48,7 @@ export const TwoColumnBlock = ({ blockId, content, isAdmin }: TwoColumnBlockProp
         <div key={index} className="space-y-4">
           <ImageUploader
             imageUrl={column.image_url}
-            onUpload={(url) => handleImageUpload(index, url)}
+            onUpload={(file) => handleImageUpload(index, file)}
             disabled={!isAdmin}
           />
           <InlineTextEditor

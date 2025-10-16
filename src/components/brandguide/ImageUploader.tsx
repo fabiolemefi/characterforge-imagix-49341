@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface ImageUploaderProps {
   imageUrl: string;
-  onUpload: (url: string) => void;
+  onUpload: (file: File) => void;
   disabled?: boolean;
   className?: string;
   aspectRatio?: string;
@@ -31,10 +31,7 @@ export const ImageUploader = ({
     if (!file) return;
 
     setUploading(true);
-    
-    // Create a temporary URL for immediate preview
-    const tempUrl = URL.createObjectURL(file);
-    onUpload(tempUrl);
+    onUpload(file);
     
     // Reset input
     if (inputRef.current) {

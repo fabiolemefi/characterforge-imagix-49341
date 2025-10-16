@@ -7,6 +7,8 @@ import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
+import { TitleOnlyBlock } from '@/components/brandguide/TitleOnlyBlock';
+import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
 
 export default function BrandGuide() {
   const { categorySlug, pageSlug } = useParams();
@@ -39,19 +41,56 @@ export default function BrandGuide() {
       case 'single_column':
         return (
           <div key={block.id}>
-            <SingleColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+            <SingleColumnBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
           </div>
         );
       case 'two_columns':
         return (
           <div key={block.id}>
-            <TwoColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+            <TwoColumnBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
           </div>
         );
       case 'three_columns':
         return (
           <div key={block.id}>
-            <ThreeColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+            <ThreeColumnBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
+          </div>
+        );
+      case 'title_only':
+        return (
+          <div key={block.id}>
+            <TitleOnlyBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
+          </div>
+        );
+      case 'text_only':
+        return (
+          <div key={block.id}>
+            <TextOnlyBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
           </div>
         );
       default:

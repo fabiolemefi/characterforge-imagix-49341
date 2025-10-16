@@ -11,9 +11,7 @@ interface InlineTextEditorProps {
 
 export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: InlineTextEditorProps) => {
   const [showToolbar, setShowToolbar] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== value) {
@@ -24,16 +22,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
   const handleInput = () => {
     if (editorRef.current) {
       const newValue = editorRef.current.innerHTML;
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      setIsSaving(true);
-      timeoutRef.current = setTimeout(() => {
-        onChange(newValue);
-        setIsSaving(false);
-      }, 1000);
+      onChange(newValue);
     }
   };
 
@@ -127,10 +116,6 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
         data-placeholder={placeholder}
         suppressContentEditableWarning
       />
-      
-      {isSaving && (
-        <span className="text-xs text-muted-foreground mt-1">Salvando...</span>
-      )}
     </div>
   );
 };

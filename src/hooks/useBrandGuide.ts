@@ -29,7 +29,7 @@ export interface BrandGuideBlock {
   id: string;
   page_id?: string;
   category_id?: string;
-  block_type: 'single_column' | 'two_columns' | 'three_columns';
+  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only';
   position: number;
   content: any;
   created_at: string;
@@ -135,7 +135,7 @@ export const useBrandGuide = () => {
     }
   };
 
-  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns') => {
+  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only') => {
     try {
       const { data: existingBlocks } = await supabase
         .from('brand_guide_blocks')
@@ -147,17 +147,21 @@ export const useBrandGuide = () => {
       const newPosition = existingBlocks && existingBlocks.length > 0 ? existingBlocks[0].position + 1 : 0;
 
       const defaultContent = blockType === 'single_column' 
-        ? { media_type: 'image', media_url: '', media_alt: '' }
+        ? { title: '', subtitle: '', media_type: 'image', media_url: '', media_alt: '' }
         : blockType === 'two_columns'
         ? { columns: [
             { image_url: '', title: '', description: '' },
             { image_url: '', title: '', description: '' }
           ]}
-        : { columns: [
+        : blockType === 'three_columns'
+        ? { columns: [
             { image_url: '', title: '', description: '' },
             { image_url: '', title: '', description: '' },
             { image_url: '', title: '', description: '' }
-          ]};
+          ]}
+        : blockType === 'title_only'
+        ? { title: '' }
+        : { text: '' };
 
       const { data, error } = await supabase
         .from('brand_guide_blocks')

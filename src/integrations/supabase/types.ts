@@ -561,7 +561,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
-      brand_guide_block_type: "single_column" | "two_columns" | "three_columns"
+      brand_guide_block_type:
+        | "single_column"
+        | "two_columns"
+        | "three_columns"
+        | "title_only"
+        | "text_only"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -690,7 +695,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
-      brand_guide_block_type: ["single_column", "two_columns", "three_columns"],
+      brand_guide_block_type: [
+        "single_column",
+        "two_columns",
+        "three_columns",
+        "title_only",
+        "text_only",
+      ],
     },
   },
 } as const
