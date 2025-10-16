@@ -16,6 +16,10 @@ export interface EmailTemplate {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  creator?: {
+    full_name?: string | null;
+    email: string;
+  } | null;
 }
 
 export const useEmailTemplates = () => {
@@ -37,17 +41,25 @@ export const useEmailTemplates = () => {
     try {
       const { data, error } = await supabase
         .from('email_templates')
-        .select('*')
+        .select(`
+          *,
+          profiles!email_templates_created_by_fkey (
+            full_name,
+            email
+          )
+        `)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
       clearTimeout(timeout);
 
-      // Transform blocks_data from Json to any[]
-      const transformedData = (data || []).map(template => ({
+      // Transform blocks_data from Json to any[] and rename profiles to creator
+      const transformedData = (data || []).map((template: any) => ({
         ...template,
         blocks_data: Array.isArray(template.blocks_data) ? template.blocks_data : [],
-        is_model: (template as any).is_model || false,
+        is_model: template.is_model || false,
+        creator: template.profiles || null,
+        profiles: undefined, // Remove the profiles property
       }));
 
       setTemplates(transformedData);

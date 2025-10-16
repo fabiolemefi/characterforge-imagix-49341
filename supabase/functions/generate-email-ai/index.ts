@@ -30,7 +30,19 @@ REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRUTURAL:
 9. Para "Signature": se houver assinatura específica na descrição, personalize com content:text (ex: "Atenciosamente,<br>Equipe Marketing"). Senão, usar content: null (mantém padrão)
 10. SEMPRE TERMINAR com "Signature" (category: content, name: Signature)
 
-FORMATO DE CONTEÚDO:
+CAMPOS OBRIGATÓRIOS NO JSON DE RESPOSTA:
+- name: Nome curto e objetivo do email (máx 60 chars) - Ex: "Promoção Dia dos Namorados", "Newsletter Março 2024"
+- subject: Assunto breve e atrativo (40-60 chars ideal, máx 78 chars) - Ex: "Taxa 3% OFF em Contratos 3+ anos 💕"
+- preview_text: Texto preheader complementar (40-130 chars) que continua/complementa o assunto - Ex: "Aproveite a promoção especial do Dia dos Namorados"
+- category: Categoria do email (ex: "Páscoa", "Black Friday", "Newsletter")
+- blocks: Array de blocos conforme descrito acima
+
+BOAS PRÁTICAS DE SUBJECT E PREVIEW_TEXT:
+- Subject: Breve, direto, cria urgência/curiosidade, usa emojis se apropriado, foca no benefício principal
+- Preview_text: Complementa o subject (não repete!), adiciona contexto/detalhe, convence a abrir o email
+- Juntos devem formar uma frase coerente e atrativa na caixa de entrada
+
+FORMATO DE CONTEÚDO DOS BLOCOS:
 - Para "Header": SEMPRE content: null (a categoria será definida no nível do email)
 - Para "Image": SEMPRE content: null
 - Para "Divisor": SEMPRE content: null
@@ -52,8 +64,9 @@ EXEMPLOS PRÁTICOS DE DESENVOLVIMENTO:
 
 EXEMPLO 1 - Tema Páscoa com múltiplas seções:
 {
-  "subject": "Feliz Páscoa - Cestas Especiais",
-  "preview_text": "O Coelhinho está chegando com surpresas!",
+  "name": "Promoção Páscoa 2024",
+  "subject": "Feliz Páscoa - Cestas Especiais 🐰",
+  "preview_text": "O Coelhinho está chegando com surpresas e cestas artesanais para você!",
   "category": "Páscoa",
   "blocks": [
     {"name": "Header", "category": "header", "content": null},
@@ -136,8 +149,8 @@ Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`,
     const emailStructure = JSON.parse(responseText);
 
     // Validate structure
-    if (!emailStructure.subject || !emailStructure.blocks || !Array.isArray(emailStructure.blocks)) {
-      throw new Error("Estrutura de resposta inválida da IA");
+    if (!emailStructure.name || !emailStructure.subject || !emailStructure.preview_text || !emailStructure.blocks || !Array.isArray(emailStructure.blocks)) {
+      throw new Error("Estrutura de resposta inválida da IA - campos obrigatórios: name, subject, preview_text, blocks");
     }
 
     // Ensure first block is Header and last is Signature

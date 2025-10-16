@@ -21,6 +21,7 @@ interface AIBlock {
 }
 
 interface AIResponse {
+  name: string;
   subject: string;
   preview_text: string;
   category: string;
@@ -206,10 +207,10 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       const { data: template, error: saveError } = await supabase
         .from("email_templates")
         .insert({
-          name: `IA: ${description.substring(0, 50)}${description.length > 50 ? "..." : ""}`,
+          name: emailStructure.name,
           subject: emailStructure.subject,
-          preview_text: emailStructure.preview_text || emailStructure.subject,
-          description: `Gerado por IA: ${description}`,
+          preview_text: emailStructure.preview_text,
+          description: emailStructure.category || null,
           html_content: htmlContent,
           blocks_data: selectedBlocks,
           created_by: user.user.id,
@@ -217,14 +218,6 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
         })
         .select()
         .single();
-
-      // Save category if available (using description field for now since category column doesn't exist yet)
-      if (emailStructure.category && template?.id) {
-        await supabase
-          .from("email_templates")
-          .update({ description: `Gerado por IA (${emailStructure.category}): ${description}` })
-          .eq("id", template.id);
-      }
 
       if (saveError) throw saveError;
       if (!template) throw new Error("Erro ao criar template");

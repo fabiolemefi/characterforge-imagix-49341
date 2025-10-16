@@ -189,7 +189,8 @@ const EmailTemplates = () => {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Assunto</TableHead>
-                      <TableHead>Descrição</TableHead>
+                      <TableHead>Preview</TableHead>
+                      <TableHead>Criado por</TableHead>
                       <TableHead>Atualizado em</TableHead>
                       <TableHead className="w-[80px]">Ações</TableHead>
                     </TableRow>
@@ -199,6 +200,7 @@ const EmailTemplates = () => {
                       <TableRow key={index}>
                         <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
                         <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
@@ -242,7 +244,8 @@ const EmailTemplates = () => {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Assunto</TableHead>
-                      <TableHead>Descrição</TableHead>
+                      <TableHead>Preview</TableHead>
+                      <TableHead>Criado por</TableHead>
                       <TableHead>Atualizado em</TableHead>
                       <TableHead className="w-[80px]">Ações</TableHead>
                     </TableRow>
@@ -251,11 +254,14 @@ const EmailTemplates = () => {
                     {paginatedTemplates.map((template) => (
                       <TableRow key={template.id}>
                         <TableCell className="font-medium">{template.name}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-muted-foreground max-w-[200px] truncate">
                           {template.subject || '-'}
                         </TableCell>
+                        <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                          {template.preview_text || '-'}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {template.description || '-'}
+                          {template.creator?.full_name || template.creator?.email || '-'}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {format(new Date(template.updated_at), 'dd/MM/yyyy HH:mm')}
@@ -411,7 +417,7 @@ const EmailTemplates = () => {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Assunto</TableHead>
-                    <TableHead>Descrição</TableHead>
+                    <TableHead>Preview</TableHead>
                     <TableHead>Atualizado em</TableHead>
                     <TableHead className="w-[80px]">Ações</TableHead>
                   </TableRow>
@@ -420,11 +426,11 @@ const EmailTemplates = () => {
                   {models.map((model) => (
                     <TableRow key={model.id}>
                       <TableCell className="font-medium">{model.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="text-muted-foreground max-w-[200px] truncate">
                         {model.subject || '-'}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {model.description || '-'}
+                      <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                        {model.preview_text || '-'}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(model.updated_at), 'dd/MM/yyyy HH:mm')}
