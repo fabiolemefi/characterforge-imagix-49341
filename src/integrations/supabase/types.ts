@@ -50,6 +50,154 @@ export type Database = {
         }
         Relationships: []
       }
+      brand_guide_blocks: {
+        Row: {
+          block_type: Database["public"]["Enums"]["brand_guide_block_type"]
+          category_id: string | null
+          content: Json
+          created_at: string
+          id: string
+          page_id: string | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          block_type: Database["public"]["Enums"]["brand_guide_block_type"]
+          category_id?: string | null
+          content?: Json
+          created_at?: string
+          id?: string
+          page_id?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          block_type?: Database["public"]["Enums"]["brand_guide_block_type"]
+          category_id?: string | null
+          content?: Json
+          created_at?: string
+          id?: string
+          page_id?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_guide_blocks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "brand_guide_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_guide_blocks_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "brand_guide_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_guide_categories: {
+        Row: {
+          content: Json | null
+          created_at: string
+          icon: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      brand_guide_pages: {
+        Row: {
+          category_id: string
+          content: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          slug: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category_id: string
+          content?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          slug: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category_id?: string
+          content?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          slug?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_guide_pages_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "brand_guide_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_guide_pages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_guide_pages_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       character_images: {
         Row: {
           character_id: string
@@ -413,6 +561,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      brand_guide_block_type: "single_column" | "two_columns" | "three_columns"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -541,6 +690,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      brand_guide_block_type: ["single_column", "two_columns", "three_columns"],
     },
   },
 } as const

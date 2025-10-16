@@ -9,6 +9,7 @@ import { ModelCard } from "../components/ModelCard";
 import { Video, Paintbrush, Grid, FileText, ArrowUpRight, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 interface Plugin {
   id: string;
   name: string;
@@ -25,6 +26,7 @@ const Index = () => {
   const {
     toast
   } = useToast();
+  const navigate = useNavigate();
   useEffect(() => {
     loadPlugins();
     loadUserName();
@@ -76,9 +78,23 @@ const Index = () => {
                 <h2 className="text-2xl font-bold text-foreground mb-6">Olá, {firstName}.</h2>
                 
               </section>
+
+              <section className="mb-12">
+                <h3 className="text-xl font-semibold text-foreground mb-4">Módulos</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <FeaturedAppCard 
+                    id="brand-guide" 
+                    title="Guia de Marca" 
+                    subtitle="Manual completo de identidade visual e verbal" 
+                    imageSrc="/lovable-uploads/407e5ec8-9b67-42ee-acf0-b238e194aa64.png"
+                    isNew={true}
+                    inDevelopment={false}
+                  />
+                </div>
+              </section>
               
               <section className="mb-12">
-                
+                <h3 className="text-xl font-semibold text-foreground mb-4">Plugins</h3>
                 {loading ? <p className="text-gray-400">Carregando plugins...</p> : plugins.length === 0 ? <p className="text-gray-400">Nenhum plugin disponível no momento.</p> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {plugins.map(plugin => <FeaturedAppCard key={plugin.id} id={plugin.id} title={plugin.name} subtitle={plugin.description || ""} imageSrc={plugin.image_url || "/placeholder.svg"} isNew={plugin.is_new} inDevelopment={plugin.in_development} />)}
                   </div>}

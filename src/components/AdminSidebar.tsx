@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -28,6 +28,11 @@ const menuItems = [
     title: "Comunicados",
     url: "/admin/announcements",
     icon: Megaphone,
+  },
+  {
+    title: "Guia de Marca",
+    url: "/admin/brand-guide",
+    icon: Book,
   },
   {
     title: "Plugins",

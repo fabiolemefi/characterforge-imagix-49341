@@ -21,7 +21,11 @@ export const FeaturedAppCard = ({
   const navigate = useNavigate();
   const handleClick = () => {
     if (!inDevelopment) {
-      navigate(`/plugin/${id}`);
+      if (id === 'brand-guide') {
+        navigate('/brand-guide');
+      } else {
+        navigate(`/plugin/${id}`);
+      }
     }
   };
   return <div className={`feature-card bg-muted rounded-lg overflow-hidden flex flex-col ${inDevelopment ? "opacity-50 grayscale" : ""}`}>

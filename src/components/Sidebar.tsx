@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import * as LucideIcons from "lucide-react";
 interface Plugin {
   id: string;
   name: string;
@@ -10,6 +11,23 @@ interface Plugin {
   is_active: boolean;
   is_new: boolean;
   in_development: boolean;
+}
+
+interface BrandGuideCategory {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  position: number;
+  pages?: BrandGuidePage[];
+}
+
+interface BrandGuidePage {
+  id: string;
+  category_id: string;
+  name: string;
+  slug: string;
+  position: number;
 }
 type SidebarItemProps = {
   icon: React.ReactNode;
@@ -55,12 +73,16 @@ const DropdownItem = ({
 export const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [pluginsOpen, setPluginsOpen] = useState(false);
+  const [brandGuideOpen, setBrandGuideOpen] = useState(false);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [categories, setCategories] = useState<BrandGuideCategory[]>([]);
   const [activeItem, setActiveItem] = useState("Principal");
   const [activeDropdownItem, setActiveDropdownItem] = useState("");
+  const [activeCategoryId, setActiveCategoryId] = useState("");
   const navigate = useNavigate();
   useEffect(() => {
     loadPlugins();
+    loadBrandGuideCategories();
   }, []);
   const loadPlugins = async () => {
     const {
@@ -69,6 +91,33 @@ export const Sidebar = () => {
     if (data) {
       setPlugins(data);
     }
+  };
+
+  const loadBrandGuideCategories = async () => {
+    const { data: categoriesData } = await supabase
+      .from("brand_guide_categories")
+      .select("*")
+      .eq("is_active", true)
+      .order("position");
+
+    const { data: pagesData } = await supabase
+      .from("brand_guide_pages")
+      .select("*")
+      .eq("is_active", true)
+      .order("position");
+
+    if (categoriesData && pagesData) {
+      const categoriesWithPages = categoriesData.map((category) => ({
+        ...category,
+        pages: pagesData.filter((page) => page.category_id === category.id),
+      }));
+      setCategories(categoriesWithPages);
+    }
+  };
+
+  const getIconComponent = (iconName: string) => {
+    const Icon = (LucideIcons as any)[iconName] || Book;
+    return <Icon size={20} />;
   };
   if (isCollapsed) {
     return <div className="w-16 bg-sidebar min-h-screen flex flex-col items-center py-4 border-r border-gray-800">
@@ -98,6 +147,41 @@ export const Sidebar = () => {
         navigate("/");
       }} />
         
+        <SidebarItem icon={<Book size={20} />} label="Guia de Marca" isActive={activeItem === "BrandGuide"} hasDropdown onClick={() => {
+        setBrandGuideOpen(!brandGuideOpen);
+        setActiveItem("BrandGuide");
+      }} />
+
+        {brandGuideOpen && <div className="mt-1 space-y-1 animate-fade-in">
+            {categories.map(category => (
+              <div key={category.id} className="space-y-1">
+                <DropdownItem 
+                  icon={getIconComponent(category.icon)} 
+                  label={category.name} 
+                  isActive={activeCategoryId === category.id && !activeDropdownItem}
+                  onClick={() => {
+                    setActiveCategoryId(category.id);
+                    setActiveDropdownItem("");
+                    navigate(`/brand-guide/${category.slug}`);
+                  }} 
+                />
+                {category.pages?.map(page => (
+                  <button 
+                    key={page.id}
+                    className={`w-full flex items-center gap-3 p-2 pl-16 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
+                    onClick={() => {
+                      setActiveCategoryId(category.id);
+                      setActiveDropdownItem(page.id);
+                      navigate(`/brand-guide/${category.slug}/${page.slug}`);
+                    }}
+                  >
+                    {page.name}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>}
+
         <SidebarItem icon={<Plug size={20} />} label="Plugins" isActive={activeItem === "Plugins"} hasDropdown onClick={() => {
         setPluginsOpen(!pluginsOpen);
         setActiveItem("Plugins");
