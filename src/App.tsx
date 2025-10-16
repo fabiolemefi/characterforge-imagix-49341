@@ -17,6 +17,7 @@ import EmailTemplates from './pages/EmailTemplates';
 import AdminEmailBlocks from './pages/AdminEmailBlocks';
 import BrandGuide from './pages/BrandGuide';
 import AdminBrandGuide from './pages/AdminBrandGuide';
+import AdminBrandGuidePage from './pages/AdminBrandGuidePage';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
           <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />

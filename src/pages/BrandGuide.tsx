@@ -7,37 +7,13 @@ import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
-import { Button } from '@/components/ui/button';
-import { Plus, Trash2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 export default function BrandGuide() {
   const { categorySlug, pageSlug } = useParams();
   const navigate = useNavigate();
-  const { categories, loading, loadPageContent, addBlock, deleteBlock } = useBrandGuide();
+  const { categories, loading, loadPageContent } = useBrandGuide();
   const [pageData, setPageData] = useState<any>(null);
   const [blocks, setBlocks] = useState<BrandGuideBlock[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    const checkAdmin = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'admin'
-        });
-        setIsAdmin(data || false);
-      }
-    };
-    checkAdmin();
-  }, []);
 
   useEffect(() => {
     if (!loading && categories.length > 0 && !categorySlug) {
@@ -58,53 +34,25 @@ export default function BrandGuide() {
     loadContent();
   }, [categorySlug, pageSlug]);
 
-  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns') => {
-    const newBlock = await addBlock(
-      pageData?.page?.id || null,
-      pageData?.page ? null : pageData?.category?.id,
-      blockType
-    );
-    if (newBlock) {
-      setBlocks([...blocks, newBlock]);
-    }
-  };
-
-  const handleDeleteBlock = async (blockId: string) => {
-    const success = await deleteBlock(blockId);
-    if (success) {
-      setBlocks(blocks.filter(b => b.id !== blockId));
-    }
-  };
-
   const renderBlock = (block: BrandGuideBlock) => {
-    const blockWrapper = (content: React.ReactNode) => (
-      <div key={block.id} className="relative group">
-        {content}
-        {isAdmin && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={() => handleDeleteBlock(block.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    );
-
     switch (block.block_type) {
       case 'single_column':
-        return blockWrapper(
-          <SingleColumnBlock blockId={block.id} content={block.content} isAdmin={isAdmin} />
+        return (
+          <div key={block.id}>
+            <SingleColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+          </div>
         );
       case 'two_columns':
-        return blockWrapper(
-          <TwoColumnBlock blockId={block.id} content={block.content} isAdmin={isAdmin} />
+        return (
+          <div key={block.id}>
+            <TwoColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+          </div>
         );
       case 'three_columns':
-        return blockWrapper(
-          <ThreeColumnBlock blockId={block.id} content={block.content} isAdmin={isAdmin} />
+        return (
+          <div key={block.id}>
+            <ThreeColumnBlock blockId={block.id} content={block.content} isAdmin={false} />
+          </div>
         );
       default:
         return null;
@@ -125,31 +73,15 @@ export default function BrandGuide() {
               </h1>
             </div>
 
-            <div className="space-y-8">
-              {blocks.map(renderBlock)}
-            </div>
-
-            {isAdmin && (
-              <div className="mt-8 flex justify-center">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Bloco
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleAddBlock('single_column')}>
-                      1 Coluna (Imagem/Vídeo)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddBlock('two_columns')}>
-                      2 Colunas
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddBlock('three_columns')}>
-                      3 Colunas
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            {blocks.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  Nenhum conteúdo disponível ainda.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {blocks.map(renderBlock)}
               </div>
             )}
           </div>
