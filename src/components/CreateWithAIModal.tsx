@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EmailBlock } from "@/hooks/useEmailBlocks";
+import { RichTextEditor } from "./RichTextEditor";
 
 interface CreateWithAIModalProps {
   open: boolean;
@@ -273,27 +273,13 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="description">Descreva o email que você quer criar</Label>
-            <Textarea
-              id="description"
-              placeholder="Ex: Comunicado de férias com 2 histórias do papai noel e um botão para ver mais histórias..."
+            <Label htmlFor="description">Conteúdo do email</Label>
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="min-h-[120px] resize-none"
+              onChange={setDescription}
+              placeholder="Ex: Email sobre Dia dos namorados&#10;&#10;O Efí Bank lança promoção..."
               disabled={generating}
             />
-            <p className="text-xs text-muted-foreground">
-              Seja específico sobre o conteúdo, estrutura e elementos que deseja no email.
-            </p>
-          </div>
-
-          <div className="rounded-lg bg-muted/50 p-3 space-y-2">
-            <p className="text-sm font-medium">💡 Dicas:</p>
-            <ul className="text-xs text-muted-foreground space-y-1 pl-4">
-              <li>• Mencione quantas seções ou histórias você quer</li>
-              <li>• Descreva se precisa de botões de ação (CTAs)</li>
-              <li>• Indique o tom: profissional, casual, festivo, etc.</li>
-            </ul>
           </div>
         </div>
 

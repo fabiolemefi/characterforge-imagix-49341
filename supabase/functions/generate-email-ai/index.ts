@@ -36,9 +36,17 @@ FORMATO DE CONTEÚDO:
 - Para "Divisor": SEMPRE content: null
 - Para "Welcome": forneça hi (saudação curta ex: "Olá, amor!" ou "Oi, Pedro!") E title (título principal ex: "Feliz Páscoa!" ou "Promoção Especial")
 - Para "Title": forneça title (título da seção)
-- Para "Paragrafo": forneça text (conteúdo em texto puro ou HTML simples com <p>, <strong>, <em>, <br>)
+- Para "Paragrafo": forneça text (conteúdo em HTML com formatações como <strong>, <em>, <h1>, <h2>, <ul>, <ol>, <li>, <br>, <p>)
 - Para "button": forneça button_text e url (apenas se houver ação específica)
 - Para "Signature": OPCIONAL: content com text no formato "Primeira linha,<br>Segunda linha" (ex: "Abraços,<br>Equipe Marketing" ou "Um beijo,<br>Equipe Efi Bank") OU null para usar assinatura padrão
+
+IMPORTANTE SOBRE FORMATAÇÕES:
+- O usuário pode enviar o conteúdo com formatações HTML (<strong>, <em>, <h1>, <h2>, <ul>, <ol>, <li>)
+- Você DEVE preservar e interpretar essas formatações ao montar o conteúdo dos blocos
+- Textos com <strong> ou <b> devem manter o negrito
+- Textos com <em> ou <i> devem manter o itálico
+- Listas <ul> e <ol> com <li> devem ser convertidas em parágrafos ou preservadas conforme o contexto
+- Títulos <h1> e <h2> devem ser usados em blocos "Title" apropriadamente
 
 EXEMPLOS PRÁTICOS DE DESENVOLVIMENTO:
 
