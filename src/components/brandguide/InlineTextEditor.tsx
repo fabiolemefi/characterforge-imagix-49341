@@ -40,7 +40,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
     return (
       <div
         dangerouslySetInnerHTML={{ __html: value }}
-        className="prose prose-sm max-w-none"
+        className="prose prose-sm max-w-none [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-3 [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1"
       />
     );
   }
@@ -112,7 +112,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
         onInput={handleInput}
         onFocus={() => setShowToolbar(true)}
         onBlur={() => setTimeout(() => setShowToolbar(false), 200)}
-        className="prose prose-sm max-w-none min-h-[40px] rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="prose prose-sm max-w-none min-h-[40px] rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-3 [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1"
         data-placeholder={placeholder}
         suppressContentEditableWarning
       />
