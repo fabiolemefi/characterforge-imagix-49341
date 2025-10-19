@@ -16,8 +16,10 @@ import EmailBuilder from './pages/EmailBuilder';
 import EmailTemplates from './pages/EmailTemplates';
 import AdminEmailBlocks from './pages/AdminEmailBlocks';
 import BrandGuide from './pages/BrandGuide';
+import BrandGuideHome from './pages/BrandGuideHome';
 import AdminBrandGuide from './pages/AdminBrandGuide';
 import AdminBrandGuidePage from './pages/AdminBrandGuidePage';
+import AdminBrandGuideHome from './pages/AdminBrandGuideHome';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -39,10 +41,11 @@ const App = () => (
           <Route path="/email-builder" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
           <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
-          <Route path="/brand-guide" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
+          <Route path="/brand-guide" element={<ProtectedRoute><BrandGuideHome /></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
           <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
           <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />

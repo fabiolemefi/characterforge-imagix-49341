@@ -151,6 +151,7 @@ export const Sidebar = () => {
         <SidebarItem icon={<Book size={20} />} label="Guia de Marca" isActive={activeItem === "BrandGuide"} hasDropdown onClick={() => {
         setBrandGuideOpen(!brandGuideOpen);
         setActiveItem("BrandGuide");
+        navigate("/brand-guide");
       }} />
 
         {brandGuideOpen && <div className="mt-1 space-y-1 animate-fade-in">

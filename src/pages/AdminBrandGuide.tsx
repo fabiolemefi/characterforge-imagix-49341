@@ -86,10 +86,19 @@ export default function AdminBrandGuide() {
                 Gerencie categorias e páginas do guia de marca
               </p>
             </div>
-            <Button onClick={handleAddCategory}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Categoria
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/admin/brand-guide/home')}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar Home
+              </Button>
+              <Button onClick={handleAddCategory}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Categoria
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-8">
