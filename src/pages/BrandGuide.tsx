@@ -16,6 +16,7 @@ export default function BrandGuide() {
   const { categories, loading, loadPageContent } = useBrandGuide();
   const [pageData, setPageData] = useState<any>(null);
   const [blocks, setBlocks] = useState<BrandGuideBlock[]>([]);
+  const [contentLoading, setContentLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && categories.length > 0 && !categorySlug) {
@@ -26,11 +27,13 @@ export default function BrandGuide() {
   useEffect(() => {
     const loadContent = async () => {
       if (categorySlug) {
+        setContentLoading(true);
         const data = await loadPageContent(categorySlug, pageSlug);
         if (data) {
           setPageData(data);
           setBlocks(data.blocks);
         }
+        setContentLoading(false);
       }
     };
     loadContent();
@@ -106,22 +109,32 @@ export default function BrandGuide() {
         <Header />
         <main className="flex-1 overflow-auto p-8">
           <div className="max-w-6xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold mb-2">
-                {pageData?.page?.name || pageData?.category?.name}
-              </h1>
-            </div>
-
-            {blocks.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  Nenhum conteúdo disponível ainda.
-                </p>
+            {contentLoading ? (
+              <div className="space-y-8 animate-pulse">
+                <div className="h-12 bg-muted rounded w-1/3"></div>
+                <div className="h-64 bg-muted rounded"></div>
+                <div className="h-64 bg-muted rounded"></div>
               </div>
             ) : (
-              <div className="space-y-8">
-                {blocks.map(renderBlock)}
-              </div>
+              <>
+                <div className="mb-8">
+                  <h1 className="text-4xl font-bold mb-2">
+                    {pageData?.page?.name || pageData?.category?.name}
+                  </h1>
+                </div>
+
+                {blocks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-muted-foreground">
+                      Nenhum conteúdo disponível ainda.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {blocks.map(renderBlock)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </main>

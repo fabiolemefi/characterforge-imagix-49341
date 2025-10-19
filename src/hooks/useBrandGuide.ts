@@ -75,13 +75,20 @@ export const useBrandGuide = () => {
 
   const loadPageContent = async (categorySlug: string, pageSlug?: string) => {
     try {
-      const { data: category, error: categoryError } = await supabase
-        .from('brand_guide_categories')
-        .select('*')
-        .eq('slug', categorySlug)
-        .single();
+      // Tentar usar categoria do cache primeiro
+      let category = categories.find(c => c.slug === categorySlug);
+      
+      // Se não estiver no cache, buscar do banco
+      if (!category) {
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('brand_guide_categories')
+          .select('*')
+          .eq('slug', categorySlug)
+          .single();
 
-      if (categoryError) throw categoryError;
+        if (categoryError) throw categoryError;
+        category = categoryData;
+      }
 
       if (!pageSlug) {
         const { data: blocks, error: blocksError } = await supabase
@@ -94,24 +101,27 @@ export const useBrandGuide = () => {
         return { category, page: null, blocks: blocks || [] };
       }
 
-      const { data: page, error: pageError } = await supabase
+      // Fazer requisições em paralelo para página e blocos
+      const pagePromise = supabase
         .from('brand_guide_pages')
         .select('*')
         .eq('category_id', category.id)
         .eq('slug', pageSlug)
         .single();
 
-      if (pageError) throw pageError;
+      const [pageResult] = await Promise.all([pagePromise]);
+
+      if (pageResult.error) throw pageResult.error;
 
       const { data: blocks, error: blocksError } = await supabase
         .from('brand_guide_blocks')
         .select('*')
-        .eq('page_id', page.id)
+        .eq('page_id', pageResult.data.id)
         .order('position');
 
       if (blocksError) throw blocksError;
 
-      return { category, page, blocks: blocks || [] };
+      return { category, page: pageResult.data, blocks: blocks || [] };
     } catch (error: any) {
       console.error('Error loading page content:', error);
       toast.error('Erro ao carregar conteúdo da página');
