@@ -74,6 +74,7 @@ export const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [pluginsOpen, setPluginsOpen] = useState(false);
   const [brandGuideOpen, setBrandGuideOpen] = useState(false);
+  const [expandedCategoryId, setExpandedCategoryId] = useState("");
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [categories, setCategories] = useState<BrandGuideCategory[]>([]);
   const [activeItem, setActiveItem] = useState("Principal");
@@ -155,17 +156,33 @@ export const Sidebar = () => {
         {brandGuideOpen && <div className="mt-1 space-y-1 animate-fade-in">
             {categories.map(category => (
               <div key={category.id} className="space-y-1">
-                <DropdownItem 
-                  icon={getIconComponent(category.icon)} 
-                  label={category.name} 
-                  isActive={activeCategoryId === category.id && !activeDropdownItem}
+                <button 
+                  className={`w-full flex items-center gap-3 p-3 pl-12 hover:bg-accent rounded-md transition-colors ${activeCategoryId === category.id && !activeDropdownItem ? 'bg-accent' : ''}`}
                   onClick={() => {
+                    if (expandedCategoryId === category.id) {
+                      setExpandedCategoryId("");
+                    } else {
+                      setExpandedCategoryId(category.id);
+                    }
                     setActiveCategoryId(category.id);
                     setActiveDropdownItem("");
                     navigate(`/brand-guide/${category.slug}`);
-                  }} 
-                />
-                {category.pages?.map(page => (
+                  }}
+                >
+                  <div className={activeCategoryId === category.id && !activeDropdownItem ? "text-white" : "text-gray-300"}>
+                    {getIconComponent(category.icon)}
+                  </div>
+                  <span className={`text-sm flex-1 text-left ${activeCategoryId === category.id && !activeDropdownItem ? "text-white" : "text-gray-300"}`}>
+                    {category.name}
+                  </span>
+                  {category.pages && category.pages.length > 0 && (
+                    expandedCategoryId === category.id 
+                      ? <ChevronDown size={14} className="text-gray-300" />
+                      : <ChevronRight size={14} className="text-gray-300" />
+                  )}
+                </button>
+                
+                {expandedCategoryId === category.id && category.pages?.map(page => (
                   <button 
                     key={page.id}
                     className={`w-full flex items-center gap-3 p-2 pl-16 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
