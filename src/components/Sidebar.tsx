@@ -154,17 +154,15 @@ export const Sidebar = () => {
         navigate("/brand-guide");
       }} />
 
-        {brandGuideOpen && <div className="mt-1 space-y-1 animate-fade-in">
+        {brandGuideOpen && <div className="mt-1 space-y-1">
             {categories.map(category => (
               <div key={category.id} className="space-y-1">
                 <button 
                   className={`w-full flex items-center gap-3 p-3 pl-12 hover:bg-accent rounded-md transition-colors ${activeCategoryId === category.id && !activeDropdownItem ? 'bg-accent' : ''}`}
-                  onClick={() => {
-                    if (expandedCategoryId === category.id) {
-                      setExpandedCategoryId("");
-                    } else {
-                      setExpandedCategoryId(category.id);
-                    }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const willExpand = expandedCategoryId !== category.id;
+                    setExpandedCategoryId(willExpand ? category.id : "");
                     setActiveCategoryId(category.id);
                     setActiveDropdownItem("");
                     navigate(`/brand-guide/${category.slug}`);
@@ -183,19 +181,24 @@ export const Sidebar = () => {
                   )}
                 </button>
                 
-                {expandedCategoryId === category.id && category.pages?.map(page => (
-                  <button 
-                    key={page.id}
-                    className={`w-full flex items-center gap-3 p-2 pl-16 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
-                    onClick={() => {
-                      setActiveCategoryId(category.id);
-                      setActiveDropdownItem(page.id);
-                      navigate(`/brand-guide/${category.slug}/${page.slug}`);
-                    }}
-                  >
-                    {page.name}
-                  </button>
-                ))}
+                {expandedCategoryId === category.id && category.pages && category.pages.length > 0 && (
+                  <div className="space-y-1">
+                    {category.pages.map(page => (
+                      <button 
+                        key={page.id}
+                        className={`w-full flex items-center gap-3 p-2 pl-16 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCategoryId(category.id);
+                          setActiveDropdownItem(page.id);
+                          navigate(`/brand-guide/${category.slug}/${page.slug}`);
+                        }}
+                      >
+                        {page.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>}
