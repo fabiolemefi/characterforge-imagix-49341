@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import * as LucideIcons from "lucide-react";
 
 interface CategoryPageDialogProps {
   open: boolean;
@@ -15,17 +16,26 @@ interface CategoryPageDialogProps {
   onSuccess: () => void;
 }
 
-export const CategoryPageDialog = ({ 
-  open, 
-  onOpenChange, 
-  categoryId, 
-  pageId, 
+const availableIcons = [
+  'Book', 'Palette', 'Image', 'Type', 'Hash', 'FileText', 'Grid3X3', 'Layout',
+  'StickyNote', 'Square', 'RectangleHorizontal', 'Layers', 'Shapes', 'Star',
+  'Heart', 'Circle', 'SquareStack', 'Folder', 'File', 'Calendar', 'Clock',
+  'User', 'Users', 'Building', 'Home', 'Globe', 'MapPin', 'Phone', 'Mail',
+  'Send', 'Paperclip', 'Camera', 'Headphones', 'Monitor', 'Code', 'Zap'
+];
+
+export const CategoryPageDialog = memo(({
+  open,
+  onOpenChange,
+  categoryId,
+  pageId,
   mode,
-  onSuccess 
+  onSuccess
 }: CategoryPageDialogProps) => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [icon, setIcon] = useState('Book');
+  const [iconSearch, setIconSearch] = useState('');
   const [position, setPosition] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -173,7 +183,7 @@ export const CategoryPageDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {mode === 'category' 
+            {mode === 'category'
               ? (categoryId ? 'Editar Categoria' : 'Nova Categoria')
               : (pageId ? 'Editar Página' : 'Nova Página')
             }
@@ -200,13 +210,43 @@ export const CategoryPageDialog = ({
           </div>
 
           {mode === 'category' && (
-            <div>
-              <Label>Ícone (Lucide)</Label>
-              <Input
-                value={icon}
-                onChange={(e) => setIcon(e.target.value)}
-                placeholder="Ex: Palette"
-              />
+            <div className="space-y-3">
+              <div>
+                <Label>Ícone</Label>
+                <Input
+                  value={iconSearch}
+                  onChange={(e) => setIconSearch(e.target.value)}
+                  placeholder="Buscar ícones..."
+                  className="mb-2"
+                />
+              </div>
+
+              <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
+                <div className="grid grid-cols-6 gap-3">
+                  {availableIcons
+                    .filter(icon => icon.toLowerCase().includes(iconSearch.toLowerCase()))
+                    .map(iconName => {
+                      const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.Book;
+                      return (
+                        <button
+                          key={iconName}
+                          onClick={() => setIcon(iconName)}
+                          className={`p-2 rounded-md transition-colors flex flex-col items-center gap-1 hover:bg-gray-100 ${
+                            icon === iconName ? 'bg-blue-100 ring-2 ring-blue-500' : ''
+                          }`}
+                          title={iconName}
+                        >
+                          <IconComponent size={20} />
+                          <span className="text-xs truncate w-full text-center">{iconName}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-600">
+                Ícone selecionado: <span className="font-medium">{icon}</span>
+              </div>
             </div>
           )}
 
@@ -231,4 +271,4 @@ export const CategoryPageDialog = ({
       </DialogContent>
     </Dialog>
   );
-};
+});
