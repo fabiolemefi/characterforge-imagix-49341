@@ -1,5 +1,5 @@
 import { useState, useEffect, memo, useCallback } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
@@ -130,6 +130,13 @@ export const Sidebar = memo(() => {
     navigate("/brand-guide");
   }, [openMenu, navigate]);
 
+  const handleBlogClick = useCallback(() => {
+    console.log('Sidebar: Blog clicked');
+    setActiveItem("Blog");
+    setOpenMenu(null);
+    navigate("/blog");
+  }, [navigate]);
+
   const handlePluginsClick = useCallback(() => {
     console.log('Sidebar: Plugins clicked');
     setActiveItem("Plugins");
@@ -170,7 +177,11 @@ export const Sidebar = memo(() => {
     const currentPath = location.pathname;
     console.log('Sidebar: Location changed:', currentPath);
 
-    if (currentPath.startsWith('/brand-guide')) {
+    if (currentPath.startsWith('/blog')) {
+      console.log('Sidebar: Setting to Blog');
+      setActiveItem("Blog");
+      setOpenMenu(null);
+    } else if (currentPath.startsWith('/brand-guide')) {
       console.log('Sidebar: Setting to BrandGuide');
       setActiveItem("BrandGuide");
       setOpenMenu("brand-guide");
@@ -332,6 +343,13 @@ export const Sidebar = memo(() => {
             setActiveItem("Principal");
             navigate("/");
           }}
+        />
+
+        <SidebarItem
+          icon={<FileText size={20} />}
+          label="Blog"
+          isActive={activeItem === "Blog"}
+          onClick={handleBlogClick}
         />
 
         <SidebarItem

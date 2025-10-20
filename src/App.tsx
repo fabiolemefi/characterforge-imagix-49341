@@ -20,6 +20,10 @@ import BrandGuideHome from './pages/BrandGuideHome';
 import AdminBrandGuide from './pages/AdminBrandGuide';
 import AdminBrandGuidePage from './pages/AdminBrandGuidePage';
 import AdminBrandGuideHome from './pages/AdminBrandGuideHome';
+import Blog from './pages/Blog';
+import BlogPost from './pages/BlogPost';
+import AdminBlogCategories from './pages/AdminBlogCategories';
+import AdminBlogPosts from './pages/AdminBlogPosts';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -47,6 +51,10 @@ const App = () => (
           <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
           <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
           <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
+          <Route path="/blog" element={<ProtectedRoute><Blog /></ProtectedRoute>} />
+          <Route path="/blog/:slug" element={<ProtectedRoute><BlogPost /></ProtectedRoute>} />
+          <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
+          <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
