@@ -154,7 +154,7 @@ export const Sidebar = () => {
         navigate("/brand-guide");
       }} />
 
-        {brandGuideOpen && <div className="mt-1 space-y-1">
+        {brandGuideOpen && <div className="mt-1 space-y-1 animate-fade-in">
             {categories.map(category => (
               <div key={category.id} className="space-y-1">
                 <button 
@@ -182,11 +182,11 @@ export const Sidebar = () => {
                 </button>
                 
                 {expandedCategoryId === category.id && category.pages && category.pages.length > 0 && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 animate-fade-in ml-4">
                     {category.pages.map(page => (
                       <button 
                         key={page.id}
-                        className={`w-full flex items-center gap-3 p-2 pl-16 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
+                        className={`w-full flex items-center gap-3 p-2 pl-12 hover:bg-accent rounded-md transition-colors text-sm ${activeDropdownItem === page.id ? 'bg-accent text-white' : 'text-gray-400'}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveCategoryId(category.id);
