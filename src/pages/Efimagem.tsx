@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2 } from "lucide-react";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
+import { ImageMaskEditor } from "@/components/ImageMaskEditor";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Carousel,
@@ -62,6 +63,16 @@ export default function Efimagem() {
   const [readyImage, setReadyImage] = useState<GeneratedImage | null>(null);
   const [minTimePassed, setMinTimePassed] = useState(false);
   const [characterFilter, setCharacterFilter] = useState<string>("all");
+
+  // Estados para modo combinação
+  const [uploadedImage, setUploadedImage] = useState<string>("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [maskImage, setMaskImage] = useState<string>("");
+  const [maskEditorOpen, setMaskEditorOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -252,6 +263,15 @@ export default function Efimagem() {
       return;
     }
 
+    const character = characters.find((c) => c.id === selectedCharacter);
+    if (!character) return;
+
+    // Modo especial: "Simulação de Brindes"
+    if (character.name === "Simulação de Brindes") {
+      return handleGenerateCombination(maskImage || undefined, character);
+    }
+
+    // Modo normal
     if (!prompt.trim()) {
       toast({
         title: "Digite um prompt",
@@ -264,11 +284,7 @@ export default function Efimagem() {
     setLoading(true);
 
     try {
-      const character = characters.find((c) => c.id === selectedCharacter);
-      if (!character) return;
-
       const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${prompt}`;
-
       const imageUrls = character.images.map((img) => img.image_url);
 
       const { data, error } = await supabase.functions.invoke("generate-character-image", {
@@ -317,6 +333,279 @@ export default function Efimagem() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleGenerateCombination = async (maskDataUrl?: string, character?: Character) => {
+    // Usar a máscara do parâmetro se fornecida, senão usar a do estado
+    const finalMaskDataUrl = maskDataUrl || maskImage;
+
+    console.log('Imagens para geração:', {
+      uploadedImage: uploadedImage?.substring(0, 50) + '...',
+      maskImage: finalMaskDataUrl?.substring(0, 50) + '...',
+      hasUploadedImage: !!uploadedImage,
+      hasMaskImage: !!finalMaskDataUrl,
+      maskSource: maskDataUrl ? 'parameter' : 'state'
+    });
+
+    if (!uploadedImage) {
+      toast({
+        title: "Imagem necessária",
+        description: "Você precisa fazer upload de uma imagem primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!finalMaskDataUrl) {
+      toast({
+        title: "Máscara necessária",
+        description: "Você precisa criar uma máscara antes de gerar a imagem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!character?.general_prompt.trim()) {
+      toast({
+        title: "Prompt geral necessário",
+        description: "Este personagem precisa ter um prompt geral configurado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Usar apenas o prompt geral do character (sem prompt customizado)
+      const fullPrompt = character.general_prompt;
+
+      // Combinar: imagens do personagem + imagem upload + máscara
+      const imageUrls = [
+        ...character.images.map((img) => img.image_url),
+        uploadedImage,
+        finalMaskDataUrl
+      ];
+
+      console.log('🎭 URLs que serão enviadas para geração:', imageUrls);
+      console.log('📊 Detalhes:', {
+        characterImagesCount: character.images.length,
+        hasUploadedImage: !!uploadedImage,
+        hasMask: !!finalMaskDataUrl,
+        totalImages: imageUrls.length
+      });
+
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
+        body: {
+          imageUrls: imageUrls,
+          prompt: fullPrompt,
+          generalPrompt: character.general_prompt,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.output) {
+        const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
+
+        // Save to database
+        const { data: savedImage, error: saveError } = await supabase
+          .from("generated_images")
+          .insert({
+            character_id: character.id,
+            character_name: character.name,
+            prompt: "Combinação: " + character.general_prompt, // Indicando que foi combinação
+            image_url: imageUrl,
+          })
+          .select()
+          .single();
+
+        if (saveError) throw saveError;
+
+        if (savedImage) {
+          setReadyImage({
+            id: savedImage.id,
+            url: savedImage.image_url,
+            character: savedImage.character_name,
+            prompt: savedImage.prompt,
+          });
+          setImageReady(true);
+
+          // Limpar estados do modo combinação
+          setUploadedImage("");
+          setUploadedFile(null);
+          setMaskImage("");
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao gerar imagem:", error);
+      setLoading(false);
+      toast({
+        title: "Erro ao gerar imagem",
+        description: error.message || "Ocorreu um erro ao gerar a imagem. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Tipo de arquivo inválido",
+          description: "Por favor, selecione uma imagem válida.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) { // 10MB
+        toast({
+          title: "Arquivo muito grande",
+          description: "A imagem deve ter no máximo 10MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        setUploadingImage(true);
+
+        // Criar canvas para redimensionar para 1024x1024
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        canvas.width = 1024;
+        canvas.height = 1024;
+
+        // Carregar e redimensionar imagem
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = URL.createObjectURL(file);
+
+        await new Promise((resolve) => {
+          img.onload = resolve;
+        });
+
+        // Calcular área para cobrir a imagem inteira (não crop, apenas resize)
+        const imgAspect = img.naturalWidth / img.naturalHeight;
+        const canvasAspect = 1024 / 1024; // Sempre 1:1 para 1024x1024
+
+        let sourceWidth, sourceHeight, sourceX, sourceY;
+
+        if (imgAspect > canvasAspect) {
+          // Imagem mais larga - cortar laterais
+          sourceHeight = img.naturalHeight;
+          sourceWidth = img.naturalHeight * canvasAspect;
+          sourceX = (img.naturalWidth - sourceWidth) / 2;
+          sourceY = 0;
+        } else {
+          // Imagem mais alta - cortar topo/base
+          sourceWidth = img.naturalWidth;
+          sourceHeight = img.naturalWidth / canvasAspect;
+          sourceX = 0;
+          sourceY = (img.naturalHeight - sourceHeight) / 2;
+        }
+
+        // Desenhar imagem redimensionada e centralizada
+        ctx.drawImage(
+          img,
+          sourceX, sourceY, sourceWidth, sourceHeight, // Área fonte (crop automático)
+          0, 0, 1024, 1024 // Destino (1024x1024)
+        );
+
+        // Converter para blob (PNG)
+        const resizedBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => {
+            resolve(blob!);
+          }, 'image/png');
+        });
+
+        // Upload para Supabase Storage
+        const fileName = `mask-upload-resized-${Date.now()}-${Math.random()}.png`;
+        const filePath = fileName;
+
+        const { error: uploadError, data: uploadData } = await supabase.storage
+          .from('plugin-images')
+          .upload(filePath, resizedBlob, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw uploadError;
+        }
+
+        // Obter URL pública
+        const { data } = supabase.storage
+          .from('plugin-images')
+          .getPublicUrl(filePath);
+
+        const publicUrl = data.publicUrl;
+        setUploadedImage(publicUrl);
+        setUploadingImage(false);
+
+        // Abrir editor automaticamente
+        setMaskEditorOpen(true);
+
+        toast({
+          title: "Imagem preparada",
+          description: "Imagem redimensionada para 1024x1024. Agora você pode criar a máscara.",
+        });
+
+      } catch (error: any) {
+        console.error('Resize failed:', error);
+        setUploadingImage(false);
+        toast({
+          title: "Erro no processamento",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleSaveMask = (maskDataUrl: string) => {
+    setMaskImage(maskDataUrl);
+  };
+
+  const handleGenerateWithMask = async (maskDataUrl: string) => {
+    console.log('🖼️ Máscara recebida do modal:', maskDataUrl?.substring(0, 100) + '...');
+
+    // Salvar a máscara primeiro
+    setMaskImage(maskDataUrl);
+
+    // Fechar o modal
+    setMaskEditorOpen(false);
+
+    // Obter o personagem selecionado
+    const character = characters.find((c) => c.id === selectedCharacter);
+    if (!character) return;
+
+    // Chamar a geração com o personagem e máscara
+    await handleGenerateCombination(maskDataUrl, character);
+  };
+
+  const openMaskEditor = () => {
+    if (!uploadedImage) {
+      toast({
+        title: "Upload pendente",
+        description: "Faça upload de uma imagem primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setMaskEditorOpen(true);
+  };
+
+  const handleModalClose = () => {
+    // Limpar estados quando o modal for fechado (cancelar ou salvar)
+    setUploadedImage("");
+    setUploadedFile(null);
+    setMaskImage("");
   };
 
   const handleDeleteImage = async (imageId: string) => {
@@ -387,7 +676,17 @@ export default function Efimagem() {
                                 name="character"
                                 value={character.id}
                                 checked={selectedCharacter === character.id}
-                                onChange={(e) => setSelectedCharacter(e.target.value)}
+                                onChange={(e) => {
+                                  const newCharacterId = e.target.value;
+                                  setSelectedCharacter(newCharacterId);
+
+                                  // Resetar estados quando trocar de personagem
+                                  setPrompt("");
+                                  setUploadedImage("");
+                                  setUploadedFile(null);
+                                  setMaskImage("");
+                                  setMaskEditorOpen(false);
+                                }}
                                 className="sr-only"
                               />
                               <div className="text-center">
@@ -413,31 +712,114 @@ export default function Efimagem() {
 
                   {selectedCharacter && (
                     <div className="space-y-4 animate-fade-in">
-                      <div>
-                        <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
-                        <Textarea
-                          value={prompt}
-                          onChange={(e) => setPrompt(e.target.value)}
-                          placeholder="Ex: sentado em uma cadeira de escritório, olhando para o computador"
-                          rows={4}
-                          disabled={loading}
-                        />
-                      </div>
+                      {characters.find(c => c.id === selectedCharacter)?.name === "Simulação de Brindes" ? (
+                        <>
+                          {/* Modo combinação especial */}
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">
+                              {maskImage ? "Máscara definida" : "Selecione uma imagem para editar"}
+                            </label>
 
-                      <Button
-                        onClick={handleGenerate}
-                        disabled={loading || !prompt.trim()}
-                        className="w-full"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Gerando imagem...
-                          </>
-                        ) : (
-                          "Gerar Imagem"
-                        )}
-                      </Button>
+                            {maskImage ? (
+                              // Preview da máscara combinada
+                              <div className="border-2 border-primary/50 rounded-lg p-4 bg-card">
+                                <div className="flex items-start gap-4">
+                                  <div className="w-24 h-24 rounded overflow-hidden bg-muted">
+                                    <img
+                                      src={maskImage}
+                                      alt="Máscara combinada"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      ✅ Máscara criada com sucesso! A imagem contém os desenhos Bézier (vermelhos) e círculos (amarelos).
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Você agora pode gerar uma imagem combinada usando esta máscara.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              // Campo de upload quando não tem máscara
+                              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                  id="image-upload"
+                                  disabled={uploadingImage}
+                                />
+                                <label htmlFor="image-upload" className={`cursor-pointer ${uploadingImage ? 'cursor-not-allowed' : ''}`}>
+                                  <div className="space-y-4">
+                                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                                      {uploadingImage ? (
+                                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                                      ) : (
+                                        <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <p className="text-lg text-muted-foreground">
+                                      {uploadingImage ? "Carregando imagem..." : "Clique para selecionar imagem e editar com curvas Bézier"}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground/70">
+                                      Após o upload, você poderá desenhar curvas suaves na imagem
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+
+                          <Button
+                            onClick={handleGenerate}
+                            disabled={loading || !uploadedImage || !maskImage}
+                            className="w-full"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Gerando imagem...
+                              </>
+                            ) : (
+                              "Gerar Imagem Combinada"
+                            )}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {/* Modo normal */}
+                          <div>
+                            <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
+                            <Textarea
+                              value={prompt}
+                              onChange={(e) => setPrompt(e.target.value)}
+                              placeholder="Ex: sentado em uma cadeira de escritório, olhando para o computador"
+                              rows={4}
+                              disabled={loading}
+                            />
+                          </div>
+
+                          <Button
+                            onClick={handleGenerate}
+                            disabled={loading || !prompt.trim()}
+                            className="w-full"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Gerando imagem...
+                              </>
+                            ) : (
+                              "Gerar Imagem"
+                            )}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
                 </Card>
@@ -532,14 +914,24 @@ export default function Efimagem() {
                   imageUrl={generatedImages.find(img => img.url === selectedImage)?.url || ""}
                   imageId={generatedImages.find(img => img.url === selectedImage)?.id || ""}
                   onImageUpdate={(newUrl) => {
-                    setGeneratedImages(prev => 
-                      prev.map(img => 
+                    setGeneratedImages(prev =>
+                      prev.map(img =>
                         img.url === selectedImage ? { ...img, url: newUrl } : img
                       )
                     );
                     setSelectedImage(newUrl);
                   }}
                 />
+
+                <ImageMaskEditor
+                  open={maskEditorOpen}
+                  onOpenChange={setMaskEditorOpen}
+                  imageUrl={uploadedImage}
+                  onGenerateCombination={handleGenerateWithMask}
+                  onModalClose={handleModalClose}
+                />
+
+
               </div>
             </main>
           </div>

@@ -93,11 +93,11 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
     const urls: string[] = [];
-    
+
     for (const file of files) {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-      
+
       const { error: uploadError, data: uploadData } = await supabase.storage
         .from('plugin-images')
         .upload(fileName, file, {
@@ -341,7 +341,7 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
         const imageUrls = await uploadImages(selectedFiles);
         const character = characters.find(c => c.id === editingCharacter);
         const maxPosition = character ? Math.max(...character.images.map(img => img.position), -1) : -1;
-        
+
         const imageRecords = imageUrls.map((url, index) => ({
           character_id: editingCharacter,
           image_url: url,
@@ -634,8 +634,8 @@ export function CharactersModal({ open, onOpenChange, pluginId }: CharactersModa
                         onClick={() => handleDeleteImage(img.id)}
                       >
                         <X className="h-3 w-3" />
-                      </Button>
-                    </div>
+                        </Button>
+                      </div>
                   ))}
               </div>
             </Card>
