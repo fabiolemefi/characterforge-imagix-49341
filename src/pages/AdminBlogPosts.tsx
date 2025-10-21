@@ -15,9 +15,11 @@ import { BlogEditor } from "@/components/blog/BlogEditor";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminBlogPosts() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -39,21 +41,44 @@ export default function AdminBlogPosts() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted', formData);
     
-    const postData = {
-      ...formData,
-      category_id: formData.category_id || null,
-      published_at: formData.is_published ? new Date().toISOString() : null,
-    };
-    
-    if (editingPost) {
-      await updatePost.mutateAsync({ id: editingPost.id, ...postData });
-    } else {
-      await createPost.mutateAsync(postData);
+    // Validação manual
+    if (!formData.title.trim()) {
+      toast({ title: "Erro", description: "O título é obrigatório", variant: "destructive" });
+      return;
     }
     
-    setIsDialogOpen(false);
-    resetForm();
+    if (!formData.slug.trim()) {
+      toast({ title: "Erro", description: "O slug é obrigatório", variant: "destructive" });
+      return;
+    }
+    
+    if (!formData.content.trim()) {
+      toast({ title: "Erro", description: "O conteúdo é obrigatório", variant: "destructive" });
+      return;
+    }
+    
+    try {
+      const postData = {
+        ...formData,
+        category_id: formData.category_id || null,
+        published_at: formData.is_published ? new Date().toISOString() : null,
+      };
+      
+      console.log('Post data to submit:', postData);
+      
+      if (editingPost) {
+        await updatePost.mutateAsync({ id: editingPost.id, ...postData });
+      } else {
+        await createPost.mutateAsync(postData);
+      }
+      
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+    }
   };
 
   const handleEdit = (post: any) => {
@@ -189,8 +214,8 @@ export default function AdminBlogPosts() {
                       />
                       <Label htmlFor="is_published">Publicado</Label>
                     </div>
-                    <Button type="submit" className="w-full">
-                      {editingPost ? "Atualizar" : "Criar"}
+                    <Button type="submit" className="w-full" disabled={createPost.isPending || updatePost.isPending}>
+                      {(createPost.isPending || updatePost.isPending) ? "Salvando..." : (editingPost ? "Atualizar" : "Criar")}
                     </Button>
                   </form>
                 </DialogContent>
