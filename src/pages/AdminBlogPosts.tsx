@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Header from "@/components/Header";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,10 +91,11 @@ export default function AdminBlogPosts() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
-      <div className="flex flex-1">
-        <AdminSidebar />
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full flex-col bg-background">
+        <Header />
+        <div className="flex flex-1">
+          <AdminSidebar />
         <main className="flex-1 p-8 overflow-auto">
           <div className="max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-6">
@@ -250,6 +252,7 @@ export default function AdminBlogPosts() {
             </div>
           </div>
         </main>
+        </div>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
@@ -266,6 +269,6 @@ export default function AdminBlogPosts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SidebarProvider>
   );
 }
