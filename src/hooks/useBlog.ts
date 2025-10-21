@@ -16,6 +16,7 @@ export type BlogCategory = {
 export type BlogPost = {
   id: string;
   category_id: string | null;
+  author_id: string | null;
   title: string;
   slug: string;
   excerpt: string | null;
@@ -28,6 +29,12 @@ export type BlogPost = {
   created_at: string;
   updated_at: string;
   blog_categories?: BlogCategory | null;
+  profiles?: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    job_title: string | null;
+  } | null;
 };
 
 export const useBlogCategories = () => {
@@ -52,7 +59,7 @@ export const useBlogPosts = (categorySlug?: string) => {
     queryFn: async () => {
       let query = supabase
         .from("blog_posts")
-        .select("*, blog_categories(*)")
+        .select("*, blog_categories(*), profiles(id, full_name, avatar_url, job_title)")
         .eq("is_published", true)
         .order("published_at", { ascending: false });
 
@@ -81,7 +88,7 @@ export const useBlogPost = (slug: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("blog_posts")
-        .select("*, blog_categories(*)")
+        .select("*, blog_categories(*), profiles(id, full_name, avatar_url, job_title)")
         .eq("slug", slug)
         .eq("is_published", true)
         .single();
@@ -113,11 +120,27 @@ export const useAdminBlogPosts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("blog_posts")
-        .select("*, blog_categories(*)")
+        .select("*, blog_categories(*), profiles(id, full_name, avatar_url, job_title)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as BlogPost[];
+    },
+  });
+};
+
+export const useUsers = () => {
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, avatar_url, job_title")
+        .eq("is_active", true)
+        .order("full_name");
+
+      if (error) throw error;
+      return data;
     },
   });
 };
@@ -211,6 +234,10 @@ export const useCreateBlogPost = () => {
       if (user?.id) {
         postData.created_by = user.id;
         postData.updated_by = user.id;
+        // Se não houver author_id definido, usa o usuário atual
+        if (!postData.author_id) {
+          postData.author_id = user.id;
+        }
       }
       
       const { data, error } = await supabase

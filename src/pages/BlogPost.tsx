@@ -5,6 +5,7 @@ import { useBlogPost } from "@/hooks/useBlog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Calendar } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -40,21 +41,43 @@ export default function BlogPost() {
               <article>
                 <header className="mb-8">
                   <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
-                  <div className="flex items-center gap-4 text-muted-foreground">
-                    {post.published_at && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(post.published_at).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'long',
-                          year: 'numeric'
-                        })}
+                  <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex items-center gap-4 text-muted-foreground">
+                      {post.published_at && (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(post.published_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </div>
+                      )}
+                      {post.blog_categories && (
+                        <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
+                          {post.blog_categories.name}
+                        </span>
+                      )}
+                    </div>
+                    {post.profiles && (
+                      <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={post.profiles.avatar_url || ""} />
+                          <AvatarFallback>
+                            {post.profiles.full_name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {post.profiles.full_name}
+                          </span>
+                          {post.profiles.job_title && (
+                            <span className="text-sm text-muted-foreground">
+                              {post.profiles.job_title}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {post.blog_categories && (
-                      <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
-                        {post.blog_categories.name}
-                      </span>
                     )}
                   </div>
                 </header>

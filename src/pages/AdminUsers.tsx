@@ -23,6 +23,7 @@ interface Profile {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  job_title: string | null;
   is_active: boolean;
   is_admin: boolean;
   created_at: string;
@@ -34,6 +35,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingCredits, setEditingCredits] = useState<{[key: string]: number}>({});
+  const [editingJobTitle, setEditingJobTitle] = useState<{[key: string]: string}>({});
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -196,6 +198,32 @@ export default function AdminUsers() {
     }
   };
 
+  const updateJobTitle = async (userId: string, job_title: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ job_title })
+      .eq("id", userId);
+
+    if (error) {
+      toast({
+        title: "Erro ao atualizar cargo",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Cargo atualizado",
+        description: "O cargo foi atualizado com sucesso",
+      });
+      setEditingJobTitle(prev => {
+        const newState = { ...prev };
+        delete newState[userId];
+        return newState;
+      });
+      loadProfiles();
+    }
+  };
+
   if (!isAdmin) {
     return null;
   }
@@ -218,6 +246,7 @@ export default function AdminUsers() {
                   <TableRow>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Cargo</TableHead>
                     <TableHead>Cadastro</TableHead>
                     <TableHead>Créditos</TableHead>
                     <TableHead>Status</TableHead>
@@ -228,13 +257,13 @@ export default function AdminUsers() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
+                      <TableCell colSpan={8} className="text-center">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : profiles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
+                      <TableCell colSpan={8} className="text-center">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -253,6 +282,30 @@ export default function AdminUsers() {
                           </div>
                         </TableCell>
                         <TableCell>{profile.email}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              placeholder="Cargo"
+                              value={editingJobTitle[profile.id] ?? profile.job_title ?? ""}
+                              onChange={(e) => setEditingJobTitle(prev => ({
+                                ...prev,
+                                [profile.id]: e.target.value
+                              }))}
+                              className="w-40"
+                            />
+                            {editingJobTitle[profile.id] !== undefined && 
+                             editingJobTitle[profile.id] !== (profile.job_title ?? "") && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => updateJobTitle(profile.id, editingJobTitle[profile.id])}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {new Date(profile.created_at).toLocaleDateString('pt-BR')}
                         </TableCell>

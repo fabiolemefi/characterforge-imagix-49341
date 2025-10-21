@@ -85,6 +85,7 @@ export type Database = {
       }
       blog_posts: {
         Row: {
+          author_id: string | null
           category_id: string | null
           content: string
           created_at: string
@@ -100,6 +101,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          author_id?: string | null
           category_id?: string | null
           content: string
           created_at?: string
@@ -115,6 +117,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          author_id?: string | null
           category_id?: string | null
           content?: string
           created_at?: string
@@ -130,6 +133,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "blog_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "blog_posts_category_id_fkey"
             columns: ["category_id"]
@@ -584,6 +594,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_admin: boolean | null
+          job_title: string | null
           updated_at: string | null
         }
         Insert: {
@@ -595,6 +606,7 @@ export type Database = {
           id: string
           is_active?: boolean | null
           is_admin?: boolean | null
+          job_title?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -606,6 +618,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_admin?: boolean | null
+          job_title?: string | null
           updated_at?: string | null
         }
         Relationships: []

@@ -6,7 +6,8 @@ import { useBlogCategories, useBlogPosts } from "@/hooks/useBlog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, User } from "lucide-react";
+import { Calendar } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function Blog() {
   const [selectedCategory, setSelectedCategory] = useState<string>();
@@ -95,11 +96,33 @@ export default function Blog() {
                       )}
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        {post.published_at && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {new Date(post.published_at).toLocaleDateString('pt-BR')}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          {post.published_at && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              {new Date(post.published_at).toLocaleDateString('pt-BR')}
+                            </div>
+                          )}
+                        </div>
+                        {post.profiles && (
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={post.profiles.avatar_url || ""} />
+                              <AvatarFallback className="text-xs">
+                                {post.profiles.full_name?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium">
+                                {post.profiles.full_name}
+                              </span>
+                              {post.profiles.job_title && (
+                                <span className="text-xs text-muted-foreground">
+                                  {post.profiles.job_title}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

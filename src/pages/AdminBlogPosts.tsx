@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAdminBlogPosts, useAdminBlogCategories, useCreateBlogPost, useUpdateBlogPost, useDeleteBlogPost } from "@/hooks/useBlog";
+import { useAdminBlogPosts, useAdminBlogCategories, useCreateBlogPost, useUpdateBlogPost, useDeleteBlogPost, useUsers } from "@/hooks/useBlog";
 import { BlogEditor } from "@/components/blog/BlogEditor";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -30,11 +30,13 @@ export default function AdminBlogPosts() {
     content: "",
     featured_image: "",
     category_id: "",
+    author_id: "",
     is_published: false,
   });
 
   const { data: posts, isLoading } = useAdminBlogPosts();
   const { data: categories } = useAdminBlogCategories();
+  const { data: users } = useUsers();
   const createPost = useCreateBlogPost();
   const updatePost = useUpdateBlogPost();
   const deletePost = useDeleteBlogPost();
@@ -90,6 +92,7 @@ export default function AdminBlogPosts() {
       content: post.content,
       featured_image: post.featured_image || "",
       category_id: post.category_id || "",
+      author_id: post.author_id || "",
       is_published: post.is_published,
     });
     setIsDialogOpen(true);
@@ -111,6 +114,7 @@ export default function AdminBlogPosts() {
       content: "",
       featured_image: "",
       category_id: "",
+      author_id: "",
       is_published: false,
     });
   };
@@ -205,6 +209,24 @@ export default function AdminBlogPosts() {
                         onChange={(value) => setFormData({ ...formData, content: value })}
                         placeholder="Digite o conteúdo do post..."
                       />
+                    </div>
+                    <div>
+                      <Label htmlFor="author">Autor</Label>
+                      <Select
+                        value={formData.author_id}
+                        onValueChange={(value) => setFormData({ ...formData, author_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um autor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {users?.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.full_name || user.email}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Switch
