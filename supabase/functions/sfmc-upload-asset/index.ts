@@ -52,11 +52,12 @@ serve(async (req: Request): Promise<Response> => {
     if (!access_token) throw new Error("No access token returned");
 
     // 2. Encaminha a requisição ao Worker com o token
+    console.log("Sending to Worker with token:", access_token ? "Token exists" : "No token");
     const proxyResponse = await fetch("https://proxyaccess.duarteleme.workers.dev/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${access_token}`,
+        "X-SFMC-Token": access_token,
       },
       body: JSON.stringify(assetData),
     });
