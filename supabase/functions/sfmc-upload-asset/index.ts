@@ -37,40 +37,14 @@ serve(async (req: Request): Promise<Response> => {
     const assetData: UploadAssetRequest = await req.json();
     console.log("Asset data received:", assetData.name || "unknown");
 
-    // 1. Gera o token seguro no servidor
-    console.log("Requesting auth token...");
-    const authResponse = await fetch("https://mcn3dvqncqsps20bqzd6yb8r97ty.auth.marketingcloudapis.com/v2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        grant_type: "client_credentials",
-        client_id: Deno.env.get("SFMC_CLIENT_ID"),
-        client_secret: Deno.env.get("SFMC_CLIENT_SECRET"),
-      }),
-    });
-
-    console.log("Auth response status:", authResponse.status);
-
-    if (!authResponse.ok) {
-      const text = await authResponse.text();
-      console.error("Auth failed:", text);
-      throw new Error(`Auth failed: ${authResponse.status} - ${text}`);
-    }
-
-    const { access_token } = await authResponse.json();
-    if (!access_token) {
-      console.error("No access token in response");
-      throw new Error("No access token returned");
-    }
-
-    console.log("Token obtained, sending to Worker...");
-    
-    // 2. Encaminha a requisição ao Worker com o token
+    // Envia as credenciais para o Worker fazer a autenticação
+    console.log("Sending to Worker with credentials...");
     const proxyResponse = await fetch("https://proxyaccess.duarteleme.workers.dev/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-SFMC-Token": access_token,
+        "X-SFMC-Client-ID": Deno.env.get("SFMC_CLIENT_ID") || "",
+        "X-SFMC-Client-Secret": Deno.env.get("SFMC_CLIENT_SECRET") || "",
       },
       body: JSON.stringify(assetData),
     });
