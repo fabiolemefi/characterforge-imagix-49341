@@ -245,14 +245,24 @@ const Efimail = () => {
           }
         };
         console.log(`Enviando imagem: ${img.newName}`);
-        const {
-          data,
-          error
-        } = await supabase.functions.invoke('sfmc-upload-asset', {
-          body: imagePayload
+        console.log('Payload da imagem:', { 
+          name: imagePayload.name, 
+          assetType: imagePayload.assetType,
+          fileSize: base64.length 
         });
         
-        console.log('Resposta do upload de imagem:', { data, error });
+        let data, error;
+        try {
+          const response = await supabase.functions.invoke('sfmc-upload-asset', {
+            body: imagePayload
+          });
+          data = response.data;
+          error = response.error;
+          console.log('Resposta do upload de imagem:', { data, error });
+        } catch (invokeError: any) {
+          console.error('Erro ao invocar edge function:', invokeError);
+          throw new Error(`Falha ao invocar edge function: ${invokeError.message}`);
+        }
         
         if (error) {
           throw new Error(`Erro ao enviar imagem ${img.newName}: ${error.message}`);
