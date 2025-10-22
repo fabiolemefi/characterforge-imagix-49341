@@ -214,8 +214,15 @@ const Efimail = () => {
       ...e,
       status: 'uploading'
     } : e));
+    
+    toast({
+      title: "Iniciando envio",
+      description: `Enviando "${email.name}" para o Marketing Cloud...`
+    });
+    
     try {
       // Upload imagens primeiro
+      console.log(`Iniciando upload de ${email.images.length} imagens...`);
       for (const img of email.images) {
         const base64 = await blobToBase64(img.blob);
         const extension = img.newName.split('.').pop()?.toLowerCase();
@@ -237,22 +244,35 @@ const Efimail = () => {
             extension: extension || 'jpeg'
           }
         };
+        console.log(`Enviando imagem: ${img.newName}`);
         const {
           data,
           error
         } = await supabase.functions.invoke('sfmc-upload-asset', {
           body: imagePayload
         });
-        if (error || !data.success) {
-          if (data?.status === 400) {
-            console.log(`Imagem ${img.newName} já existe, continuando...`);
-          } else {
-            throw new Error(`Erro ao enviar imagem ${img.newName}: ${error?.message || data?.message}`);
-          }
+        
+        console.log('Resposta do upload de imagem:', { data, error });
+        
+        if (error) {
+          throw new Error(`Erro ao enviar imagem ${img.newName}: ${error.message}`);
         }
+        
+        // Verifica se a resposta é um erro do edge function
+        if (typeof data === 'string') {
+          const errorData = JSON.parse(data);
+          if (!errorData.success && errorData.status !== 400) {
+            throw new Error(`Erro ao enviar imagem ${img.newName}: ${errorData.error || errorData.message}`);
+          }
+        } else if (data && !data.success && data.status !== 400) {
+          throw new Error(`Erro ao enviar imagem ${img.newName}: ${data.error || data.message}`);
+        }
+        
+        console.log(`Imagem ${img.newName} enviada com sucesso`);
       }
 
       // Upload HTML
+      console.log('Iniciando upload do HTML...');
       const htmlPayload = {
         assetType: {
           name: 'htmlemail',
@@ -275,14 +295,29 @@ const Efimail = () => {
         }
       };
       const {
-        data,
-        error
+        data: htmlData,
+        error: htmlError
       } = await supabase.functions.invoke('sfmc-upload-asset', {
         body: htmlPayload
       });
-      if (error || !data.success) {
-        throw new Error(`Erro ao enviar HTML: ${error?.message || data?.message}`);
+      
+      console.log('Resposta do upload de HTML:', { htmlData, htmlError });
+      
+      if (htmlError) {
+        throw new Error(`Erro ao enviar HTML: ${htmlError.message}`);
       }
+      
+      // Verifica se a resposta é um erro do edge function
+      if (typeof htmlData === 'string') {
+        const errorData = JSON.parse(htmlData);
+        if (!errorData.success) {
+          throw new Error(`Erro ao enviar HTML: ${errorData.error || errorData.message}`);
+        }
+      } else if (htmlData && !htmlData.success) {
+        throw new Error(`Erro ao enviar HTML: ${htmlData.error || htmlData.message}`);
+      }
+      
+      console.log('HTML enviado com sucesso');
       setEmails(prev => prev.map((e, i) => i === index ? {
         ...e,
         status: 'completed'
