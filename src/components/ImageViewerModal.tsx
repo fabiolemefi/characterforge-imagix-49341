@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Copy, Edit, Loader2, ChevronDown, Eraser } from "lucide-react";
+import { Download, Copy, Edit, Loader2, ChevronDown, Eraser, RotateCcw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -305,6 +305,16 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                       <DropdownMenuItem onClick={() => setIsEditing(!isEditing)}>
                         <Edit className="w-4 h-4 mr-2" />
                         {isEditing ? "Cancelar edição" : "Editar"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditPrompt("Rotacione este objeto **120 graus horizontalmente ao redor do eixo Y**, usando como ponto de referência o centro inferior do objeto. Não altere rotação vertical ou inclinação. Não duplique o objeto. Se ele tiver mais que uma parte e não for um objeto único, randomize a posição dos outros objetos mas de uma maneira que estejam fazendo parte ainda da mesma cena. Adicione um cenário com volumetria 3d minimalista ao fundo, todo em tons brancos e conceitual que destaque o objeto mas ainda faça menção a para que serve o uso do objeto para dar um contexto à imagem. Nenhum elemento deve estar interagindo diretamente com o objeto e nem o sobrepondo.");
+                        }}
+                        disabled={isGenerating}
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Rotacionar objeto
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleRemoveBackground} disabled={isGenerating}>
                         <Eraser className="w-4 h-4 mr-2" />
