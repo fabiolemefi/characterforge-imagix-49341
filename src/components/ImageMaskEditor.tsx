@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, Fragment } from "react";
 import { Button } from "@/components/ui/button";
-import { Undo, RotateCcw, X, Circle as LucideCircle, PaintBucket, Loader2 } from "lucide-react";
+import { Undo, RotateCcw, X, Circle as LucideCircle, PaintBucket, Loader2, Upload, Clipboard } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Circle, Path, Line, Rect, Transformer, Group } from 'react-konva';
 import Konva from 'konva';
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,7 @@ interface ImageMaskEditorProps {
   onOpenChange: (open: boolean) => void;
   imageUrl: string;
   onGenerateCombination: (processedCanvasUrl: string, modifiedCanvasUrl: string) => Promise<void>;
-  onModalClose?: () => void;
+  onModalClose?: (isGenerating?: boolean) => void;
 }
 
 interface BezierPoint {
@@ -113,8 +113,13 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
           modalWidth = modalHeight * imgAspect;
         }
 
-        setModalSize({ width: modalWidth, height: modalHeight });
-        setBezierCurves([]); // Resetar curvas ao carregar nova imagem
+      setModalSize({ width: modalWidth, height: modalHeight });
+      // Resetar todos os desenhos e estados ao carregar nova imagem
+      setBezierCurves([]);
+      setCircleShapes([]);
+      setSelectedShapeId(null);
+      setSelectedTool('bezier');
+      setGenerating(false); // Resetar estado de loading
       };
     }
   }, [imageUrl, open]);
@@ -282,38 +287,63 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
       throw new Error('Nenhuma máscara foi criada ainda.');
     }
 
+    setGenerating(true);
     console.log('🎨 Starting image generation process...');
 
     try {
+      let processedCanvasUrl = '';
+
       console.log('📤 Step 1: Uploading processed canvas version');
+      console.log('Image URL:', imageUrl?.substring(0, 100) + '...');
 
       // Primeiro: fazer upload da versão processada (canvas 1:1 branco) - que está como dataURL
       // Converter dataURL do processedCanvasUrl para blob
-      const processedResponse = await fetch(imageUrl);
-      const processedBlob = await processedResponse.blob();
+      console.log('🔄 Converting imageUrl to blob...');
 
-      const processedFileName = `canvas-processed-${Date.now()}-${Math.random()}.png`;
-      const processedFilePath = processedFileName;
+      try {
+        const processedResponse = await fetch(imageUrl);
+        console.log('✅ fetch() completed. Status:', processedResponse.status);
 
-      const { error: processedUploadError, data: processedUploadData } = await supabase.storage
+        if (!processedResponse.ok) {
+          throw new Error(`HTTP error! status: ${processedResponse.status}`);
+        }
+
+        const processedBlob = await processedResponse.blob();
+        console.log('✅ blob() completed. Size:', processedBlob.size, 'bytes');
+
+        const processedFileName = `canvas-processed-${Date.now()}-${Math.random()}.png`;
+        const processedFilePath = processedFileName;
+
+        console.log('☁️ Starting Supabase upload...');
+        console.log('File path:', processedFilePath);
+
+        const { error: processedUploadError, data: processedUploadData } = await supabase.storage
         .from('plugin-images')
         .upload(processedFilePath, processedBlob, {
           cacheControl: '3600',
           upsert: false
         });
 
-      if (processedUploadError) {
-        console.error('Upload error for processed canvas:', processedUploadError);
-        throw new Error(`Falha no upload do canvas processado: ${processedUploadError.message}`);
+        console.log('✅ Supabase upload call completed');
+
+        if (processedUploadError) {
+          console.error('❌ Upload error for processed canvas:', processedUploadError);
+          throw new Error(`Falha no upload do canvas processado: ${processedUploadError.message}`);
+        }
+
+        console.log('🎉 Upload data received:', processedUploadData);
+
+        const { data: processedUrlData } = supabase.storage
+          .from('plugin-images')
+          .getPublicUrl(processedFilePath);
+
+        processedCanvasUrl = processedUrlData.publicUrl;
+
+        console.log('✅ Processed canvas uploaded:', processedCanvasUrl.substring(0, 60) + '...');
+      } catch (fetchError: any) {
+        console.error('❌ Error in Step 1:', fetchError);
+        throw fetchError;
       }
-
-      const { data: processedUrlData } = supabase.storage
-        .from('plugin-images')
-        .getPublicUrl(processedFilePath);
-
-      const processedCanvasUrl = processedUrlData.publicUrl;
-
-      console.log('✅ Processed canvas uploaded:', processedCanvasUrl.substring(0, 60) + '...');
 
       // Segundo: criar versão modificada usando um canvas HTML5 temporário (mais seguro)
       console.log('🎯 Step 2: Creating modified canvas with 780x780');
@@ -413,12 +443,13 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
       // Chamar callback com ambas as URLs
       await onGenerateCombination(processedCanvasUrl, modifiedCanvasUrl);
 
-      // Fechar modal
+      // Fechar modal (geração concluída)
       onOpenChange(false);
-      onModalClose?.();
+      onModalClose?.(false); // false significa não está em geração
 
     } catch (error: any) {
       console.error('❌ Error during image generation:', error);
+      setGenerating(false); // Reset loading state on error
       throw error; // Re-throw para mostrar erro ao usuário
     }
   };
@@ -721,7 +752,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
               {generating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Gerando...
+                  Enviando imagem...
                 </>
               ) : (
                 "Gerar Imagem"

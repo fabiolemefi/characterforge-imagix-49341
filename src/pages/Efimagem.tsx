@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Upload, Clipboard } from "lucide-react";
+import { retryWithAuthRefresh } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { ImageMaskEditor } from "@/components/ImageMaskEditor";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,6 +72,7 @@ export default function Efimagem() {
   const [processedCanvasUrl, setProcessedCanvasUrl] = useState<string>("");
   const [maskEditorOpen, setMaskEditorOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageUploadActivated, setImageUploadActivated] = useState(false);
 
 
 
@@ -288,13 +290,15 @@ export default function Efimagem() {
       const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${prompt}`;
       const imageUrls = character.images.map((img) => img.image_url);
 
-      const { data, error } = await supabase.functions.invoke("generate-character-image", {
-        body: {
-          imageUrls: imageUrls,
-          prompt: fullPrompt,
-          generalPrompt: character.general_prompt,
-        },
-      });
+      const { data, error } = await retryWithAuthRefresh(() =>
+        supabase.functions.invoke("generate-character-image", {
+          body: {
+            imageUrls: imageUrls,
+            prompt: fullPrompt,
+            generalPrompt: character.general_prompt,
+          },
+        })
+      );
 
       if (error) throw error;
 
@@ -397,13 +401,15 @@ export default function Efimagem() {
         totalImages: imageUrls.length
       });
 
-      const { data, error } = await supabase.functions.invoke("generate-character-image", {
-        body: {
-          imageUrls: imageUrls,
-          prompt: fullPrompt,
-          generalPrompt: character.general_prompt,
-        },
-      });
+      const { data, error } = await retryWithAuthRefresh(() =>
+        supabase.functions.invoke("generate-character-image", {
+          body: {
+            imageUrls: imageUrls,
+            prompt: fullPrompt,
+            generalPrompt: character.general_prompt,
+          },
+        })
+      );
 
       if (error) throw error;
 
@@ -563,10 +569,10 @@ export default function Efimagem() {
       // Abrir editor automaticamente com a imagem processada
       setMaskEditorOpen(true);
 
-      toast({
-        title: "Imagem preparada",
-        description: "Imagem processada para proporção 1:1 com fundo branco. Agora você pode criar a máscara.",
-      });
+      // toast({
+      //   title: "Imagem preparada",
+      //   description: "Imagem processada para proporção 1:1 com fundo branco. Agora você pode criar a máscara.",
+      // });
 
     } catch (error: any) {
       console.error('Processamento falhou:', error);
@@ -702,6 +708,13 @@ export default function Efimagem() {
                                   setMaskImage("");
                                   setProcessedCanvasUrl("");
                                   setMaskEditorOpen(false);
+
+                                  // Ativar upload apenas se for "Simulação de Brindes"
+                                  if (characters.find(c => c.id === newCharacterId)?.name === "Simulação de Brindes") {
+                                    setImageUploadActivated(true);
+                                  } else {
+                                    setImageUploadActivated(false);
+                                  }
                                 }}
                                 className="sr-only"
                               />
@@ -731,82 +744,50 @@ export default function Efimagem() {
                       {characters.find(c => c.id === selectedCharacter)?.name === "Simulação de Brindes" ? (
                         <>
                           {/* Modo combinação especial */}
-                          <div>
-                            <label className="block text-sm font-medium text-white mb-2">
-                              {maskImage ? "Máscara definida" : "Selecione uma imagem para editar"}
-                            </label>
-
-                            {maskImage ? (
-                              // Preview da máscara combinada
-                              <div className="border-2 border-primary/50 rounded-lg p-4 bg-card">
-                                <div className="flex items-start gap-4">
-                                  <div className="w-24 h-24 rounded overflow-hidden bg-muted">
-                                    <img
-                                      src={maskImage}
-                                      alt="Máscara combinada"
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="text-sm text-muted-foreground mb-2">
-                                      ✅ Máscara criada com sucesso! A imagem contém os desenhos Bézier (vermelhos) e círculos (amarelos).
+                          {imageUploadActivated && (
+                            <>
+                              <div>
+                                <label className="block text-sm font-medium text-white mb-2">
+                                  Selecione uma imagem para editar
+                                </label>
+                                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                                  <div className="space-y-4">
+                                    <p className="text-lg text-muted-foreground">
+                                      {uploadingImage ? "Carregando imagem..." : "Selecione ou cole da área de transferência"}
                                     </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Você agora pode gerar uma imagem combinada usando esta máscara.
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              // Campo de upload quando não tem máscara
-                              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                                <div className="space-y-4">
-                                  <p className="text-lg text-muted-foreground">
-                                    {uploadingImage ? "Carregando imagem..." : "Selecione ou cole da área de transferência"}
-                                  </p>
-                                  <div className="flex gap-4 justify-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        className="hidden"
-                                        id="image-upload"
-                                        disabled={uploadingImage}
-                                      />
-                                      <label htmlFor="image-upload" className={`cursor-pointer ${uploadingImage ? 'cursor-not-allowed' : ''}`}>
-                                        <Button variant="outline" disabled={uploadingImage} asChild>
-                                          <span>Selecionar arquivo</span>
+                                    <div className="flex gap-4 justify-center">
+                                      <div className="flex flex-col items-center gap-2">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={handleImageUpload}
+                                          className="hidden"
+                                          id="image-upload"
+                                          disabled={uploadingImage}
+                                        />
+                                        <Button
+                                          variant="outline"
+                                          disabled={uploadingImage}
+                                          onClick={() => document.getElementById('image-upload')?.click()}
+                                        >
+                                          <Upload className="h-4 w-4 mr-2" />
+                                          Selecionar imagem
                                         </Button>
-                                      </label>
+                                      </div>
+                                      <Button
+                                        variant="outline"
+                                        onClick={handlePasteFromClipboard}
+                                        disabled={uploadingImage}
+                                      >
+                                        <Clipboard className="h-4 w-4 mr-2" />
+                                        Colar imagem
+                                      </Button>
                                     </div>
-                                    <Button
-                                      variant="outline"
-                                      onClick={handlePasteFromClipboard}
-                                      disabled={uploadingImage}
-                                    >
-                                      Colar
-                                    </Button>
                                   </div>
                                 </div>
                               </div>
-                            )}
-                          </div>
-
-                          <Button
-                            onClick={handleGenerate}
-                            disabled={loading || !processedCanvasUrl || !maskImage}
-                            className="w-full"
-                          >
-                            {loading ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Gerando imagem...
-                              </>
-                            ) : (
-                              "Gerar Imagem Combinada"
-                            )}
-                          </Button>
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
@@ -943,10 +924,25 @@ export default function Efimagem() {
 
                 <ImageMaskEditor
                   open={maskEditorOpen}
-                  onOpenChange={setMaskEditorOpen}
+                  onOpenChange={(open) => {
+                    // Limpar estados sempre que o modal fechar (qualquer motivo)
+                    if (!open) {
+                      setUploadedImage("");
+                      setUploadedFile(null);
+                      setMaskImage("");
+                      setProcessedCanvasUrl("");
+                    }
+                    setMaskEditorOpen(open);
+                  }}
                   imageUrl={processedCanvasUrl}
                   onGenerateCombination={handleGenerateWithMask}
-                  onModalClose={handleModalClose}
+                  onModalClose={(isGenerating) => {
+                    handleModalClose();
+                    // Se fechou modal sem completar geração (cancelado ou errou), resetar loading
+                    if (!isGenerating) {
+                      setLoading(false);
+                    }
+                  }}
                 />
 
 
