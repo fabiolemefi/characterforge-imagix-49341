@@ -95,12 +95,18 @@ export default function Efimagem() {
         },
         (payload) => {
           const newImage = payload.new;
-          setGeneratedImages((prev) => [{
-            id: newImage.id,
-            url: newImage.image_url,
-            character: newImage.character_name,
-            prompt: newImage.prompt,
-          }, ...prev]);
+          setGeneratedImages((prev) => {
+            // Verificar se a imagem já existe (adicionada manualmente)
+            if (prev.some(img => img.id === newImage.id)) {
+              return prev;
+            }
+            return [{
+              id: newImage.id,
+              url: newImage.image_url,
+              character: newImage.character_name,
+              prompt: newImage.prompt,
+            }, ...prev];
+          });
         }
       )
       .on(
@@ -320,12 +326,15 @@ export default function Efimagem() {
         if (saveError) throw saveError;
 
         if (savedImage) {
-          setReadyImage({
+          const newImage = {
             id: savedImage.id,
             url: savedImage.image_url,
             character: savedImage.character_name,
             prompt: savedImage.prompt,
-          });
+          };
+          
+          setReadyImage(newImage);
+          setGeneratedImages((prev) => [newImage, ...prev]);
           setImageReady(true);
           setLoading(false);
 
@@ -438,12 +447,15 @@ export default function Efimagem() {
         if (saveError) throw saveError;
 
         if (savedImage) {
-          setReadyImage({
+          const newImage = {
             id: savedImage.id,
             url: savedImage.image_url,
             character: savedImage.character_name,
             prompt: savedImage.prompt,
-          });
+          };
+          
+          setReadyImage(newImage);
+          setGeneratedImages((prev) => [newImage, ...prev]);
           setImageReady(true);
           setLoading(false);
 
