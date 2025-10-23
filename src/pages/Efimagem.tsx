@@ -560,19 +560,32 @@ export default function Efimagem() {
         drawX, drawY, drawWidth, drawHeight
       );
 
-      // Converter canvas para data URL (PNG)
-      const processedImageUrl = canvas.toDataURL('image/png');
-      setProcessedCanvasUrl(processedImageUrl);
+      // Converter canvas para Blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), 'image/png');
+      });
 
+      // Upload para Storage
+      const fileName = `temp-upload-${Date.now()}.png`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("plugin-images")
+        .upload(fileName, blob, {
+          contentType: "image/png",
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from("plugin-images")
+        .getPublicUrl(fileName);
+
+      setProcessedCanvasUrl(publicUrl);
       setUploadingImage(false);
 
       // Abrir editor automaticamente com a imagem processada
       setMaskEditorOpen(true);
-
-      // toast({
-      //   title: "Imagem preparada",
-      //   description: "Imagem processada para proporção 1:1 com fundo branco. Agora você pode criar a máscara.",
-      // });
 
     } catch (error: any) {
       console.error('Processamento falhou:', error);
@@ -585,28 +598,84 @@ export default function Efimagem() {
     }
   };
 
-  const handleSaveMask = (maskDataUrl: string) => {
-    setMaskImage(maskDataUrl);
+  const handleSaveMask = async (maskDataUrl: string) => {
+    try {
+      // Converter data URL para Blob
+      const response = await fetch(maskDataUrl);
+      const blob = await response.blob();
+
+      // Upload para Storage
+      const fileName = `mask-${Date.now()}.png`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("plugin-images")
+        .upload(fileName, blob, {
+          contentType: "image/png",
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from("plugin-images")
+        .getPublicUrl(fileName);
+
+      setMaskImage(publicUrl);
+    } catch (error) {
+      console.error('Erro ao salvar máscara:', error);
+      toast({
+        title: "Erro ao salvar máscara",
+        description: "Não foi possível salvar a máscara. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleGenerateWithMask = async (processedCanvasUrl: string, modifiedCanvasUrl: string) => {
-    console.log('🖼️ Duas versões recebidas do modal:');
-    console.log('- Canvas processado (1:1 branco):', processedCanvasUrl?.substring(0, 50) + '...');
-    console.log('- Canvas modificado (com desenhos):', modifiedCanvasUrl?.substring(0, 50) + '...');
+    try {
+      console.log('🖼️ Convertendo canvases para URLs públicas...');
 
-    // Salvar ambas as URLs
-    setProcessedCanvasUrl(processedCanvasUrl);
-    setMaskImage(modifiedCanvasUrl);
+      // Converter modified canvas (com máscara) para URL pública
+      const maskResponse = await fetch(modifiedCanvasUrl);
+      const maskBlob = await maskResponse.blob();
+      
+      const maskFileName = `mask-${Date.now()}.png`;
+      const { data: maskUploadData, error: maskUploadError } = await supabase.storage
+        .from("plugin-images")
+        .upload(maskFileName, maskBlob, {
+          contentType: "image/png",
+          upsert: false,
+        });
 
-    // Fechar o modal
-    setMaskEditorOpen(false);
+      if (maskUploadError) throw maskUploadError;
 
-    // Obter o personagem selecionado
-    const character = characters.find((c) => c.id === selectedCharacter);
-    if (!character) return;
+      const { data: { publicUrl: maskPublicUrl } } = supabase.storage
+        .from("plugin-images")
+        .getPublicUrl(maskFileName);
 
-    // Chamar a geração com o personagem e ambas as imagens
-    await handleGenerateCombination(modifiedCanvasUrl, character, processedCanvasUrl);
+      console.log('✅ URLs públicas criadas');
+      
+      // Salvar as URLs (processedCanvasUrl já é URL pública do upload anterior)
+      setProcessedCanvasUrl(processedCanvasUrl);
+      setMaskImage(maskPublicUrl);
+
+      // Fechar o modal
+      setMaskEditorOpen(false);
+
+      // Obter o personagem selecionado
+      const character = characters.find((c) => c.id === selectedCharacter);
+      if (!character) return;
+
+      // Chamar a geração com o personagem e URLs públicas
+      await handleGenerateCombination(maskPublicUrl, character, processedCanvasUrl);
+    } catch (error) {
+      console.error('Erro ao processar máscaras:', error);
+      toast({
+        title: "Erro ao processar imagens",
+        description: "Não foi possível preparar as imagens. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const openMaskEditor = () => {
