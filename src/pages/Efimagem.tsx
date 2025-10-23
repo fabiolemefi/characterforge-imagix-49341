@@ -327,6 +327,13 @@ export default function Efimagem() {
             prompt: savedImage.prompt,
           });
           setImageReady(true);
+          setLoading(false);
+
+          toast({
+            title: "Imagem gerada!",
+            description: "Sua imagem foi gerada com sucesso.",
+          });
+          setPrompt("");
         }
       }
     } catch (error) {
@@ -438,12 +445,19 @@ export default function Efimagem() {
             prompt: savedImage.prompt,
           });
           setImageReady(true);
+          setLoading(false);
+
+          toast({
+            title: "Imagem gerada!",
+            description: "Sua imagem foi gerada com sucesso.",
+          });
 
           // Limpar estados do modo combinação
           setUploadedImage("");
           setUploadedFile(null);
           setMaskImage("");
           setProcessedCanvasUrl("");
+          setPrompt("");
         }
       }
     } catch (error) {
