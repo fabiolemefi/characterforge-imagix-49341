@@ -314,7 +314,7 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                         disabled={isGenerating}
                       >
                         <RotateCcw className="w-4 h-4 mr-2" />
-                        Rotacionar objeto
+                        Finalizar Brinde
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleRemoveBackground} disabled={isGenerating}>
                         <Eraser className="w-4 h-4 mr-2" />

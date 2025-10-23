@@ -68,6 +68,7 @@ export default function Efimagem() {
   const [uploadedImage, setUploadedImage] = useState<string>("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [maskImage, setMaskImage] = useState<string>("");
+  const [processedCanvasUrl, setProcessedCanvasUrl] = useState<string>("");
   const [maskEditorOpen, setMaskEditorOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -335,19 +336,20 @@ export default function Efimagem() {
     }
   };
 
-  const handleGenerateCombination = async (maskDataUrl?: string, character?: Character) => {
-    // Usar a máscara do parâmetro se fornecida, senão usar a do estado
-    const finalMaskDataUrl = maskDataUrl || maskImage;
+  const handleGenerateCombination = async (maskDataUrl?: string, character?: Character, processedCanvasUrl?: string) => {
+    // Para combinação (Simulação de Brindes): sempre temos processedCanvasUrl e maskDataUrl
+    const finalProcessedUrl = processedCanvasUrl || "";
+    const finalMaskDataUrl = maskDataUrl || "";
 
     console.log('Imagens para geração:', {
-      uploadedImage: uploadedImage?.substring(0, 50) + '...',
+      processedCanvasUrl: finalProcessedUrl?.substring(0, 50) + '...',
       maskImage: finalMaskDataUrl?.substring(0, 50) + '...',
-      hasUploadedImage: !!uploadedImage,
+      hasProcessedCanvas: !!finalProcessedUrl,
       hasMaskImage: !!finalMaskDataUrl,
       maskSource: maskDataUrl ? 'parameter' : 'state'
     });
 
-    if (!uploadedImage) {
+    if (!finalProcessedUrl) {
       toast({
         title: "Imagem necessária",
         description: "Você precisa fazer upload de uma imagem primeiro.",
@@ -380,11 +382,11 @@ export default function Efimagem() {
       // Usar apenas o prompt geral do character (sem prompt customizado)
       const fullPrompt = character.general_prompt;
 
-      // Combinar: imagens do personagem + imagem upload + máscara
+      // Combinar: imagens do personagem + canvas modificado (com desenhos) + canvas processado (1:1 branco)
       const imageUrls = [
         ...character.images.map((img) => img.image_url),
-        uploadedImage,
-        finalMaskDataUrl
+        finalMaskDataUrl,
+        processedCanvasUrl
       ];
 
       console.log('🎭 URLs que serão enviadas para geração:', imageUrls);
@@ -435,6 +437,7 @@ export default function Efimagem() {
           setUploadedImage("");
           setUploadedFile(null);
           setMaskImage("");
+          setProcessedCanvasUrl("");
         }
       }
     } catch (error) {
@@ -451,120 +454,128 @@ export default function Efimagem() {
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Tipo de arquivo inválido",
-          description: "Por favor, selecione uma imagem válida.",
-          variant: "destructive",
-        });
-        return;
-      }
+      await processImageFile(file);
+    }
+  };
 
-      if (file.size > 10 * 1024 * 1024) { // 10MB
-        toast({
-          title: "Arquivo muito grande",
-          description: "A imagem deve ter no máximo 10MB.",
-          variant: "destructive",
-        });
-        return;
-      }
+  const handlePasteFromClipboard = async () => {
+    try {
+      const items = await navigator.clipboard.read();
 
-      try {
-        setUploadingImage(true);
-
-        // Criar canvas para redimensionar para 1024x1024
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        canvas.width = 1024;
-        canvas.height = 1024;
-
-        // Carregar e redimensionar imagem
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = URL.createObjectURL(file);
-
-        await new Promise((resolve) => {
-          img.onload = resolve;
-        });
-
-        // Calcular área para cobrir a imagem inteira (não crop, apenas resize)
-        const imgAspect = img.naturalWidth / img.naturalHeight;
-        const canvasAspect = 1024 / 1024; // Sempre 1:1 para 1024x1024
-
-        let sourceWidth, sourceHeight, sourceX, sourceY;
-
-        if (imgAspect > canvasAspect) {
-          // Imagem mais larga - cortar laterais
-          sourceHeight = img.naturalHeight;
-          sourceWidth = img.naturalHeight * canvasAspect;
-          sourceX = (img.naturalWidth - sourceWidth) / 2;
-          sourceY = 0;
-        } else {
-          // Imagem mais alta - cortar topo/base
-          sourceWidth = img.naturalWidth;
-          sourceHeight = img.naturalWidth / canvasAspect;
-          sourceX = 0;
-          sourceY = (img.naturalHeight - sourceHeight) / 2;
+      for (const item of items) {
+        if (item.types.includes('image/png') || item.types.includes('image/jpeg') || item.types.includes('image/jpg') || item.types.includes('image/gif') || item.types.includes('image/bmp')) {
+          const blob = await item.getType(item.types.find(type => type.startsWith('image/'))!);
+          const file = new File([blob], 'clipboard-image.png', { type: blob.type });
+          await processImageFile(file);
+          return;
         }
-
-        // Desenhar imagem redimensionada e centralizada
-        ctx.drawImage(
-          img,
-          sourceX, sourceY, sourceWidth, sourceHeight, // Área fonte (crop automático)
-          0, 0, 1024, 1024 // Destino (1024x1024)
-        );
-
-        // Converter para blob (PNG)
-        const resizedBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((blob) => {
-            resolve(blob!);
-          }, 'image/png');
-        });
-
-        // Upload para Supabase Storage
-        const fileName = `mask-upload-resized-${Date.now()}-${Math.random()}.png`;
-        const filePath = fileName;
-
-        const { error: uploadError, data: uploadData } = await supabase.storage
-          .from('plugin-images')
-          .upload(filePath, resizedBlob, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          throw uploadError;
-        }
-
-        // Obter URL pública
-        const { data } = supabase.storage
-          .from('plugin-images')
-          .getPublicUrl(filePath);
-
-        const publicUrl = data.publicUrl;
-        setUploadedImage(publicUrl);
-        setUploadingImage(false);
-
-        // Abrir editor automaticamente
-        setMaskEditorOpen(true);
-
-        toast({
-          title: "Imagem preparada",
-          description: "Imagem redimensionada para 1024x1024. Agora você pode criar a máscara.",
-        });
-
-      } catch (error: any) {
-        console.error('Resize failed:', error);
-        setUploadingImage(false);
-        toast({
-          title: "Erro no processamento",
-          description: error.message,
-          variant: "destructive",
-        });
       }
+
+      toast({
+        title: "Nenhuma imagem encontrada",
+        description: "Não foi encontrada uma imagem na área de transferência.",
+        variant: "destructive",
+      });
+    } catch (error: any) {
+      console.error('Erro ao colar da área de transferência:', error);
+      toast({
+        title: "Erro ao colar imagem",
+        description: "Não foi possível acessar a área de transferência ou ela não contém uma imagem.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const processImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Tipo de arquivo inválido",
+        description: "Por favor, selecione uma imagem válida.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      toast({
+        title: "Arquivo muito grande",
+        description: "A imagem deve ter no máximo 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+
+      // Criar canvas branco 1:1 (1024x1024)
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = 1024;
+      canvas.height = 1024;
+
+      // Preencher com branco
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      // Carregar imagem original
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = URL.createObjectURL(file);
+
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+
+      // Calcular dimensões para centralizar imagem mantendo proporção (sem crop)
+      const imgAspect = img.naturalWidth / img.naturalHeight;
+
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (imgAspect > 1) {
+        // Imagem mais larga - ajustar largura e centralizar verticalmente
+        drawWidth = 1024;
+        drawHeight = 1024 / imgAspect;
+        drawX = 0;
+        drawY = (1024 - drawHeight) / 2;
+      } else {
+        // Imagem mais alta ou quadrada - ajustar altura e centralizar horizontalmente
+        drawHeight = 1024;
+        drawWidth = 1024 * imgAspect;
+        drawX = (1024 - drawWidth) / 2;
+        drawY = 0;
+      }
+
+      // Desenhar imagem centralizada no canvas branco
+      ctx.drawImage(
+        img,
+        drawX, drawY, drawWidth, drawHeight
+      );
+
+      // Converter canvas para data URL (PNG)
+      const processedImageUrl = canvas.toDataURL('image/png');
+      setProcessedCanvasUrl(processedImageUrl);
+
+      setUploadingImage(false);
+
+      // Abrir editor automaticamente com a imagem processada
+      setMaskEditorOpen(true);
+
+      toast({
+        title: "Imagem preparada",
+        description: "Imagem processada para proporção 1:1 com fundo branco. Agora você pode criar a máscara.",
+      });
+
+    } catch (error: any) {
+      console.error('Processamento falhou:', error);
+      setUploadingImage(false);
+      toast({
+        title: "Erro no processamento",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -572,11 +583,14 @@ export default function Efimagem() {
     setMaskImage(maskDataUrl);
   };
 
-  const handleGenerateWithMask = async (maskDataUrl: string) => {
-    console.log('🖼️ Máscara recebida do modal:', maskDataUrl?.substring(0, 100) + '...');
+  const handleGenerateWithMask = async (processedCanvasUrl: string, modifiedCanvasUrl: string) => {
+    console.log('🖼️ Duas versões recebidas do modal:');
+    console.log('- Canvas processado (1:1 branco):', processedCanvasUrl?.substring(0, 50) + '...');
+    console.log('- Canvas modificado (com desenhos):', modifiedCanvasUrl?.substring(0, 50) + '...');
 
-    // Salvar a máscara primeiro
-    setMaskImage(maskDataUrl);
+    // Salvar ambas as URLs
+    setProcessedCanvasUrl(processedCanvasUrl);
+    setMaskImage(modifiedCanvasUrl);
 
     // Fechar o modal
     setMaskEditorOpen(false);
@@ -585,8 +599,8 @@ export default function Efimagem() {
     const character = characters.find((c) => c.id === selectedCharacter);
     if (!character) return;
 
-    // Chamar a geração com o personagem e máscara
-    await handleGenerateCombination(maskDataUrl, character);
+    // Chamar a geração com o personagem e ambas as imagens
+    await handleGenerateCombination(modifiedCanvasUrl, character, processedCanvasUrl);
   };
 
   const openMaskEditor = () => {
@@ -606,6 +620,7 @@ export default function Efimagem() {
     setUploadedImage("");
     setUploadedFile(null);
     setMaskImage("");
+    setProcessedCanvasUrl("");
   };
 
   const handleDeleteImage = async (imageId: string) => {
@@ -685,6 +700,7 @@ export default function Efimagem() {
                                   setUploadedImage("");
                                   setUploadedFile(null);
                                   setMaskImage("");
+                                  setProcessedCanvasUrl("");
                                   setMaskEditorOpen(false);
                                 }}
                                 className="sr-only"
@@ -744,40 +760,42 @@ export default function Efimagem() {
                             ) : (
                               // Campo de upload quando não tem máscara
                               <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={handleImageUpload}
-                                  className="hidden"
-                                  id="image-upload"
-                                  disabled={uploadingImage}
-                                />
-                                <label htmlFor="image-upload" className={`cursor-pointer ${uploadingImage ? 'cursor-not-allowed' : ''}`}>
-                                  <div className="space-y-4">
-                                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                                      {uploadingImage ? (
-                                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                                      ) : (
-                                        <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                                        </svg>
-                                      )}
+                                <div className="space-y-4">
+                                  <p className="text-lg text-muted-foreground">
+                                    {uploadingImage ? "Carregando imagem..." : "Selecione ou cole da área de transferência"}
+                                  </p>
+                                  <div className="flex gap-4 justify-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        className="hidden"
+                                        id="image-upload"
+                                        disabled={uploadingImage}
+                                      />
+                                      <label htmlFor="image-upload" className={`cursor-pointer ${uploadingImage ? 'cursor-not-allowed' : ''}`}>
+                                        <Button variant="outline" disabled={uploadingImage} asChild>
+                                          <span>Selecionar arquivo</span>
+                                        </Button>
+                                      </label>
                                     </div>
-                                    <p className="text-lg text-muted-foreground">
-                                      {uploadingImage ? "Carregando imagem..." : "Clique para selecionar imagem e editar com curvas Bézier"}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground/70">
-                                      Após o upload, você poderá desenhar curvas suaves na imagem
-                                    </p>
+                                    <Button
+                                      variant="outline"
+                                      onClick={handlePasteFromClipboard}
+                                      disabled={uploadingImage}
+                                    >
+                                      Colar
+                                    </Button>
                                   </div>
-                                </label>
+                                </div>
                               </div>
                             )}
                           </div>
 
                           <Button
                             onClick={handleGenerate}
-                            disabled={loading || !uploadedImage || !maskImage}
+                            disabled={loading || !processedCanvasUrl || !maskImage}
                             className="w-full"
                           >
                             {loading ? (
@@ -926,7 +944,7 @@ export default function Efimagem() {
                 <ImageMaskEditor
                   open={maskEditorOpen}
                   onOpenChange={setMaskEditorOpen}
-                  imageUrl={uploadedImage}
+                  imageUrl={processedCanvasUrl}
                   onGenerateCombination={handleGenerateWithMask}
                   onModalClose={handleModalClose}
                 />

@@ -15,7 +15,7 @@ interface ImageMaskEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imageUrl: string;
-  onGenerateCombination: (maskDataUrl: string) => Promise<void>;
+  onGenerateCombination: (processedCanvasUrl: string, modifiedCanvasUrl: string) => Promise<void>;
   onModalClose?: () => void;
 }
 
@@ -82,6 +82,10 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
 
   // Estado para loading durante geração
   const [generating, setGenerating] = useState(false);
+
+  // Estado para UX melhorada
+  const [pointsVisible, setPointsVisible] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -152,7 +156,33 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
     const pos = stage.getPointerPosition();
     if (!pos) return;
 
-    // Verificar se clicou em um círculo existente ou transformer
+    // Primeiro, verificar se devemos fechar uma curva (prioritário sobre outros cliques)
+    if (selectedTool === 'bezier') {
+      const existingCurveIndex = bezierCurves.findIndex(curve => curve.color === 'red');
+
+      if (existingCurveIndex >= 0) {
+        const currentCurve = bezierCurves[existingCurveIndex];
+        const firstPoint = currentCurve.points[0];
+
+        // Verificar se está tentando fechar o laço (distância < 25px do primeiro ponto)
+        const distanceToStart = Math.sqrt(
+          Math.pow(pos.x - firstPoint.x, 2) + Math.pow(pos.y - firstPoint.y, 2)
+        );
+
+        if (currentCurve.points.length >= 3 && distanceToStart < 25) {
+          // Fechar o laço automaticamente - não adiciona novo ponto
+          const updatedCurves = [...bezierCurves];
+          updatedCurves[existingCurveIndex].closed = true;
+          // Mudar cor da curva de 'red' para algo diferente para indicar que não está mais sendo editada
+          updatedCurves[existingCurveIndex].color = 'transparent'; // Mantém a forma mas não permite mais edição
+          setBezierCurves(updatedCurves);
+
+          return;
+        }
+      }
+    }
+
+    // Verificar se clicou em um círculo existente ou transformer (não interfere com fechamento)
     const isShape = e.target !== e.target.getStage() && (e.target.getClassName() === 'Circle' || e.target.getClassName() === 'Transformer');
 
     if (!isShape) {
@@ -162,23 +192,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
         const existingCurveIndex = bezierCurves.findIndex(curve => curve.color === 'red');
 
         if (existingCurveIndex >= 0) {
-          const currentCurve = bezierCurves[existingCurveIndex];
-          const firstPoint = currentCurve.points[0];
-
-          // Verificar se está tentando fechar o laço (distância < 20px do primeiro ponto)
-          const distanceToStart = Math.sqrt(
-            Math.pow(pos.x - firstPoint.x, 2) + Math.pow(pos.y - firstPoint.y, 2)
-          );
-
-          if (currentCurve.points.length >= 3 && distanceToStart < 20) {
-            // Fechar o laço automaticamente - não adiciona novo ponto
-            const updatedCurves = [...bezierCurves];
-            updatedCurves[existingCurveIndex].closed = true;
-            setBezierCurves(updatedCurves);
-            return;
-          }
-
-          // Adicionar ponto normalmente
+          // Adicionar ponto normalmente (não fechou, então adiciona)
           const updatedCurves = [...bezierCurves];
           updatedCurves[existingCurveIndex].points.push({ x: pos.x, y: pos.y });
           setBezierCurves(updatedCurves);
@@ -268,49 +282,145 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
       throw new Error('Nenhuma máscara foi criada ainda.');
     }
 
-    // Salvar as dimensões originais do stage
-    const originalWidth = stageRef.current.width();
-    const originalHeight = stageRef.current.height();
+    console.log('🎨 Starting image generation process...');
 
-    // Alterar fisicamente o tamanho do stage para 1024x1024
-    // Isso garante que o canvas tenha 1024x1024 pixels reais
-    stageRef.current.width(1024);
-    stageRef.current.height(1024);
+    try {
+      console.log('📤 Step 1: Uploading processed canvas version');
 
-    // Reaplicar a escala para manter a proporção correta
-    const scaleX = 1024 / originalWidth;
-    const scaleY = 1024 / originalHeight;
-    stageRef.current.scale({ x: scaleX, y: scaleY });
+      // Primeiro: fazer upload da versão processada (canvas 1:1 branco) - que está como dataURL
+      // Converter dataURL do processedCanvasUrl para blob
+      const processedResponse = await fetch(imageUrl);
+      const processedBlob = await processedResponse.blob();
 
-    console.log('🎨 Exporting mask - Stage resized to 1024x1024');
+      const processedFileName = `canvas-processed-${Date.now()}-${Math.random()}.png`;
+      const processedFilePath = processedFileName;
 
-    // Exportar diretamente do stage (agora 1024x1024 reais)
-    const maskDataUrl = stageRef.current.toDataURL({
-      mimeType: 'image/png',
-      quality: 1.0,
-      pixelRatio: 1, // Sem pixel ratio extra para manter qualidade pura
-      width: 1024,    // Garantir exportação em 1024x1024
-      height: 1024
-    });
+      const { error: processedUploadError, data: processedUploadData } = await supabase.storage
+        .from('plugin-images')
+        .upload(processedFilePath, processedBlob, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-    // Restaurar dimensões originais
-    stageRef.current.width(originalWidth);
-    stageRef.current.height(originalHeight);
-    stageRef.current.scale({ x: 1, y: 1 });
+      if (processedUploadError) {
+        console.error('Upload error for processed canvas:', processedUploadError);
+        throw new Error(`Falha no upload do canvas processado: ${processedUploadError.message}`);
+      }
 
-    // Verificar se gerou data URL válida
-    if (!maskDataUrl || maskDataUrl === 'data:,') {
-      throw new Error('Falha ao gerar máscara do Stage');
+      const { data: processedUrlData } = supabase.storage
+        .from('plugin-images')
+        .getPublicUrl(processedFilePath);
+
+      const processedCanvasUrl = processedUrlData.publicUrl;
+
+      console.log('✅ Processed canvas uploaded:', processedCanvasUrl.substring(0, 60) + '...');
+
+      // Segundo: criar versão modificada usando um canvas HTML5 temporário (mais seguro)
+      console.log('🎯 Step 2: Creating modified canvas with 780x780');
+
+      // Criar canvas temporário 780x780
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 780;
+      tempCanvas.height = 780;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      if (!tempCtx) {
+        throw new Error('Não foi possível criar contexto de canvas');
+      }
+
+      // Aplicar fundo branco
+      tempCtx.fillStyle = '#FFFFFF';
+      tempCtx.fillRect(0, 0, 780, 780);
+
+      console.log('🖼️ Step 3: Drawing base image on temp canvas');
+
+      // Desenhar imagem base (já processada no stage original)
+      const baseImageData = stageRef.current.toDataURL({
+        mimeType: 'image/png',
+        quality: 1.0,
+        pixelRatio: 1,
+        width: stageRef.current.width(),
+        height: stageRef.current.height()
+      });
+
+      const baseImage = new Image();
+      await new Promise((resolve, reject) => {
+        baseImage.onload = resolve;
+        baseImage.onerror = reject;
+        baseImage.src = baseImageData;
+      });
+
+      // Centralizar e redimensionar imagem no canvas 780x780
+      const imgAspect = baseImage.width / baseImage.height;
+      let drawWidth = 780;
+      let drawHeight = 780 / imgAspect;
+
+      if (drawHeight > 780) {
+        drawHeight = 780;
+        drawWidth = 780 * imgAspect;
+      }
+
+      const drawX = (780 - drawWidth) / 2;
+      const drawY = (780 - drawHeight) / 2;
+
+      tempCtx.drawImage(baseImage, drawX, drawY, drawWidth, drawHeight);
+
+      console.log('✅ Modified canvas created successfully at 780x780');
+
+      // Converter canvas para blob
+      const modifiedBlob = await new Promise<Blob>((resolve, reject) => {
+        tempCanvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Falha ao converter canvas para blob'));
+            }
+          },
+          'image/png',
+          1.0
+        );
+      });
+
+      console.log('📤 Step 4: Uploading modified canvas');
+
+      // Upload da versão modificada
+      const fileName = `mask-modified-${Date.now()}-${Math.random()}.png`;
+      const filePath = fileName;
+
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('plugin-images')
+        .upload(filePath, modifiedBlob, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Upload error for modified canvas:', uploadError);
+        throw new Error(`Falha no upload: ${uploadError.message}`);
+      }
+
+      const { data: modifiedUrlData } = supabase.storage
+        .from('plugin-images')
+        .getPublicUrl(filePath);
+
+      const modifiedCanvasUrl = modifiedUrlData.publicUrl;
+
+      console.log('✅ Both versions successfully saved:');
+      console.log('- Canvas processed (1:1 white):', processedCanvasUrl.substring(0, 60) + '...');
+      console.log('- Canvas modified (with drawings):', modifiedCanvasUrl.substring(0, 60) + '...');
+
+      // Chamar callback com ambas as URLs
+      await onGenerateCombination(processedCanvasUrl, modifiedCanvasUrl);
+
+      // Fechar modal
+      onOpenChange(false);
+      onModalClose?.();
+
+    } catch (error: any) {
+      console.error('❌ Error during image generation:', error);
+      throw error; // Re-throw para mostrar erro ao usuário
     }
-
-    console.log('✅ Máscara exportada diretamente do Stage em 1024x1024:', maskDataUrl.substring(0, 50) + '...');
-
-    // Chamar callback para continuar com a geração (Efimagem.tsx fará o resto)
-    await onGenerateCombination(maskDataUrl);
-
-    // Fechar modal
-    onOpenChange(false);
-    onModalClose?.();
   };
 
   const handleCancel = () => {
@@ -356,7 +466,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
                 >
                   <PaintBucket className="h-5 w-5" />
                 </Button>
-                <span className="text-xs text-muted-foreground">Bézier (vermelho)</span>
+                <span className="text-xs text-muted-foreground">Textura</span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
@@ -368,7 +478,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
                 >
                   <LucideCircle className="h-5 w-5 text-yellow-800" />
                 </Button>
-                <span className="text-xs text-muted-foreground">Círculos (amarelo)</span>
+                <span className="text-xs text-muted-foreground">Logo</span>
               </div>
             </div>
 
@@ -468,7 +578,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
 
                     {/* Curvas Bézier */}
                     {bezierCurves.map((curve, curveIndex) => {
-                      if (curve.points.length < 2) return null;
+                      if (curve.points.length < 1) return null;
 
                       if (curve.closed && curve.points.length >= 3) {
                         // Renderizar forma preenchida fechada
@@ -481,7 +591,52 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
                               fill={'#FF0000CC'}
                               stroke={'#FF0000'}
                               strokeWidth={2}
+                              onMouseEnter={() => {
+                                setPointsVisible(true);
+                              }}
+                              onMouseLeave={() => {
+                                setPointsVisible(false);
+                              }}
                             />
+
+                            {/* Pontos editáveis da forma fechada - visíveis no hover ou durante interação */}
+                            {curve.points.map((point, pointIndex) => (
+                              <Circle
+                                key={`point-${pointIndex}`}
+                                x={point.x}
+                                y={point.y}
+                                radius={6}
+                                fill={'#FF0000'}
+                                stroke={'#FFFFFF'}
+                                strokeWidth={2}
+                                opacity={pointsVisible ? 1 : 0}
+                                draggable
+                                onMouseEnter={(e) => {
+                                  // Efeito hover: aumentar raio e mudar cursor
+                                  e.target.scale({ x: 1.5, y: 1.5 });
+                                  e.target.getStage()!.container().style.cursor = 'move';
+                                }}
+                                onMouseLeave={(e) => {
+                                  // Voltar ao normal
+                                  e.target.scale({ x: 1, y: 1 });
+                                  e.target.getStage()!.container().style.cursor = 'default';
+                                }}
+                                onDragStart={(e) => {
+                                  // Cursor de drag
+                                  e.target.getStage()!.container().style.cursor = 'grabbing';
+                                }}
+                                onDragEnd={(e) => {
+                                  // Atualizar posição do ponto na curva
+                                  const newPos = { x: e.target.x(), y: e.target.y() };
+                                  const updatedCurves = [...bezierCurves];
+                                  updatedCurves[curveIndex].points[pointIndex] = newPos;
+                                  setBezierCurves(updatedCurves);
+
+                                  // Voltar cursor
+                                  e.target.getStage()!.container().style.cursor = 'default';
+                                }}
+                              />
+                            ))}
                           </Group>
                         );
                       } else {
@@ -503,10 +658,23 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
                                 key={pointIndex}
                                 x={point.x}
                                 y={point.y}
-                                radius={3}
+                                radius={6}
                                 fill={'#FF0000'}
+                                stroke={'#FFFFFF'}
+                                strokeWidth={2}
                               />
                             ))}
+
+                            {/* Preview do próximo traço - linha tracejada do último ponto ao mouse */}
+                            {curve.points.length >= 0 && (
+                              <Line
+                                points={[curve.points[curve.points.length - 1].x, curve.points[curve.points.length - 1].y, mousePos.x, mousePos.y]}
+                                stroke={'#0000FF'}
+                                strokeWidth={2}
+                                dash={[5, 5]}
+                                opacity={0.7}
+                              />
+                            )}
 
                             {/* Indicação visual quando próximo de fechar o laço */}
                             {curve.points.length >= 3 && isNearFirstPoint(curve, mousePos) && (
@@ -540,12 +708,7 @@ export function ImageMaskEditor({ open, onOpenChange, imageUrl, onGenerateCombin
               )}
             </div>
 
-            <div className="text-center mt-4 text-sm text-muted-foreground">
-              {selectedTool === 'bezier'
-                ? "Clique para adicionar pontos. Quando tiver 3+ pontos, clique próximo ao primeiro (círculo laranja) para fechar o laço e preencher."
-                : "Clique e arraste para criar círculos de diferentes tamanhos. Selecione um círculo existente para movê-lo ou redimensioná-lo."
-              }
-            </div>
+            
           </div>
 
           {/* Botões de ação */}
