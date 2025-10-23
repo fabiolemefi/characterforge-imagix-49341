@@ -43,8 +43,8 @@ serve(async (req: Request): Promise<Response> => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-SFMC-Client-ID": Deno.env.get("SFMC_CLIENT_ID") || "",
-        "X-SFMC-Client-Secret": Deno.env.get("SFMC_CLIENT_SECRET") || "",
+        // "X-SFMC-Client-ID": Deno.env.get("SFMC_CLIENT_ID") || "",
+        // "X-SFMC-Client-Secret": Deno.env.get("SFMC_CLIENT_SECRET") || "",
       },
       body: JSON.stringify(assetData),
     });
