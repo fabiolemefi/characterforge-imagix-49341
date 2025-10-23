@@ -22,7 +22,7 @@ interface UploadAssetRequest {
 
 serve(async (req: Request): Promise<Response> => {
   console.log("Edge function called");
-  
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") {
     console.log("Invalid method:", req.method);
@@ -37,9 +37,9 @@ serve(async (req: Request): Promise<Response> => {
     const assetData: UploadAssetRequest = await req.json();
     console.log("Asset data received:", assetData.name || "unknown");
 
-    // Envia as credenciais para o Worker fazer a autenticação
-    console.log("Sending to Worker with credentials...");
-    const proxyResponse = await fetch("https://proxyaccess.duarteleme.workers.dev/", {
+    // 🚀 MUDANÇA: APONTA PARA SUA VPS!
+    console.log("Sending to VPS Proxy...");
+    const proxyResponse = await fetch("http://216.126.236.244/upload", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -49,9 +49,9 @@ serve(async (req: Request): Promise<Response> => {
       body: JSON.stringify(assetData),
     });
 
-    console.log("Worker response status:", proxyResponse.status);
+    console.log("VPS response status:", proxyResponse.status);
     const text = await proxyResponse.text();
-    console.log("Worker response:", text.substring(0, 200));
+    console.log("VPS response:", text.substring(0, 200));
 
     return new Response(text, {
       status: proxyResponse.status,
