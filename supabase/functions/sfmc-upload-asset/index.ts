@@ -39,7 +39,7 @@ serve(async (req: Request): Promise<Response> => {
 
     // 🚀 MUDANÇA: APONTA PARA SUA VPS!
     console.log("Sending to VPS Proxy...");
-    const proxyResponse = await fetch("http://216.126.236.244/upload", {
+    const proxyResponse = await fetch("http://216.126.236.244/upload.php", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
