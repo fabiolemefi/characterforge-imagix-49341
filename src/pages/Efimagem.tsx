@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, Upload, Clipboard } from "lucide-react";
+import { Loader2, Trash2, Upload, Clipboard, Check } from "lucide-react";
 import { retryWithAuthRefresh } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { ImageMaskEditor } from "@/components/ImageMaskEditor";
@@ -27,6 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface CharacterImage {
   id: string;
@@ -64,6 +72,10 @@ export default function Efimagem() {
   const [readyImage, setReadyImage] = useState<GeneratedImage | null>(null);
   const [minTimePassed, setMinTimePassed] = useState(false);
   const [characterFilter, setCharacterFilter] = useState<string>("all");
+
+  // Estados para paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const imagesPerPage = 9;
 
   // Estados para modo combinação
   const [uploadedImage, setUploadedImage] = useState<string>("");
@@ -173,6 +185,11 @@ export default function Efimagem() {
     }
   }, [imageReady, minTimePassed, toast]);
 
+  // Resetar página quando filtro muda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [characterFilter]);
+
   const loadGeneralPrompt = async () => {
     try {
       const { data, error } = await supabase.from("plugins").select("general_prompt").eq("name", "Efimagem").single();
@@ -275,8 +292,8 @@ export default function Efimagem() {
     const character = characters.find((c) => c.id === selectedCharacter);
     if (!character) return;
 
-    // Modo especial: "Simulação de Brindes"
-    if (character.name === "Simulação de Brindes") {
+    // Modo especial: "Brindes"
+    if (character.name === "Brindes") {
       return handleGenerateCombination(maskImage || undefined, character);
     }
 
@@ -357,7 +374,7 @@ export default function Efimagem() {
   };
 
   const handleGenerateCombination = async (maskDataUrl?: string, character?: Character, processedCanvasUrl?: string) => {
-    // Para combinação (Simulação de Brindes): sempre temos processedCanvasUrl e maskDataUrl
+    // Para combinação (Brindes): sempre temos processedCanvasUrl e maskDataUrl
     const finalProcessedUrl = processedCanvasUrl || "";
     const finalMaskDataUrl = maskDataUrl || "";
 
@@ -761,10 +778,21 @@ export default function Efimagem() {
                 <h1 className="text-4xl font-bold text-white mb-8">Efimagem</h1>
 
                 <Card className="p-6 mb-8">
-                  <h2 className="text-xl font-semibold text-white mb-4">Selecione um personagem</h2>
+                  
 
                   {loadingCharacters ? (
-                    <p className="text-center text-muted-foreground mb-6">Carregando personagens...</p>
+                    <div className="w-full mb-6">
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                        {Array.from({ length: 8 }, (_, i) => (
+                          <div key={i} className="rounded-2xl">
+                            <div className="p-4 space-y-2">
+                              <Skeleton className="w-full aspect-square rounded-full" />
+                              <Skeleton className="h-4 w-3/4 mx-auto" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ) : characters.length === 0 ? (
                     <p className="text-center text-muted-foreground mb-6">
                       Nenhum personagem cadastrado ainda. Entre em contato com o administrador.
@@ -779,12 +807,12 @@ export default function Efimagem() {
                     >
                       <CarouselContent className="-ml-2 md:-ml-4">
                         {characters.map((character) => (
-                          <CarouselItem key={character.id} className="pl-2 md:pl-4 basis-1/2 md:basis-1/4">
+                          <CarouselItem key={character.id} className="pl-2 md:pl-4 basis-[calc(100%/6)]">
                             <label
-                              className={`cursor-pointer p-4 border-2 rounded-lg transition-all block h-full ${
+                              className={`cursor-pointer p-4 rounded-2xl transition-all duration-200 block h-full hover:scale-105 ${
                                 selectedCharacter === character.id
-                                  ? "border-primary bg-primary/10"
-                                  : "border-border hover:border-primary/50"
+                                  ? ""
+                                  : ""
                               }`}
                             >
                               <input
@@ -804,8 +832,8 @@ export default function Efimagem() {
                                   setProcessedCanvasUrl("");
                                   setMaskEditorOpen(false);
 
-                                  // Ativar upload apenas se for "Simulação de Brindes"
-                                  if (characters.find(c => c.id === newCharacterId)?.name === "Simulação de Brindes") {
+                                  // Ativar upload apenas se for "Brindes"
+                                  if (characters.find(c => c.id === newCharacterId)?.name === "Brindes") {
                                     setImageUploadActivated(true);
                                   } else {
                                     setImageUploadActivated(false);
@@ -813,17 +841,24 @@ export default function Efimagem() {
                                 }}
                                 className="sr-only"
                               />
-                              <div className="text-center">
+                              <div className="text-center relative">
                                 {character.coverImage && (
-                                  <div className="w-full aspect-square rounded overflow-hidden bg-muted mb-2">
-                                    <img
-                                      src={character.coverImage}
-                                      alt={character.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
+                                  <>
+                                    {selectedCharacter === character.id && (
+                                      <div className="absolute top-1 right-1 z-10 bg-primary rounded-full p-1.5">
+                                        <Check className="w-4 h-4 text-white" />
+                                      </div>
+                                    )}
+                                    <div className="w-full aspect-square rounded-full overflow-hidden bg-muted mb-2">
+                                      <img
+                                        src={character.coverImage}
+                                        alt={character.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  </>
                                 )}
-                                <div className="text-lg font-medium text-white">{character.name}</div>
+                                <div className="text-sm font-medium text-white">{character.name}</div>
                               </div>
                             </label>
                           </CarouselItem>
@@ -836,15 +871,13 @@ export default function Efimagem() {
 
                   {selectedCharacter && (
                     <div className="space-y-4 animate-fade-in">
-                      {characters.find(c => c.id === selectedCharacter)?.name === "Simulação de Brindes" ? (
+                      {characters.find(c => c.id === selectedCharacter)?.name === "Brindes" ? (
                         <>
                           {/* Modo combinação especial */}
                           {imageUploadActivated && (
                             <>
                               <div>
-                                <label className="block text-sm font-medium text-white mb-2">
-                                  Selecione uma imagem para editar
-                                </label>
+                                
                                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                                   <div className="space-y-4">
                                     <p className="text-lg text-muted-foreground">
@@ -888,7 +921,7 @@ export default function Efimagem() {
                         <>
                           {/* Modo normal */}
                           <div>
-                            <label className="block text-sm font-medium text-white mb-2">Descreva a pose desejada</label>
+                            
                             <Textarea
                               value={prompt}
                               onChange={(e) => setPrompt(e.target.value)}
@@ -901,7 +934,7 @@ export default function Efimagem() {
                           <Button
                             onClick={handleGenerate}
                             disabled={loading || !prompt.trim()}
-                            className="w-full"
+                            className="ml-auto"
                           >
                             {loading ? (
                               <>
@@ -936,69 +969,118 @@ export default function Efimagem() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {loading && (
-                        <Card
-                          className="overflow-hidden"
-                          style={{
-                            transform: `scale(${1 - (progress / 100) * 0.2})`,
-                            transition: "transform 0.3s ease",
-                          }}
-                        >
-                          <div className="aspect-square bg-muted flex items-center justify-center">
-                            <div className="relative w-16 h-16">
-                              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="4" fill="none"></circle>
-                                <circle
-                                  cx="50"
-                                  cy="50"
-                                  r="40"
-                                  stroke="#3b82f6"
-                                  stroke-width="4"
-                                  fill="none"
-                                  stroke-dasharray={`${(progress / 100) * 251} 251`}
-                                  stroke-linecap="round"
-                                  style={{ transition: "stroke-dasharray 0.1s ease" }}
-                                ></circle>
-                              </svg>
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-sm font-medium text-white">{Math.floor(progress)}%</span>
-                              </div>
-                            </div>
+
+                    {/* Calcular imagens filtradas e paginadas */}
+                    {(() => {
+                      const filteredImages = generatedImages.filter((img) =>
+                        characterFilter === "all" || img.character === characterFilter
+                      );
+                      const totalPages = Math.ceil(filteredImages.length / imagesPerPage);
+                      const paginatedImages = filteredImages.slice(
+                        (currentPage - 1) * imagesPerPage,
+                        currentPage * imagesPerPage
+                      );
+
+                      return (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {loading && (
+                              <Card
+                                className="overflow-hidden"
+                                style={{
+                                  transform: `scale(${1 - (progress / 100) * 0.2})`,
+                                  transition: "transform 0.3s ease",
+                                }}
+                              >
+                                <div className="aspect-square bg-muted flex items-center justify-center">
+                                  <div className="relative w-16 h-16">
+                                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
+                                      <circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="4" fill="none"></circle>
+                                      <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        stroke="#3b82f6"
+                                        stroke-width="4"
+                                        fill="none"
+                                        stroke-dasharray={`${(progress / 100) * 251} 251`}
+                                        stroke-linecap="round"
+                                        style={{ transition: "stroke-dasharray 0.1s ease" }}
+                                      ></circle>
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-white">{Math.floor(progress)}%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </Card>
+                            )}
+                            {paginatedImages.map((img) => (
+                              <Card key={img.id} className="overflow-hidden">
+                                <div className="relative group">
+                                  <div
+                                    className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
+                                    onClick={() => setSelectedImage(img.url)}
+                                  >
+                                    <img
+                                      src={img.url}
+                                      alt={`Gerado - ${img.character}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
+                                  </div>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteImage(img.id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </Card>
+                            ))}
                           </div>
-                          </Card>
-                        )}
-                      {generatedImages
-                        .filter((img) => characterFilter === "all" || img.character === characterFilter)
-                        .map((img) => (
-                        <Card key={img.id} className="overflow-hidden">
-                          <div className="relative group">
-                            <div
-                              className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
-                              onClick={() => setSelectedImage(img.url)}
-                            >
-                              <img
-                                src={img.url}
-                                alt={`Gerado - ${img.character}`}
-                                className="w-full h-full object-cover"
-                              />
-                              <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
+
+                          {/* Controles de paginação */}
+                          {totalPages > 1 && (
+                            <div className="mt-8">
+                              <Pagination>
+                                <PaginationContent>
+                                  <PaginationItem>
+                                    <PaginationPrevious
+                                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                                    />
+                                  </PaginationItem>
+
+                                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <PaginationItem key={page}>
+                                      <PaginationLink
+                                        onClick={() => setCurrentPage(page)}
+                                        isActive={currentPage === page}
+                                      >
+                                        {page}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  ))}
+
+                                  <PaginationItem>
+                                    <PaginationNext
+                                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                                    />
+                                  </PaginationItem>
+                                </PaginationContent>
+                              </Pagination>
                             </div>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteImage(img.id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
