@@ -1,54 +1,15 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
 import { TitleOnlyBlock } from '@/components/brandguide/TitleOnlyBlock';
 import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
 import { BrandGuideBlock } from '@/hooks/useBrandGuide';
-import { safeSupabaseQuery } from '@/lib/safeSupabaseQuery';
+import { useBrandGuideHomeBlocks } from '@/hooks/useBrandGuideHomeBlocks';
 import { ErrorFallback } from '@/components/ErrorFallback';
 
 export default function BrandGuideHome() {
-  const [blocks, setBlocks] = useState<BrandGuideBlock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadHomeBlocks();
-  }, []);
-
-  const loadHomeBlocks = async () => {
-    setLoading(true);
-    setError(null);
-
-    const result = await safeSupabaseQuery<BrandGuideBlock[]>(
-      async () => {
-        const { data, error } = await supabase
-          .from('brand_guide_blocks')
-          .select('*')
-          .is('page_id', null)
-          .is('category_id', null)
-          .order('position');
-        return { data, error };
-      },
-      {
-        timeout: 15000,
-        maxRetries: 3,
-        operationName: 'Load Brand Guide Home Blocks'
-      }
-    );
-
-    if (result.success && result.data) {
-      setBlocks(result.data);
-      setError(null);
-    } else {
-      console.error('BrandGuideHome: Failed to load blocks:', result.error);
-      setError(result.error?.message || 'Erro ao carregar blocos do guia de marca');
-    }
-
-    setLoading(false);
-  };
+  // React Query hook (com cache automático)
+  const { data: blocks = [], isLoading: loading, error } = useBrandGuideHomeBlocks();
 
   const renderBlock = (block: BrandGuideBlock) => {
     switch (block.block_type) {
@@ -130,8 +91,8 @@ export default function BrandGuideHome() {
                 </div>
                 <ErrorFallback
                   title="Erro ao carregar conteúdo"
-                  message={error}
-                  onRetry={loadHomeBlocks}
+                  message={error?.message || 'Erro desconhecido'}
+                  onRetry={() => window.location.reload()}
                 />
               </>
             ) : (

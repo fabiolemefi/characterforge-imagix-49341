@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { checkSupabaseHealth } from "@/lib/supabaseHealthCheck";
+import { useAuth } from "@/contexts/AuthContext";
 import { ErrorFallback } from "./ErrorFallback";
 
 interface ProtectedRouteProps {
@@ -10,22 +10,25 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { user, loading: authLoading, healthError } = useAuth();
+  const [isActive, setIsActive] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-  const [healthError, setHealthError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
 
-    const checkUserStatus = async (userId: string) => {
-      if (!mounted) return;
+    const checkUserStatus = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       try {
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("is_active")
-          .eq("id", userId)
+          .eq("id", user.id)
           .maybeSingle();
 
         if (!mounted) return;
@@ -37,13 +40,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
             description: "Faça login novamente",
             variant: "destructive",
           });
-          setAuthenticated(false);
+          setIsActive(false);
           setLoading(false);
           return;
         }
 
         if (!profile) {
-          setAuthenticated(true);
+          setIsActive(true);
           setLoading(false);
           return;
         }
@@ -55,83 +58,32 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
             description: "Seu acesso foi desativado por um administrador",
             variant: "destructive",
           });
-          setAuthenticated(false);
+          setIsActive(false);
           setLoading(false);
         } else {
-          setAuthenticated(true);
+          setIsActive(true);
           setLoading(false);
         }
       } catch (error) {
         console.error("[ProtectedRoute] Error:", error);
         if (mounted) {
           await supabase.auth.signOut();
-          setAuthenticated(false);
+          setIsActive(false);
           setLoading(false);
         }
       }
     };
 
-    const initAuth = async () => {
-      try {
-        console.log('[ProtectedRoute] Iniciando autenticação...');
-        
-        // Primeiro verificar a saúde da conexão
-        const healthCheck = await checkSupabaseHealth(10000);
-        
-        if (!mounted) return;
-
-        if (!healthCheck.isHealthy) {
-          console.error('[ProtectedRoute] Health check falhou:', healthCheck);
-          setHealthError(healthCheck.error || 'Erro ao conectar ao servidor');
-          setAuthenticated(false);
-          setLoading(false);
-          return;
-        }
-
-        console.log('[ProtectedRoute] Health check OK, obtendo sessão...');
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-
-        if (!session) {
-          console.log('[ProtectedRoute] Nenhuma sessão encontrada');
-          setAuthenticated(false);
-          setLoading(false);
-          return;
-        }
-
-        console.log('[ProtectedRoute] Sessão encontrada, verificando status do usuário...');
-        await checkUserStatus(session.user.id);
-      } catch (error) {
-        console.error("[ProtectedRoute] Init error:", error);
-        if (mounted) {
-          setHealthError('Erro inesperado ao inicializar autenticação');
-          setAuthenticated(false);
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-
-        if (event === 'SIGNED_OUT') {
-          setAuthenticated(false);
-          setLoading(false);
-        }
-      }
-    );
+    if (!authLoading) {
+      checkUserStatus();
+    }
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
-  }, [toast]);
+  }, [user, authLoading, toast]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -139,24 +91,25 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!authenticated) {
-    if (healthError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <div className="max-w-md w-full">
-            <ErrorFallback
-              title="Erro de Conexão"
-              message={healthError}
-              onRetry={() => window.location.reload()}
-              onLogout={async () => {
-                await supabase.auth.signOut();
-                window.location.href = '/login';
-              }}
-            />
-          </div>
+  if (healthError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full">
+          <ErrorFallback
+            title="Erro de Conexão"
+            message={healthError}
+            onRetry={() => window.location.reload()}
+            onLogout={async () => {
+              await supabase.auth.signOut();
+              window.location.href = '/login';
+            }}
+          />
         </div>
-      );
-    }
+      </div>
+    );
+  }
+
+  if (!user || isActive === false) {
     return <Navigate to="/login" replace />;
   }
 

@@ -1,16 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
-import { safeSupabaseQuery } from "@/lib/safeSupabaseQuery";
-import { ErrorFallback } from "./ErrorFallback";
+import { usePlugins } from "@/hooks/usePlugins";
+import { useBrandGuideCategories, useBrandGuidePages } from "@/hooks/useBrandGuideData";
 import {
   Sidebar as SidebarUI,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -21,51 +18,27 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-interface Plugin {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  is_active: boolean;
-  is_new: boolean;
-  in_development: boolean;
-}
-
-interface BrandGuideCategory {
-  id: string;
-  name: string;
-  slug: string;
-  icon: string;
-  position: number;
-  pages?: BrandGuidePage[];
-}
-
-interface BrandGuidePage {
-  id: string;
-  category_id: string;
-  name: string;
-  slug: string;
-  position: number;
-}
-
 export function Sidebar() {
   const { open } = useSidebar();
-  const [plugins, setPlugins] = useState<Plugin[]>([]);
-  const [categories, setCategories] = useState<BrandGuideCategory[]>([]);
-  const [loadingPlugins, setLoadingPlugins] = useState(true);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-  const [pluginsError, setPluginsError] = useState<string | null>(null);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
-  const [expandedBrandGuide, setExpandedBrandGuide] = useState(false);
-  const [expandedPlugins, setExpandedPlugins] = useState(false);
-  const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    loadPlugins();
-    loadBrandGuideCategories();
-  }, []);
+  // React Query hooks (com cache automático)
+  const { data: plugins = [], isLoading: loadingPlugins, error: pluginsError } = usePlugins();
+  const { data: categoriesData = [], isLoading: loadingCategories, error: categoriesError } = useBrandGuideCategories();
+  const { data: pagesData = [], isLoading: loadingPages } = useBrandGuidePages();
+
+  const [expandedBrandGuide, setExpandedBrandGuide] = useState(false);
+  const [expandedPlugins, setExpandedPlugins] = useState(false);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
+
+  // Combinar categorias com páginas
+  const categories = useMemo(() => {
+    return categoriesData.map(category => ({
+      ...category,
+      pages: pagesData.filter(page => page.category_id === category.id),
+    }));
+  }, [categoriesData, pagesData]);
 
   useEffect(() => {
     const currentPath = location.pathname;
@@ -93,97 +66,6 @@ export function Sidebar() {
     }
   }, [location.pathname, categories]);
 
-  const loadPlugins = async () => {
-    setLoadingPlugins(true);
-    setPluginsError(null);
-
-    const result = await safeSupabaseQuery<Plugin[]>(
-      async () => {
-        const { data, error } = await supabase
-          .from("plugins")
-          .select("*")
-          .eq("is_active", true)
-          .eq("in_development", false)
-          .order("name");
-        return { data, error };
-      },
-      {
-        timeout: 15000,
-        maxRetries: 3,
-        operationName: 'Load Plugins (Sidebar)'
-      }
-    );
-
-    if (result.success && result.data) {
-      setPlugins(result.data);
-      setPluginsError(null);
-    } else {
-      setPluginsError(result.error?.message || 'Erro ao carregar plugins');
-    }
-
-    setLoadingPlugins(false);
-  };
-
-  const loadBrandGuideCategories = async () => {
-    setLoadingCategories(true);
-    setCategoriesError(null);
-
-    const categoriesResult = await safeSupabaseQuery<BrandGuideCategory[]>(
-      async () => {
-        const { data, error } = await supabase
-          .from("brand_guide_categories")
-          .select("*")
-          .eq("is_active", true)
-          .order("position");
-        return { data, error };
-      },
-      {
-        timeout: 15000,
-        maxRetries: 3,
-        operationName: 'Load Brand Guide Categories (Sidebar)'
-      }
-    );
-
-    if (!categoriesResult.success) {
-      setCategoriesError(categoriesResult.error?.message || 'Erro ao carregar categorias');
-      setLoadingCategories(false);
-      return;
-    }
-
-    const pagesResult = await safeSupabaseQuery<BrandGuidePage[]>(
-      async () => {
-        const { data, error } = await supabase
-          .from("brand_guide_pages")
-          .select("*")
-          .eq("is_active", true)
-          .order("position");
-        return { data, error };
-      },
-      {
-        timeout: 15000,
-        maxRetries: 3,
-        operationName: 'Load Brand Guide Pages (Sidebar)'
-      }
-    );
-
-    if (!pagesResult.success) {
-      setCategoriesError(pagesResult.error?.message || 'Erro ao carregar páginas');
-      setLoadingCategories(false);
-      return;
-    }
-
-    if (categoriesResult.data && pagesResult.data) {
-      const categoriesWithPages = categoriesResult.data.map((category: any) => ({
-        ...category,
-        pages: pagesResult.data.filter((page: any) => page.category_id === category.id),
-      }));
-      setCategories(categoriesWithPages);
-      setCategoriesError(null);
-    }
-
-    setLoadingCategories(false);
-  };
-
   const getIconComponent = (iconName: string) => {
     const Icon = (LucideIcons as any)[iconName] || Book;
     return <Icon className="h-4 w-4" />;
@@ -192,7 +74,7 @@ export function Sidebar() {
   const isActive = (path: string) => location.pathname === path;
   const isPathActive = (path: string) => location.pathname.startsWith(path);
 
-  const getPluginPath = (plugin: Plugin) => {
+  const getPluginPath = (plugin: any) => {
     if (plugin.name === 'Efimail') return '/efimail';
     if (plugin.name === 'Efimagem') return '/efimagem';
     if (plugin.name === 'Email Builder') return '/email-templates';
@@ -262,8 +144,8 @@ export function Sidebar() {
                   ) : categoriesError ? (
                     <SidebarMenuSubItem>
                       <div className="px-2 py-1">
-                        <p className="text-xs text-destructive">{categoriesError}</p>
-                        <button onClick={loadBrandGuideCategories} className="text-xs underline mt-1">
+                        <p className="text-xs text-destructive">Erro ao carregar categorias</p>
+                        <button onClick={() => window.location.reload()} className="text-xs underline mt-1">
                           Tentar novamente
                         </button>
                       </div>
@@ -329,8 +211,8 @@ export function Sidebar() {
                   ) : pluginsError ? (
                     <SidebarMenuSubItem>
                       <div className="px-2 py-1">
-                        <p className="text-xs text-destructive">{pluginsError}</p>
-                        <button onClick={loadPlugins} className="text-xs underline mt-1">
+                        <p className="text-xs text-destructive">Erro ao carregar plugins</p>
+                        <button onClick={() => window.location.reload()} className="text-xs underline mt-1">
                           Tentar novamente
                         </button>
                       </div>
