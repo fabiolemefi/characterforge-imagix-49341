@@ -1,7 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Sidebar } from '@/components/Sidebar';
-import Header from '@/components/Header';
-import { PromoBar } from '@/components/PromoBar';
 import { supabase } from '@/integrations/supabase/client';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
@@ -116,13 +113,8 @@ export default function BrandGuideHome() {
   };
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <PromoBar />
-        <Header />
-        <main className="flex-1 overflow-auto p-8">
-          <div className="max-w-6xl mx-auto">
+    <div className="p-8">
+      <div className="max-w-6xl mx-auto">
             {loading ? (
               <div className="space-y-8 animate-pulse">
                 <div className="h-12 bg-muted rounded w-1/3"></div>
@@ -167,8 +159,6 @@ export default function BrandGuideHome() {
               </>
             )}
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
   );
 }

@@ -1,7 +1,4 @@
 import { useEffect, useState } from "react";
-import { PromoBar } from "../components/PromoBar";
-import { Sidebar } from "../components/Sidebar";
-import Header from "../components/Header";
 import { FeaturedAppCard } from "../components/FeaturedAppCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -74,14 +71,8 @@ const Index = () => {
 
     setLoading(false);
   };
-  return <div className="min-h-screen flex flex-col">
-      <PromoBar />
-      <div className="flex flex-1">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <div className="flex-1 overflow-auto">
-            <main className="py-8 px-12">
+  return (
+    <div className="py-8 px-12">
               
               
               
@@ -145,12 +136,7 @@ const Index = () => {
                   </div>
                 )}
               </section>
-              
-              
-            </main>
-          </div>
-        </div>
-      </div>
-    </div>;
+    </div>
+  );
 };
 export default Index;

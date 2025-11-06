@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +64,8 @@ const Header = () => {
   };
 
   return (
-    <div className="h-16 flex items-center justify-end px-6 border-b">
+    <div className="h-16 flex items-center justify-between px-6 border-b bg-background sticky top-0 z-40">
+      <SidebarTrigger />
       <div className="flex items-center gap-4 relative">
         {/* Help icon with dropdown */}
         <div className="relative">

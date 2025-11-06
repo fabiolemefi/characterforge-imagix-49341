@@ -26,6 +26,7 @@ import AdminBlogCategories from './pages/AdminBlogCategories';
 import AdminBlogPosts from './pages/AdminBlogPosts';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AppLayout } from "./components/AppLayout";
 
 const queryClient = new QueryClient();
 
@@ -37,28 +38,28 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-          <Route path="/plugin/:id" element={<ProtectedRoute><PluginDetails /></ProtectedRoute>} />
-          <Route path="/efimail" element={<ProtectedRoute><Efimail /></ProtectedRoute>} />
-          <Route path="/efimagem" element={<ProtectedRoute><Efimagem /></ProtectedRoute>} />
-          <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
-          <Route path="/email-builder" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
-          <Route path="/email-builder/:id" element={<ProtectedRoute><EmailBuilder /></ProtectedRoute>} />
-          <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
-          <Route path="/brand-guide" element={<ProtectedRoute><BrandGuideHome /></ProtectedRoute>} />
-          <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
-          <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><BrandGuide /></ProtectedRoute>} />
-          <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
-          <Route path="/blog" element={<ProtectedRoute><Blog /></ProtectedRoute>} />
-          <Route path="/blog/:slug" element={<ProtectedRoute><BlogPost /></ProtectedRoute>} />
-          <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
-          <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-          <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
-          <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
+          <Route path="/plugin/:id" element={<ProtectedRoute><AppLayout><PluginDetails /></AppLayout></ProtectedRoute>} />
+          <Route path="/efimail" element={<ProtectedRoute><AppLayout><Efimail /></AppLayout></ProtectedRoute>} />
+          <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
+          <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
+          <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
+          <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/email-blocks" element={<ProtectedRoute><AppLayout><AdminEmailBlocks /></AppLayout></ProtectedRoute>} />
+          <Route path="/brand-guide" element={<ProtectedRoute><AppLayout><BrandGuideHome /></AppLayout></ProtectedRoute>} />
+          <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
+          <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/brand-guide" element={<ProtectedRoute><AppLayout><AdminBrandGuide /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AppLayout><AdminBrandGuideHome /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><AdminBrandGuidePage /></AppLayout></ProtectedRoute>} />
+          <Route path="/blog" element={<ProtectedRoute><AppLayout><Blog /></AppLayout></ProtectedRoute>} />
+          <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/blog/categories" element={<ProtectedRoute><AppLayout><AdminBlogCategories /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/blog/posts" element={<ProtectedRoute><AppLayout><AdminBlogPosts /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AppLayout><AdminDashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute><AppLayout><AdminUsers /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/announcements" element={<ProtectedRoute><AppLayout><AdminAnnouncements /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/plugins" element={<ProtectedRoute><AppLayout><AdminPlugins /></AppLayout></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

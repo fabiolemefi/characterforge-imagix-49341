@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
 import { useBlogCategories, useBlogPosts } from "@/hooks/useBlog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +15,8 @@ export default function Blog() {
   const { data: posts, isLoading: postsLoading } = useBlogPosts(selectedCategory);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-8 overflow-auto">
-          <div className="max-w-7xl mx-auto">
+    <div className="p-8">
+      <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="text-4xl font-bold mb-4">Blog</h1>
               <p className="text-muted-foreground">
@@ -136,8 +130,6 @@ export default function Blog() {
               </div>
             )}
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
   );
 }
