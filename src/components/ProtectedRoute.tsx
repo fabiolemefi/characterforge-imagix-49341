@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { checkSupabaseHealth } from "@/lib/supabaseHealthCheck";
+import { ErrorFallback } from "./ErrorFallback";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,6 +12,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -70,20 +73,39 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[ProtectedRoute] Iniciando autenticação...');
+        
+        // Primeiro verificar a saúde da conexão
+        const healthCheck = await checkSupabaseHealth(10000);
         
         if (!mounted) return;
 
-        if (!session) {
+        if (!healthCheck.isHealthy) {
+          console.error('[ProtectedRoute] Health check falhou:', healthCheck);
+          setHealthError(healthCheck.error || 'Erro ao conectar ao servidor');
           setAuthenticated(false);
           setLoading(false);
           return;
         }
 
+        console.log('[ProtectedRoute] Health check OK, obtendo sessão...');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+
+        if (!session) {
+          console.log('[ProtectedRoute] Nenhuma sessão encontrada');
+          setAuthenticated(false);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[ProtectedRoute] Sessão encontrada, verificando status do usuário...');
         await checkUserStatus(session.user.id);
       } catch (error) {
         console.error("[ProtectedRoute] Init error:", error);
         if (mounted) {
+          setHealthError('Erro inesperado ao inicializar autenticação');
           setAuthenticated(false);
           setLoading(false);
         }
@@ -118,6 +140,23 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!authenticated) {
+    if (healthError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="max-w-md w-full">
+            <ErrorFallback
+              title="Erro de Conexão"
+              message={healthError}
+              onRetry={() => window.location.reload()}
+              onLogout={async () => {
+                await supabase.auth.signOut();
+                window.location.href = '/login';
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
     return <Navigate to="/login" replace />;
   }
 

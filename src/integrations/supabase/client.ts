@@ -13,5 +13,45 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'martech-efi'
+    }
+  },
+  db: {
+    schema: 'public'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+});
+
+// Listeners de eventos de autenticação para debug e gerenciamento
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log(`🔐 [Supabase] Auth event: ${event}`, {
+    userId: session?.user?.id?.substring(0, 8),
+    expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null
+  });
+
+  // Verificar se o token está perto de expirar (< 5 minutos) e renovar proativamente
+  if (session?.expires_at) {
+    const expiresAt = session.expires_at * 1000; // Converter para ms
+    const now = Date.now();
+    const timeUntilExpiry = expiresAt - now;
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (timeUntilExpiry > 0 && timeUntilExpiry < fiveMinutes) {
+      console.log('⚠️ [Supabase] Token expirando em breve, renovando proativamente...');
+      supabase.auth.refreshSession().then(({ error }) => {
+        if (error) {
+          console.error('❌ [Supabase] Erro ao renovar token proativamente:', error);
+        } else {
+          console.log('✅ [Supabase] Token renovado proativamente');
+        }
+      });
+    }
   }
 });

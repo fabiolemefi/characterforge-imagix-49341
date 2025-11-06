@@ -9,32 +9,48 @@ import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
 import { TitleOnlyBlock } from '@/components/brandguide/TitleOnlyBlock';
 import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
 import { BrandGuideBlock } from '@/hooks/useBrandGuide';
+import { safeSupabaseQuery } from '@/lib/safeSupabaseQuery';
+import { ErrorFallback } from '@/components/ErrorFallback';
 
 export default function BrandGuideHome() {
   const [blocks, setBlocks] = useState<BrandGuideBlock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadHomeBlocks();
   }, []);
 
   const loadHomeBlocks = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('brand_guide_blocks')
-        .select('*')
-        .is('page_id', null)
-        .is('category_id', null)
-        .order('position');
+    setLoading(true);
+    setError(null);
 
-      if (error) throw error;
-      setBlocks(data || []);
-    } catch (error) {
-      console.error('Error loading home blocks:', error);
-    } finally {
-      setLoading(false);
+    const result = await safeSupabaseQuery<BrandGuideBlock[]>(
+      async () => {
+        const { data, error } = await supabase
+          .from('brand_guide_blocks')
+          .select('*')
+          .is('page_id', null)
+          .is('category_id', null)
+          .order('position');
+        return { data, error };
+      },
+      {
+        timeout: 15000,
+        maxRetries: 3,
+        operationName: 'Load Brand Guide Home Blocks'
+      }
+    );
+
+    if (result.success && result.data) {
+      setBlocks(result.data);
+      setError(null);
+    } else {
+      console.error('BrandGuideHome: Failed to load blocks:', result.error);
+      setError(result.error?.message || 'Erro ao carregar blocos do guia de marca');
     }
+
+    setLoading(false);
   };
 
   const renderBlock = (block: BrandGuideBlock) => {
@@ -113,6 +129,19 @@ export default function BrandGuideHome() {
                 <div className="h-64 bg-muted rounded"></div>
                 <div className="h-64 bg-muted rounded"></div>
               </div>
+            ) : error ? (
+              <>
+                <div className="mb-8">
+                  <h1 className="text-4xl font-bold mb-2">
+                    Guia de Marca
+                  </h1>
+                </div>
+                <ErrorFallback
+                  title="Erro ao carregar conteúdo"
+                  message={error}
+                  onRetry={loadHomeBlocks}
+                />
+              </>
             ) : (
               <>
                 <div className="mb-8">

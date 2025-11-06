@@ -3,6 +3,8 @@ import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText } from "lucid
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
+import { safeSupabaseQuery } from "@/lib/safeSupabaseQuery";
+import { ErrorFallback } from "./ErrorFallback";
 
 interface Plugin {
   id: string;
@@ -108,6 +110,8 @@ export const Sidebar = memo(() => {
   const [categories, setCategories] = useState<BrandGuideCategory[]>([]);
   const [loadingPlugins, setLoadingPlugins] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [pluginsError, setPluginsError] = useState<string | null>(null);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [activeItem, setActiveItem] = useState("Principal");
   const [activeDropdownItem, setActiveDropdownItem] = useState("");
@@ -244,65 +248,106 @@ export const Sidebar = memo(() => {
 
   const loadPlugins = async () => {
     console.log('Sidebar: Loading plugins...');
-    try {
-      setLoadingPlugins(true);
-      const { data, error } = await supabase.from("plugins").select("*").eq("is_active", true).eq("in_development", false).order("name");
-      if (error) {
-        console.error('Sidebar: Error loading plugins:', error);
-        return;
+    setLoadingPlugins(true);
+    setPluginsError(null);
+
+    const result = await safeSupabaseQuery<Plugin[]>(
+      async () => {
+        const { data, error } = await supabase
+          .from("plugins")
+          .select("*")
+          .eq("is_active", true)
+          .eq("in_development", false)
+          .order("name");
+        return { data, error };
+      },
+      {
+        timeout: 15000,
+        maxRetries: 3,
+        operationName: 'Load Plugins (Sidebar)'
       }
-      if (data) {
-        console.log('Sidebar: Plugins loaded:', data.length);
-        setPlugins(data);
-      }
-    } catch (err) {
-      console.error('Sidebar: Exception loading plugins:', err);
-      } finally {
-        setLoadingPlugins(false);
-        if (!dataLoaded) {
-          setDataLoaded(true);
-        }
-      }
+    );
+
+    if (result.success && result.data) {
+      console.log('Sidebar: Plugins loaded:', result.data.length);
+      setPlugins(result.data);
+      setPluginsError(null);
+    } else {
+      console.error('Sidebar: Failed to load plugins:', result.error);
+      setPluginsError(result.error?.message || 'Erro ao carregar plugins');
+    }
+
+    setLoadingPlugins(false);
+    if (!dataLoaded) {
+      setDataLoaded(true);
+    }
   };
 
   const loadBrandGuideCategories = async () => {
     console.log('Sidebar: Loading categories...');
-    try {
-      setLoadingCategories(true);
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from("brand_guide_categories")
-        .select("*")
-        .eq("is_active", true)
-        .order("position");
+    setLoadingCategories(true);
+    setCategoriesError(null);
 
-      const { data: pagesData, error: pagesError } = await supabase
-        .from("brand_guide_pages")
-        .select("*")
-        .eq("is_active", true)
-        .order("position");
+    // Carregar categorias
+    const categoriesResult = await safeSupabaseQuery<BrandGuideCategory[]>(
+      async () => {
+        const { data, error } = await supabase
+          .from("brand_guide_categories")
+          .select("*")
+          .eq("is_active", true)
+          .order("position");
+        return { data, error };
+      },
+      {
+        timeout: 15000,
+        maxRetries: 3,
+        operationName: 'Load Brand Guide Categories (Sidebar)'
+      }
+    );
 
-      if (categoriesError) {
-        console.error('Sidebar: Error loading categories:', categoriesError);
-        return;
-      }
-      if (pagesError) {
-        console.error('Sidebar: Error loading pages:', pagesError);
-        return;
-      }
-
-      if (categoriesData && pagesData) {
-        const categoriesWithPages = categoriesData.map((category) => ({
-          ...category,
-          pages: pagesData.filter((page) => page.category_id === category.id),
-        }));
-        console.log('Sidebar: Categories loaded:', categoriesWithPages.length);
-        setCategories(categoriesWithPages);
-      }
-    } catch (err) {
-      console.error('Sidebar: Exception loading categories:', err);
-    } finally {
+    if (!categoriesResult.success) {
+      console.error('Sidebar: Failed to load categories:', categoriesResult.error);
+      setCategoriesError(categoriesResult.error?.message || 'Erro ao carregar categorias');
       setLoadingCategories(false);
+      return;
     }
+
+    // Carregar páginas
+    const pagesResult = await safeSupabaseQuery<BrandGuidePage[]>(
+      async () => {
+        const { data, error } = await supabase
+          .from("brand_guide_pages")
+          .select("*")
+          .eq("is_active", true)
+          .order("position");
+        return { data, error };
+      },
+      {
+        timeout: 15000,
+        maxRetries: 3,
+        operationName: 'Load Brand Guide Pages (Sidebar)'
+      }
+    );
+
+    if (!pagesResult.success) {
+      console.error('Sidebar: Failed to load pages:', pagesResult.error);
+      setCategoriesError(pagesResult.error?.message || 'Erro ao carregar páginas');
+      setLoadingCategories(false);
+      return;
+    }
+
+    // Combinar dados
+    if (categoriesResult.data && pagesResult.data) {
+      const categoriesWithPages = categoriesResult.data.map((category: any) => ({
+        ...category,
+        pages: pagesResult.data.filter((page: any) => page.category_id === category.id),
+      }));
+      console.log('Sidebar: Categories loaded:', categoriesWithPages.length);
+      setCategories(categoriesWithPages);
+      setCategoriesError(null);
+    }
+
+    setLoadingCategories(false);
   };
 
   const getIconComponent = (iconName: string) => {
@@ -430,7 +475,6 @@ export const Sidebar = memo(() => {
         {openMenu === "plugins" && (
           <div className="mt-1 space-y-1 animate-fade-in">
             {loadingPlugins ? (
-              // Loading skeleton
               <div className="space-y-2 p-2">
                 <div className="flex items-center gap-3 p-3 rounded-md animate-pulse">
                   <div className="w-4 h-4 bg-gray-700 rounded"></div>
@@ -440,10 +484,15 @@ export const Sidebar = memo(() => {
                   <div className="w-4 h-4 bg-gray-700 rounded"></div>
                   <div className="flex-1 h-4 bg-gray-700 rounded"></div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-md animate-pulse">
-                  <div className="w-4 h-4 bg-gray-700 rounded"></div>
-                  <div className="flex-1 h-4 bg-gray-700 rounded"></div>
-                </div>
+              </div>
+            ) : pluginsError ? (
+              <div className="px-3 py-2">
+                <ErrorFallback
+                  title="Erro ao carregar plugins"
+                  message={pluginsError}
+                  onRetry={loadPlugins}
+                  showTechnicalDetails={false}
+                />
               </div>
             ) : plugins.length > 0 ? (
               plugins.map(plugin => (

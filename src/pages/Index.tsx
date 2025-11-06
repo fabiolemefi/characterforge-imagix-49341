@@ -2,14 +2,12 @@ import { useEffect, useState } from "react";
 import { PromoBar } from "../components/PromoBar";
 import { Sidebar } from "../components/Sidebar";
 import Header from "../components/Header";
-import { CreationCard } from "../components/CreationCard";
-import { QuickStartItem } from "../components/QuickStartItem";
 import { FeaturedAppCard } from "../components/FeaturedAppCard";
-import { ModelCard } from "../components/ModelCard";
-import { Video, Paintbrush, Grid, FileText, ArrowUpRight, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { safeSupabaseQuery } from "@/lib/safeSupabaseQuery";
+import { ErrorFallback } from "@/components/ErrorFallback";
 interface Plugin {
   id: string;
   name: string;
@@ -22,10 +20,9 @@ interface Plugin {
 const Index = () => {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState<string>("Usuário");
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const navigate = useNavigate();
   useEffect(() => {
     loadPlugins();
@@ -43,23 +40,38 @@ const Index = () => {
     }
   };
   const loadPlugins = async () => {
-    const {
-      data,
-      error
-    } = await supabase.from("plugins").select("*").order("is_active", {
-      ascending: false
-    }).order("created_at", {
-      ascending: false
-    });
-    if (error) {
+    setLoading(true);
+    setError(null);
+
+    const result = await safeSupabaseQuery<Plugin[]>(
+      async () => {
+        const { data, error } = await supabase
+          .from("plugins")
+          .select("*")
+          .order("is_active", { ascending: false })
+          .order("created_at", { ascending: false });
+        return { data, error };
+      },
+      {
+        timeout: 15000,
+        maxRetries: 3,
+        operationName: 'Load Plugins (Index)'
+      }
+    );
+
+    if (result.success && result.data) {
+      setPlugins(result.data);
+      setError(null);
+    } else {
+      console.error('Index: Failed to load plugins:', result.error);
+      setError(result.error?.message || 'Erro ao carregar plugins');
       toast({
         title: "Erro ao carregar plugins",
-        description: error.message,
+        description: result.error?.message || "Tente novamente mais tarde",
         variant: "destructive"
       });
-    } else {
-      setPlugins(data || []);
     }
+
     setLoading(false);
   };
   return <div className="min-h-screen flex flex-col">
@@ -109,6 +121,12 @@ const Index = () => {
                       </div>
                     ))}
                   </div>
+                ) : error ? (
+                  <ErrorFallback
+                    title="Erro ao carregar plugins"
+                    message={error}
+                    onRetry={loadPlugins}
+                  />
                 ) : plugins.length === 0 ? (
                   <p className="text-gray-400">Nenhum plugin disponível no momento.</p>
                 ) : (
