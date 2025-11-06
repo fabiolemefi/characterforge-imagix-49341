@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Sidebar } from '@/components/Sidebar';
-import Header from '@/components/Header';
-import { PromoBar } from '@/components/PromoBar';
 import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
@@ -102,13 +99,8 @@ export default function BrandGuide() {
   };
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <PromoBar />
-        <Header />
-        <main className="flex-1 overflow-auto p-8">
-          <div className="max-w-6xl mx-auto">
+    <div className="p-8">
+      <div className="max-w-6xl mx-auto">
             {contentLoading ? (
               <div className="space-y-8 animate-pulse">
                 <div className="h-12 bg-muted rounded w-1/3"></div>
@@ -136,8 +128,6 @@ export default function BrandGuide() {
                 )}
               </>
             )}
-          </div>
-        </main>
       </div>
     </div>
   );

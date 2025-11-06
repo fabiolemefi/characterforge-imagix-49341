@@ -1,7 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import Header from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
-import { useBlogPost } from "@/hooks/useBlog";
+import { useBlogPost } from "@/hooks/useBlogPost";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Calendar } from "lucide-react";
@@ -13,12 +11,8 @@ export default function BlogPost() {
   const { data: post, isLoading } = useBlogPost(slug || "");
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-8 overflow-auto">
-          <div className="max-w-4xl mx-auto">
+    <div className="p-8">
+      <div className="max-w-4xl mx-auto">
             <Button
               variant="ghost"
               onClick={() => navigate("/blog")}
@@ -103,8 +97,6 @@ export default function BlogPost() {
               </div>
             )}
           </div>
-        </main>
-      </div>
     </div>
   );
 }

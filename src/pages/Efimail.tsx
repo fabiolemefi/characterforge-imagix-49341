@@ -1,7 +1,4 @@
 import { useState } from "react";
-import { Sidebar } from "@/components/Sidebar";
-import Header from "@/components/Header";
-import { PromoBar } from "@/components/PromoBar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -367,13 +364,9 @@ const Efimail = () => {
     a.click();
     URL.revokeObjectURL(url);
   };
-  return <div className="flex h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <PromoBar />
-        <Header />
-        <main className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+  return (
+    <div className="p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
             <div>
               <h1 className="text-4xl font-bold mb-2">Efimail</h1>
               <p className="text-muted-foreground my-[20px]">
@@ -456,8 +449,7 @@ const Efimail = () => {
                   </Card>)}
               </div>}
           </div>
-        </main>
-      </div>
-    </div>;
+    </div>
+  );
 };
 export default Efimail;

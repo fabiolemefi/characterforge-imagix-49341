@@ -4,9 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { PromoBar } from "@/components/PromoBar";
-import { Sidebar } from "@/components/Sidebar";
-import Header from "@/components/Header";
 
 interface Plugin {
   id: string;
@@ -72,17 +69,8 @@ export default function PluginDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <PromoBar />
-        <div className="flex flex-1">
-          <Sidebar />
-          <div className="flex-1 flex flex-col">
-            <Header />
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-white">Carregando...</p>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     );
   }
@@ -92,15 +80,8 @@ export default function PluginDetails() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <PromoBar />
-      <div className="flex flex-1">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <div className="flex-1 overflow-auto">
-            <main className="py-8 px-12">
-              <div className="max-w-4xl mx-auto">
+    <div className="py-8 px-12">
+      <div className="max-w-4xl mx-auto">
                 <div className="flex justify-end mb-6">
                   <Button
                     variant="outline"
@@ -132,9 +113,6 @@ export default function PluginDetails() {
                   </p>
                 )}
               </div>
-            </main>
-          </div>
-        </div>
       </div>
     </div>
   );

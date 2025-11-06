@@ -27,9 +27,6 @@ import {
 } from '@/components/ui/table';
 import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
-import { Sidebar } from '@/components/Sidebar';
-import Header from '@/components/Header';
-import { PromoBar } from '@/components/PromoBar';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadEmailHtml } from '@/lib/emailExporter';
@@ -135,15 +132,8 @@ const EmailTemplates = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <Sidebar />
-      
-      <div className="flex-1 flex flex-col">
-        <PromoBar />
-        <Header />
-        
-        <div className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
+    <div className="p-6">
+      <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-3xl font-bold">Email Builder</h1>
@@ -327,15 +317,11 @@ const EmailTemplates = () => {
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
-                    </div>
-                  </div>
                 )}
               </div>
-              </>
             )}
           </div>
         </div>
-      </div>
 
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent>
@@ -463,7 +449,6 @@ const EmailTemplates = () => {
       </Dialog>
 
       <CreateWithAIModal 
-        open={isCreateWithAIModalOpen} 
         onClose={() => setIsCreateWithAIModalOpen(false)} 
       />
     </div>

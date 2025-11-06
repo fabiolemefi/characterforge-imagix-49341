@@ -1,7 +1,4 @@
 import { useState, useEffect } from "react";
-import { PromoBar } from "@/components/PromoBar";
-import { Sidebar } from "@/components/Sidebar";
-import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -766,15 +763,8 @@ export default function Efimagem() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <PromoBar />
-      <div className="flex flex-1">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <div className="flex-1 overflow-auto">
-            <main className="py-8 px-12">
-              <div className="max-w-6xl mx-auto">
+    <div className="py-8 px-12">
+      <div className="max-w-6xl mx-auto">
                 <h1 className="text-4xl font-bold text-white mb-8">Efimagem</h1>
 
                 <Card className="p-6 mb-8">
@@ -1124,10 +1114,6 @@ export default function Efimagem() {
 
 
               </div>
-            </main>
-          </div>
-        </div>
       </div>
-    </div>
   );
 }

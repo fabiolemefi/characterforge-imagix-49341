@@ -200,23 +200,24 @@ export function Sidebar() {
   };
 
   return (
-    <SidebarUI collapsible="icon" className="border-r">
-      <SidebarHeader className="border-b px-4 py-3">
+    <SidebarUI collapsible="icon" className="border-r bg-sidebar">
+      <SidebarHeader className="border-b border-gray-800 px-4 py-3 bg-sidebar">
         <div className="flex items-center gap-2">
-          {open && <span className="font-semibold text-sidebar-foreground">Martech Efí</span>}
+          {open && <span className="font-semibold text-white">Martech Efí</span>}
           {!open && <img src="/lovable-uploads/407e5ec8-9b67-42ee-acf0-b238e194aa64.png" alt="Logo" className="w-6 h-6" />}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
+      <SidebarContent className="bg-sidebar">
+        <SidebarGroup className="py-2 px-1">
+          <SidebarMenu className="gap-1">
             {/* Principal */}
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => navigate("/")}
                 isActive={isActive("/")}
                 tooltip="Principal"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
               >
                 <HomeIcon className="h-4 w-4" />
                 <span>Principal</span>
@@ -229,6 +230,7 @@ export function Sidebar() {
                 onClick={() => navigate("/blog")}
                 isActive={isPathActive("/blog")}
                 tooltip="Blog"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
               >
                 <FileText className="h-4 w-4" />
                 <span>Blog</span>
@@ -244,6 +246,7 @@ export function Sidebar() {
                 }}
                 isActive={isPathActive("/brand-guide")}
                 tooltip="Guia de Marca"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
               >
                 <Book className="h-4 w-4" />
                 <span>Guia de Marca</span>
@@ -251,7 +254,7 @@ export function Sidebar() {
               </SidebarMenuButton>
 
               {expandedBrandGuide && (
-                <SidebarMenuSub>
+                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
                   {loadingCategories ? (
                     <SidebarMenuSubItem>
                       <div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
@@ -271,6 +274,7 @@ export function Sidebar() {
                         <SidebarMenuSubButton
                           onClick={() => setExpandedCategoryId(expandedCategoryId === category.id ? "" : category.id)}
                           isActive={location.pathname.includes(`/brand-guide/${category.slug}`)}
+                          className="text-gray-300 hover:bg-accent hover:text-white data-[active=true]:bg-accent data-[active=true]:text-white"
                         >
                           {getIconComponent(category.icon)}
                           <span>{category.name}</span>
@@ -282,13 +286,13 @@ export function Sidebar() {
                         </SidebarMenuSubButton>
 
                         {expandedCategoryId === category.id && category.pages && category.pages.length > 0 && (
-                          <SidebarMenuSub>
+                          <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
                             {category.pages.map(page => (
                               <SidebarMenuSubItem key={page.id}>
                                 <SidebarMenuSubButton
                                   onClick={() => navigate(`/brand-guide/${category.slug}/${page.slug}`)}
                                   isActive={location.pathname === `/brand-guide/${category.slug}/${page.slug}`}
-                                  className="pl-8"
+                                  className="pl-8 text-gray-400 hover:bg-accent hover:text-white data-[active=true]:bg-accent data-[active=true]:text-white"
                                 >
                                   {page.name}
                                 </SidebarMenuSubButton>
@@ -309,6 +313,7 @@ export function Sidebar() {
                 onClick={() => setExpandedPlugins(!expandedPlugins)}
                 isActive={isPathActive("/plugin") || isPathActive("/efimail") || isPathActive("/efimagem") || isPathActive("/email-templates")}
                 tooltip="Plugins"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
               >
                 <Plug className="h-4 w-4" />
                 <span>Plugins</span>
@@ -316,7 +321,7 @@ export function Sidebar() {
               </SidebarMenuButton>
 
               {expandedPlugins && (
-                <SidebarMenuSub>
+                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
                   {loadingPlugins ? (
                     <SidebarMenuSubItem>
                       <div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
@@ -338,6 +343,7 @@ export function Sidebar() {
                           <SidebarMenuSubButton
                             onClick={() => navigate(pluginPath)}
                             isActive={location.pathname === pluginPath}
+                            className="text-gray-300 hover:bg-accent hover:text-white data-[active=true]:bg-accent data-[active=true]:text-white"
                           >
                             <Plug className="h-3 w-3" />
                             <span>{plugin.name}</span>
