@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useBlogPost } from "@/hooks/useBlogPost";
+import { useBlogPost } from "@/hooks/useBlog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Calendar } from "lucide-react";

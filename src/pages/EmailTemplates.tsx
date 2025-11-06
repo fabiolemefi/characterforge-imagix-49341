@@ -132,6 +132,7 @@ const EmailTemplates = () => {
   };
 
   return (
+    <>
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between mb-6">
@@ -317,13 +318,16 @@ const EmailTemplates = () => {
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
+                    </div>
+                  </div>
                 )}
               </div>
+            </>
             )}
           </div>
         </div>
 
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Criar Novo Email</DialogTitle>
@@ -449,9 +453,10 @@ const EmailTemplates = () => {
       </Dialog>
 
       <CreateWithAIModal 
+        open={isCreateWithAIModalOpen}
         onClose={() => setIsCreateWithAIModalOpen(false)} 
       />
-    </div>
+    </>
   );
 };
 
