@@ -1,10 +1,29 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
-import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Função para verificar senha usando Web Crypto API
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    // Hash é no formato: salt$hash
+    const [salt, storedHash] = hash.split('$');
+    
+    // Criar hash da senha fornecida
+    const encoder = new TextEncoder();
+    const data = encoder.encode(salt + password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex === storedHash;
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return false;
+  }
+}
 
 interface ValidateRequest {
   share_code: string;
@@ -67,7 +86,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const isValidPassword = await bcrypt.compare(password, file.password_hash);
+      const isValidPassword = await verifyPassword(password, file.password_hash);
       if (!isValidPassword) {
         console.log('🔐 [validate-download] Invalid password');
         return new Response(

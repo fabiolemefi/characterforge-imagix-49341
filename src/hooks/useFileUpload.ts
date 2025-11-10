@@ -1,6 +1,23 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import * as bcrypt from 'bcryptjs';
+
+// Função para criar hash de senha usando Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  // Gerar salt aleatório
+  const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Criar hash
+  const encoder = new TextEncoder();
+  const data = encoder.encode(salt + password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  // Retornar no formato: salt$hash
+  return `${salt}$${hashHex}`;
+}
 
 export interface UploadProgress {
   percentage: number;
@@ -58,7 +75,7 @@ export const useFileUpload = () => {
       // Hash da senha se fornecida
       let passwordHash = null;
       if (metadata.password) {
-        passwordHash = await bcrypt.hash(metadata.password, 10);
+        passwordHash = await hashPassword(metadata.password);
       }
 
       // Obter usuário atual
