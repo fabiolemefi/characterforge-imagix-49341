@@ -103,7 +103,21 @@ export const useFileUpload = () => {
             console.log('[Upload] Upload concluído no storage');
             resolve();
           } else {
-            reject(new Error(`Erro no upload: ${xhr.statusText}`));
+            // Capturar mensagem de erro do servidor
+            let errorMessage = `Status ${xhr.status}: ${xhr.statusText}`;
+            try {
+              const response = JSON.parse(xhr.responseText);
+              if (response.error || response.message) {
+                errorMessage = response.error || response.message;
+              }
+            } catch (e) {
+              // Se não conseguir parsear, usa o responseText direto
+              if (xhr.responseText) {
+                errorMessage = xhr.responseText;
+              }
+            }
+            console.error('[Upload] Erro do servidor:', errorMessage);
+            reject(new Error(`Erro no upload: ${errorMessage}`));
           }
         });
 
@@ -115,8 +129,11 @@ export const useFileUpload = () => {
           reject(new Error('Upload cancelado'));
         });
 
-        // Configurar requisição
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/media-downloads/${filePath}`;
+        // Configurar requisição - usar encodeURIComponent para o filePath
+        const encodedFilePath = encodeURIComponent(filePath);
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/media-downloads/${encodedFilePath}`;
+        console.log('[Upload] URL:', url);
+        
         xhr.open('POST', url);
         xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
         xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
