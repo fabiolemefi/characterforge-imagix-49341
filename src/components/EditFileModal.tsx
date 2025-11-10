@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Loader2 } from 'lucide-react';
@@ -40,6 +41,7 @@ async function hashPassword(password: string): Promise<string> {
 export function EditFileModal({ open, onOpenChange, file }: EditFileModalProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [removePassword, setRemovePassword] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -50,6 +52,7 @@ export function EditFileModal({ open, onOpenChange, file }: EditFileModalProps) 
     if (!open) {
       setPassword('');
       setConfirmPassword('');
+      setRemovePassword(false);
       setExpirationDate(undefined);
     } else if (file) {
       // Carregar data de expiração atual se existir
@@ -62,8 +65,8 @@ export function EditFileModal({ open, onOpenChange, file }: EditFileModalProps) 
   const handleSubmit = async () => {
     if (!file) return;
 
-    // Validar senha se preenchida
-    if (password) {
+    // Validar senha se preenchida (e não estiver removendo)
+    if (password && !removePassword) {
       if (password.length !== 4 || !/^\d+$/.test(password)) {
         toast({
           title: 'Erro',
@@ -90,8 +93,13 @@ export function EditFileModal({ open, onOpenChange, file }: EditFileModalProps) 
 
       const updateData: any = {};
 
+      // Remover senha se marcado
+      if (removePassword) {
+        updateData.password_hash = null;
+        console.log('🔓 Senha removida - arquivo agora é público');
+      }
       // Atualizar senha se fornecida
-      if (password) {
+      else if (password) {
         const passwordHash = await hashPassword(password);
         updateData.password_hash = passwordHash;
         console.log('🔐 Nova senha definida');
@@ -160,35 +168,61 @@ export function EditFileModal({ open, onOpenChange, file }: EditFileModalProps) 
           )}
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">Nova senha (opcional)</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="4 dígitos numéricos"
-                maxLength={4}
-                pattern="[0-9]*"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deixe em branco para {file?.password_hash ? 'manter a senha atual' : 'não adicionar senha'}
-              </p>
-            </div>
-
-            {password && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirmar senha</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="4 dígitos numéricos"
-                  maxLength={4}
-                  pattern="[0-9]*"
+            {file?.password_hash && (
+              <div className="flex items-center space-x-2 p-3 bg-muted rounded-md">
+                <Checkbox
+                  id="removePassword"
+                  checked={removePassword}
+                  onCheckedChange={(checked) => {
+                    setRemovePassword(checked as boolean);
+                    if (checked) {
+                      setPassword('');
+                      setConfirmPassword('');
+                    }
+                  }}
                 />
+                <Label
+                  htmlFor="removePassword"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Remover senha e tornar arquivo público
+                </Label>
               </div>
+            )}
+
+            {!removePassword && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Nova senha (opcional)</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="4 dígitos numéricos"
+                    maxLength={4}
+                    pattern="[0-9]*"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Deixe em branco para {file?.password_hash ? 'manter a senha atual' : 'não adicionar senha'}
+                  </p>
+                </div>
+
+                {password && (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="4 dígitos numéricos"
+                      maxLength={4}
+                      pattern="[0-9]*"
+                    />
+                  </div>
+                )}
+              </>
             )}
 
             <div className="space-y-2">
