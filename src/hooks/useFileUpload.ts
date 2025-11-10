@@ -151,44 +151,18 @@ export const useFileUpload = () => {
 
       await uploadWithProgress;
 
-      console.log('[Upload] Iniciando processo pós-upload');
-
       // Hash da senha se fornecida
       let passwordHash = null;
       if (metadata.password) {
-        console.log('[Upload] Gerando hash da senha');
         passwordHash = await hashPassword(metadata.password);
-        console.log('[Upload] Hash da senha gerado');
       }
 
       // Obter usuário atual
-      console.log('[Upload] Obtendo usuário atual');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        console.error('[Upload] Erro ao obter usuário:', userError);
-        throw new Error(`Erro ao obter usuário: ${userError.message}`);
-      }
-      
-      if (!user) {
-        console.error('[Upload] Usuário não encontrado');
-        throw new Error('Usuário não autenticado');
-      }
-      
-      console.log('[Upload] Usuário obtido:', user.id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
 
       // Criar registro na tabela
       console.log('[Upload] Criando registro no banco de dados');
-      console.log('[Upload] Dados:', {
-        user_id: user.id,
-        file_name: metadata.fileName,
-        file_path: filePath,
-        file_size: file.size,
-        file_type: file.type,
-        share_code: shareCode,
-        has_password: !!passwordHash,
-        expires_at: metadata.expiresAt?.toISOString()
-      });
       
       const { error: dbError } = await supabase
         .from('shared_files')
@@ -206,7 +180,6 @@ export const useFileUpload = () => {
       if (dbError) {
         console.error('[Upload] Erro ao criar registro:', dbError);
         // Remover arquivo se falhar ao criar registro
-        console.log('[Upload] Removendo arquivo do storage devido ao erro');
         await supabase.storage.from('media-downloads').remove([filePath]);
         throw new Error(`Erro ao criar registro: ${dbError.message}`);
       }
