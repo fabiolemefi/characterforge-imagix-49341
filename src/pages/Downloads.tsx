@@ -70,11 +70,12 @@ export default function Downloads() {
   const handleDelete = async () => {
     if (!deleteId) return;
 
-    setDeletingId(deleteId);
+    const fileIdToDelete = deleteId; // Salvar o ID antes de limpar
+    setDeletingId(fileIdToDelete);
     setDeleteId(null); // Fechar modal imediatamente
 
     try {
-      const file = files?.find((f) => f.id === deleteId);
+      const file = files?.find((f) => f.id === fileIdToDelete);
       if (!file) return;
 
       console.log(`🗑️ Deletando arquivo: ${file.file_name}`);
@@ -97,7 +98,7 @@ export default function Downloads() {
       const { error: dbError } = await supabase
         .from('shared_files')
         .delete()
-        .eq('id', deletingId);
+        .eq('id', fileIdToDelete);
 
       if (dbError) {
         console.error('❌ Erro ao deletar do banco:', dbError);
