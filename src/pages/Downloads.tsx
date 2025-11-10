@@ -50,7 +50,7 @@ const isExpired = (dateString: string | null): boolean => {
   return new Date(dateString) < new Date();
 };
 
-export default function AdminDownloads() {
+export default function Downloads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { data: files, isLoading } = useSharedFiles();
