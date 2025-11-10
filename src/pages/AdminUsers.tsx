@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save } from "lucide-react";
+import { Save, UserPlus, Edit } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -234,9 +234,20 @@ export default function AdminUsers() {
         <AdminSidebar />
         
         <div className="flex-1">
-          <header className="h-16 border-b flex items-center px-6 bg-card">
-            <SidebarTrigger />
-            <h1 className="text-xl font-semibold ml-4">Gerenciar Usuários</h1>
+          <header className="h-16 border-b flex items-center justify-between px-6 bg-card">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <h1 className="text-xl font-semibold">Gerenciar Usuários</h1>
+            </div>
+            <Button onClick={() => {
+              toast({
+                title: "Em desenvolvimento",
+                description: "Funcionalidade de adicionar usuário em breve",
+              });
+            }}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Adicionar Usuário
+            </Button>
           </header>
 
           <main className="p-6">
@@ -352,12 +363,26 @@ export default function AdminUsers() {
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          <Switch
-                            checked={profile.is_active}
-                            onCheckedChange={() =>
-                              toggleUserStatus(profile.id, profile.is_active)
-                            }
-                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                toast({
+                                  title: "Em desenvolvimento",
+                                  description: "Funcionalidade de editar usuário em breve",
+                                });
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Switch
+                              checked={profile.is_active}
+                              onCheckedChange={() =>
+                                toggleUserStatus(profile.id, profile.is_active)
+                              }
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
