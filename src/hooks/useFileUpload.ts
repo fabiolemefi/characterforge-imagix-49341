@@ -25,6 +25,7 @@ export interface UploadProgress {
   total: number;
   speed: number;
   timeRemaining: number;
+  finalizing?: boolean;
 }
 
 export interface FileMetadata {
@@ -150,6 +151,19 @@ export const useFileUpload = () => {
       });
 
       await uploadWithProgress;
+
+      // Atualizar progresso para mostrar fase de finalização
+      setUploadProgress({
+        percentage: 100,
+        loaded: file.size,
+        total: file.size,
+        speed: 0,
+        timeRemaining: 0,
+        finalizing: true,
+      });
+
+      console.log('[Upload] Upload concluído no storage');
+      console.log('[Upload] Criando registro no banco de dados');
 
       // Hash da senha se fornecida
       let passwordHash = null;

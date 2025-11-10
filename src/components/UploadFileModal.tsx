@@ -212,10 +212,16 @@ export function UploadFileModal({ open, onOpenChange }: UploadFileModalProps) {
                   <span>{Math.round(uploadProgress.percentage)}%</span>
                 </div>
                 <Progress value={uploadProgress.percentage} />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formatSpeed(uploadProgress.speed)}</span>
-                  <span>~{formatTime(uploadProgress.timeRemaining)} restantes</span>
-                </div>
+                {uploadProgress.finalizing ? (
+                  <div className="text-sm text-center text-muted-foreground">
+                    Finalizando...
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{formatSpeed(uploadProgress.speed)}</span>
+                    <span>~{formatTime(uploadProgress.timeRemaining)} restantes</span>
+                  </div>
+                )}
               </div>
             )}
 
