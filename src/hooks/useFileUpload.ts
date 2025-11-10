@@ -64,7 +64,13 @@ export const useFileUpload = () => {
     try {
       const shareCode = generateShareCode();
       const timestamp = Date.now();
-      const filePath = `${timestamp}-${file.name}`;
+      
+      // Sanitizar nome do arquivo - remover caracteres especiais
+      const sanitizedFileName = file.name
+        .replace(/[^a-zA-Z0-9.-]/g, '_') // Substituir caracteres especiais por underscore
+        .replace(/_{2,}/g, '_'); // Remover underscores duplicados
+      
+      const filePath = `${timestamp}-${sanitizedFileName}`;
 
       console.log(`[Upload] Iniciando upload: ${file.name} (${file.size} bytes)`);
 
