@@ -35,36 +35,70 @@ export default function ShareDownload() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (shareCode) {
-      loadFileInfo();
-    } else {
-      setError('Link inválido');
-      setIsLoading(false);
-    }
+    let isMounted = true;
+    
+    const loadWithTimeout = async () => {
+      if (!shareCode) {
+        setError('Link inválido');
+        setIsLoading(false);
+        return;
+      }
+
+      // Timeout de 10 segundos
+      const timeoutId = setTimeout(() => {
+        if (isMounted) {
+          setError('Tempo esgotado ao carregar arquivo');
+          setIsLoading(false);
+        }
+      }, 10000);
+
+      try {
+        await loadFileInfo();
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    loadWithTimeout();
+
+    return () => {
+      isMounted = false;
+    };
   }, [shareCode]);
 
   const loadFileInfo = async () => {
     try {
+      console.log('📥 [ShareDownload] Carregando informações do arquivo...');
+      
       const { data, error } = await supabase
         .from('shared_files')
         .select('file_name, file_size, file_type, password_hash, expires_at')
         .eq('share_code', shareCode)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error('❌ [ShareDownload] Erro ao buscar arquivo:', error);
+        setError('Erro ao carregar informações do arquivo');
+        return;
+      }
+
+      if (!data) {
+        console.log('⚠️ [ShareDownload] Arquivo não encontrado');
         setError('Link inválido ou expirado');
         return;
       }
 
       if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        console.log('⏰ [ShareDownload] Arquivo expirado');
         setError('Este link expirou');
         return;
       }
 
+      console.log('✅ [ShareDownload] Arquivo carregado com sucesso');
       setFileInfo(data);
     } catch (error) {
-      console.error('Erro ao carregar arquivo:', error);
+      console.error('❌ [ShareDownload] Erro inesperado:', error);
       setError('Erro ao carregar informações do arquivo');
     } finally {
       setIsLoading(false);

@@ -2,3 +2,6 @@ project_id = "dbxaamdirxjrbolsegwz"
 
 [functions.verify-jira-user]
 verify_jwt = false
+
+[functions.validate-download]
+verify_jwt = false
