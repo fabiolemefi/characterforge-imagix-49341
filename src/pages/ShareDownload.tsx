@@ -121,6 +121,8 @@ export default function ShareDownload() {
     setError('');
 
     try {
+      console.log('🔐 [ShareDownload] Validando download...');
+      
       const { data, error } = await supabase.functions.invoke('validate-download', {
         body: {
           share_code: shareCode,
@@ -128,20 +130,44 @@ export default function ShareDownload() {
         },
       });
 
-      // Verificar se há erro específico na resposta da edge function
+      console.log('📦 [ShareDownload] Resposta:', { data, error });
+
+      // A edge function pode retornar erro de duas formas:
+      // 1. Status 2xx com data.error (erro lógico)
+      // 2. Status não-2xx com error (erro HTTP) - mas data ainda pode conter a mensagem
+      
+      // Tentar extrair mensagem de erro de várias fontes possíveis
+      let errorMessage = null;
+      
       if (data?.error) {
-        setError(data.error);
+        // Erro vindo do corpo da resposta (status 2xx ou não-2xx)
+        errorMessage = data.error;
+      } else if (error?.message) {
+        // Erro do Supabase client
+        // Verificar se a mensagem contém JSON parseável
+        try {
+          const errorJson = JSON.parse(error.message);
+          errorMessage = errorJson.error || error.message;
+        } catch {
+          errorMessage = error.message;
+        }
+      } else if (error) {
+        errorMessage = 'Erro ao processar download. Tente novamente.';
+      }
+
+      if (errorMessage) {
+        console.error('❌ [ShareDownload] Erro:', errorMessage);
+        setError(errorMessage);
         return;
       }
 
-      // Se houver erro genérico e não temos dados válidos
-      if (error && !data?.download_url) {
-        console.error('Erro no download:', error);
-        setError('Erro ao processar download. Tente novamente.');
+      // Sucesso - iniciar download
+      if (!data?.download_url) {
+        setError('Link de download não disponível');
         return;
       }
 
-      // Iniciar download
+      console.log('✅ [ShareDownload] Download autorizado');
       window.location.href = data.download_url;
 
       toast({
@@ -149,8 +175,8 @@ export default function ShareDownload() {
         description: 'Seu arquivo está sendo baixado',
       });
     } catch (error: any) {
-      console.error('Erro no download:', error);
-      setError('Erro ao processar download. Tente novamente.');
+      console.error('❌ [ShareDownload] Erro inesperado:', error);
+      setError(error?.message || 'Erro ao processar download. Tente novamente.');
     } finally {
       setIsDownloading(false);
     }
