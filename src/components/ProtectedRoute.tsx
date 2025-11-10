@@ -3,14 +3,13 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { ErrorFallback } from "./ErrorFallback";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading: authLoading, healthError } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isActive, setIsActive] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -87,24 +86,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (healthError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full">
-          <ErrorFallback
-            title="Erro de Conexão"
-            message={healthError}
-            onRetry={() => window.location.reload()}
-            onLogout={async () => {
-              await supabase.auth.signOut();
-              window.location.href = '/login';
-            }}
-          />
-        </div>
       </div>
     );
   }

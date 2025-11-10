@@ -1,14 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { checkSupabaseHealth } from '@/lib/supabaseHealthCheck';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   isAuthenticated: boolean;
-  healthError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,7 +15,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [healthError, setHealthError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -26,21 +23,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         console.log('🔐 [AuthContext] Iniciando verificação de autenticação...');
         
-        // Health check apenas UMA VEZ na inicialização
-        const healthCheck = await checkSupabaseHealth(10000);
-        
-        if (!mounted) return;
+        // Configurar listener PRIMEIRO (antes de verificar sessão)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          (event, newSession) => {
+            if (!mounted) return;
+            
+            console.log('🔄 [AuthContext] Auth event:', event);
+            setSession(newSession);
+            setUser(newSession?.user ?? null);
+            
+            // Quando a sessão é estabelecida, remover o loading
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+              setLoading(false);
+            }
+          }
+        );
 
-        if (!healthCheck.isHealthy) {
-          console.error('❌ [AuthContext] Health check falhou:', healthCheck);
-          setHealthError(healthCheck.error || 'Erro ao conectar ao servidor');
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ [AuthContext] Health check OK');
-
-        // Obter sessão inicial
+        // DEPOIS verificar sessão atual
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -54,10 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setLoading(false);
+
+        return () => {
+          subscription.unsubscribe();
+        };
       } catch (error) {
         console.error('❌ [AuthContext] Erro na inicialização:', error);
         if (mounted) {
-          setHealthError('Erro inesperado ao inicializar autenticação');
           setLoading(false);
         }
       }
@@ -65,20 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    // Listener de mudanças de autenticação (apenas uma vez, globalizado)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        if (!mounted) return;
-
-        console.log('🔄 [AuthContext] Auth event:', event);
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-      }
-    );
-
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, []);
 
@@ -87,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     isAuthenticated: !!user,
-    healthError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
