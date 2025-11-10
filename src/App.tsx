@@ -24,6 +24,8 @@ import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
 import AdminBlogCategories from './pages/AdminBlogCategories';
 import AdminBlogPosts from './pages/AdminBlogPosts';
+import AdminDownloads from './pages/AdminDownloads';
+import ShareDownload from './pages/ShareDownload';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
@@ -72,6 +74,8 @@ const App = () => (
           <Route path="/admin/users" element={<ProtectedRoute><AppLayout><AdminUsers /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AppLayout><AdminAnnouncements /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/plugins" element={<ProtectedRoute><AppLayout><AdminPlugins /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/downloads" element={<ProtectedRoute><AppLayout><AdminDownloads /></AppLayout></ProtectedRoute>} />
+          <Route path="/share/file" element={<ShareDownload />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
