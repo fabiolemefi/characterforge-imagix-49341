@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Copy, Trash2, Lock, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, Copy, Trash2, Lock, ExternalLink, Loader2, Edit } from 'lucide-react';
 import { useSharedFiles } from '@/hooks/useSharedFiles';
 import { UploadFileModal } from '@/components/UploadFileModal';
+import { EditFileModal } from '@/components/EditFileModal';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,6 +53,7 @@ const isExpired = (dateString: string | null): boolean => {
 
 export default function Downloads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editFile, setEditFile] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { data: files, isLoading } = useSharedFiles();
@@ -210,6 +212,14 @@ export default function Downloads() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => setEditFile(file)}
+                        title="Editar"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setDeleteId(file.id)}
                         disabled={deletingId === file.id}
                         title="Deletar"
@@ -230,6 +240,7 @@ export default function Downloads() {
       </div>
 
       <UploadFileModal open={isModalOpen} onOpenChange={setIsModalOpen} />
+      <EditFileModal open={!!editFile} onOpenChange={(open) => !open && setEditFile(null)} file={editFile} />
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
