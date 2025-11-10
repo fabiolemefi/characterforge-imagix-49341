@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Copy, Trash2, Lock, ExternalLink } from 'lucide-react';
+import { Plus, Copy, Trash2, Lock, ExternalLink, Loader2 } from 'lucide-react';
 import { useSharedFiles } from '@/hooks/useSharedFiles';
 import { UploadFileModal } from '@/components/UploadFileModal';
 import { useToast } from '@/hooks/use-toast';
@@ -53,6 +53,7 @@ const isExpired = (dateString: string | null): boolean => {
 export default function Downloads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { data: files, isLoading } = useSharedFiles();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -69,24 +70,41 @@ export default function Downloads() {
   const handleDelete = async () => {
     if (!deleteId) return;
 
+    setDeletingId(deleteId);
+    setDeleteId(null); // Fechar modal imediatamente
+
     try {
       const file = files?.find((f) => f.id === deleteId);
       if (!file) return;
 
+      console.log(`🗑️ Deletando arquivo: ${file.file_name}`);
+
       // Deletar arquivo do storage
+      console.log('📦 Removendo do storage...');
       const { error: storageError } = await supabase.storage
         .from('media-downloads')
         .remove([file.file_path]);
 
-      if (storageError) throw storageError;
+      if (storageError) {
+        console.error('❌ Erro ao deletar do storage:', storageError);
+        throw storageError;
+      }
+
+      console.log('✅ Arquivo removido do storage');
 
       // Deletar registro do banco
+      console.log('🗄️ Removendo registro do banco...');
       const { error: dbError } = await supabase
         .from('shared_files')
         .delete()
-        .eq('id', deleteId);
+        .eq('id', deletingId);
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('❌ Erro ao deletar do banco:', dbError);
+        throw dbError;
+      }
+
+      console.log('✅ Registro removido do banco');
 
       queryClient.invalidateQueries({ queryKey: ['shared-files'] });
 
@@ -95,14 +113,14 @@ export default function Downloads() {
         description: 'O arquivo foi removido com sucesso',
       });
     } catch (error) {
-      console.error('Erro ao deletar:', error);
+      console.error('❌ Erro ao deletar:', error);
       toast({
         title: 'Erro ao deletar',
         description: 'Não foi possível remover o arquivo',
         variant: 'destructive',
       });
     } finally {
-      setDeleteId(null);
+      setDeletingId(null);
     }
   };
 
@@ -192,9 +210,14 @@ export default function Downloads() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteId(file.id)}
+                        disabled={deletingId === file.id}
                         title="Deletar"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deletingId === file.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
