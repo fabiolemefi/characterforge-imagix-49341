@@ -94,10 +94,16 @@ export default function ShareDownload() {
         },
       });
 
-      if (error) throw error;
-
-      if (data.error) {
+      // Verificar se há erro específico na resposta da edge function
+      if (data?.error) {
         setError(data.error);
+        return;
+      }
+
+      // Se houver erro genérico e não temos dados válidos
+      if (error && !data?.download_url) {
+        console.error('Erro no download:', error);
+        setError('Erro ao processar download. Tente novamente.');
         return;
       }
 
@@ -110,7 +116,7 @@ export default function ShareDownload() {
       });
     } catch (error: any) {
       console.error('Erro no download:', error);
-      setError(error.message || 'Erro ao fazer download do arquivo');
+      setError('Erro ao processar download. Tente novamente.');
     } finally {
       setIsDownloading(false);
     }
