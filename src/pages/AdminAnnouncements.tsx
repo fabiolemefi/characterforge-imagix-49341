@@ -216,9 +216,9 @@ export default function AdminAnnouncements() {
         
         <div className="flex-1">
           <header className="h-16 border-b flex items-center justify-between px-6 bg-card">
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <SidebarTrigger />
-              <h1 className="text-xl font-semibold ml-4">Comunicados</h1>
+              <h1 className="text-xl font-semibold">Comunicados</h1>
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>

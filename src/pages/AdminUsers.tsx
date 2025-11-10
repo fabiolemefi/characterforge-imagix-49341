@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Save, UserPlus, Edit } from "lucide-react";
+import { AddUserModal } from "@/components/AddUserModal";
 import {
   Table,
   TableBody,
@@ -36,6 +37,7 @@ export default function AdminUsers() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingCredits, setEditingCredits] = useState<{[key: string]: number}>({});
   const [editingJobTitle, setEditingJobTitle] = useState<{[key: string]: string}>({});
+  const [addUserModalOpen, setAddUserModalOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -239,12 +241,7 @@ export default function AdminUsers() {
               <SidebarTrigger />
               <h1 className="text-xl font-semibold">Gerenciar Usuários</h1>
             </div>
-            <Button onClick={() => {
-              toast({
-                title: "Em desenvolvimento",
-                description: "Funcionalidade de adicionar usuário em breve",
-              });
-            }}>
+            <Button onClick={() => setAddUserModalOpen(true)}>
               <UserPlus className="h-4 w-4 mr-2" />
               Adicionar Usuário
             </Button>
@@ -393,6 +390,12 @@ export default function AdminUsers() {
           </main>
         </div>
       </div>
+      
+      <AddUserModal
+        open={addUserModalOpen}
+        onOpenChange={setAddUserModalOpen}
+        onUserAdded={loadProfiles}
+      />
     </SidebarProvider>
   );
 }

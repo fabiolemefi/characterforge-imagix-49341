@@ -56,9 +56,9 @@ export default function AdminDashboard() {
         <AdminSidebar />
         
         <div className="flex-1">
-          <header className="h-16 border-b flex items-center px-6 bg-card">
+          <header className="h-16 border-b flex items-center gap-4 px-6 bg-card">
             <SidebarTrigger />
-            <h1 className="text-xl font-semibold ml-4">Dashboard</h1>
+            <h1 className="text-xl font-semibold">Dashboard</h1>
           </header>
 
           <main className="p-6">
