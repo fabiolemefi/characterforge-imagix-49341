@@ -48,6 +48,11 @@ export const useFileUpload = () => {
 
   const uploadFile = async (file: File, metadata: FileMetadata): Promise<string> => {
     setIsUploading(true);
+    
+    const startTime = Date.now();
+    let lastLoaded = 0;
+    let lastTime = startTime;
+
     setUploadProgress({
       percentage: 0,
       loaded: 0,
@@ -57,27 +62,71 @@ export const useFileUpload = () => {
     });
 
     try {
-      const startTime = Date.now();
       const shareCode = generateShareCode();
       const timestamp = Date.now();
       const filePath = `${timestamp}-${file.name}`;
 
-      // Upload do arquivo com tracking de progresso
       console.log(`[Upload] Iniciando upload: ${file.name} (${file.size} bytes)`);
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('media-downloads')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
+
+      // Upload com tracking de progresso usando XMLHttpRequest
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Usuário não autenticado');
+
+      const uploadWithProgress = new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Tracking de progresso
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000; // segundos
+            const bytesDiff = e.loaded - lastLoaded;
+            const speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
+            const remaining = e.total - e.loaded;
+            const timeRemaining = speed > 0 ? remaining / speed : 0;
+
+            setUploadProgress({
+              percentage: (e.loaded / e.total) * 100,
+              loaded: e.loaded,
+              total: e.total,
+              speed: speed,
+              timeRemaining: timeRemaining,
+            });
+
+            lastLoaded = e.loaded;
+            lastTime = now;
+          }
         });
 
-      if (uploadError) {
-        console.error('[Upload] Erro no storage:', uploadError);
-        throw new Error(`Erro no upload: ${uploadError.message}`);
-      }
-      
-      console.log('[Upload] Upload concluído no storage');
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('[Upload] Upload concluído no storage');
+            resolve();
+          } else {
+            reject(new Error(`Erro no upload: ${xhr.statusText}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Erro de rede durante o upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelado'));
+        });
+
+        // Configurar requisição
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/media-downloads/${filePath}`;
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+        xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.setRequestHeader('x-upsert', 'false');
+        
+        xhr.send(file);
+      });
+
+      await uploadWithProgress;
 
       // Hash da senha se fornecida
       let passwordHash = null;
