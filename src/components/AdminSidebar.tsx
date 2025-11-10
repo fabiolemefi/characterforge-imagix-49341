@@ -49,11 +49,6 @@ const menuItems = [
     url: "/admin/plugins",
     icon: Puzzle,
   },
-  {
-    title: "Área para Download",
-    url: "/admin/downloads",
-    icon: Download,
-  },
 ];
 
 export function AdminSidebar() {

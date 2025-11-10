@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -241,6 +241,19 @@ export function Sidebar() {
                   )}
                 </SidebarMenuSub>
               )}
+            </SidebarMenuItem>
+
+            {/* Área para Download */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => navigate("/downloads")}
+                isActive={isActive("/downloads")}
+                tooltip="Área para Download"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
+              >
+                <Download className="h-4 w-4" />
+                <span>Área para Download</span>
+              </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
