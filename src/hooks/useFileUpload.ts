@@ -63,6 +63,8 @@ export const useFileUpload = () => {
       const filePath = `${timestamp}-${file.name}`;
 
       // Upload do arquivo com tracking de progresso
+      console.log(`[Upload] Iniciando upload: ${file.name} (${file.size} bytes)`);
+      
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('media-downloads')
         .upload(filePath, file, {
@@ -70,7 +72,12 @@ export const useFileUpload = () => {
           upsert: false,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('[Upload] Erro no storage:', uploadError);
+        throw new Error(`Erro no upload: ${uploadError.message}`);
+      }
+      
+      console.log('[Upload] Upload concluído no storage');
 
       // Hash da senha se fornecida
       let passwordHash = null;
@@ -83,6 +90,8 @@ export const useFileUpload = () => {
       if (!user) throw new Error('Usuário não autenticado');
 
       // Criar registro na tabela
+      console.log('[Upload] Criando registro no banco de dados');
+      
       const { error: dbError } = await supabase
         .from('shared_files')
         .insert({
@@ -97,10 +106,13 @@ export const useFileUpload = () => {
         });
 
       if (dbError) {
+        console.error('[Upload] Erro ao criar registro:', dbError);
         // Remover arquivo se falhar ao criar registro
         await supabase.storage.from('media-downloads').remove([filePath]);
-        throw dbError;
+        throw new Error(`Erro ao criar registro: ${dbError.message}`);
       }
+      
+      console.log('[Upload] Registro criado com sucesso');
 
       setUploadProgress({
         percentage: 100,

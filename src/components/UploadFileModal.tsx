@@ -99,9 +99,10 @@ export function UploadFileModal({ open, onOpenChange }: UploadFileModalProps) {
       });
     } catch (error) {
       console.error('Erro no upload:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível fazer upload do arquivo';
       toast({
         title: 'Erro no upload',
-        description: 'Não foi possível fazer upload do arquivo',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
