@@ -155,9 +155,13 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
   };
 
   const handleRemoveBackground = async () => {
-    setIsGenerating(true);
-    
     try {
+      // Adicionar imagem temporária ao histórico com status "processing"
+      const processingUrl = currentImageUrl; // Mantém a imagem atual visível
+      setImageHistory((prev) => [...prev, processingUrl]);
+      setSelectedHistoryIndex(imageHistory.length);
+      setIsGenerating(true);
+      
       const { data, error } = await supabase.functions.invoke("remove-background", {
         body: {
           imageUrl: currentImageUrl,
@@ -187,15 +191,22 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
                 if (updated.status === 'completed' && updated.image_url !== currentImageUrl) {
                   setProgress(100);
                   setTimeout(() => {
-                    setImageHistory((prev) => [...prev, updated.image_url]);
+                    // Substituir a última imagem do histórico (a processing) pela finalizada
+                    setImageHistory((prev) => {
+                      const newHistory = [...prev];
+                      newHistory[newHistory.length - 1] = updated.image_url;
+                      return newHistory;
+                    });
                     setCurrentImageUrl(updated.image_url);
-                    setSelectedHistoryIndex(imageHistory.length);
                     setIsGenerating(false);
                     setProgress(0);
                     toast.success("Background removido com sucesso!");
                     supabase.removeChannel(channel);
                   }, 500);
                 } else if (updated.status === 'failed') {
+                  // Remover a imagem temporária do histórico
+                  setImageHistory((prev) => prev.slice(0, -1));
+                  setSelectedHistoryIndex(imageHistory.length - 1);
                   setIsGenerating(false);
                   setProgress(0);
                   toast.error("Erro ao remover background: " + (updated.error_message || "Falha no processamento"));
@@ -209,6 +220,9 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
     } catch (error: any) {
       console.error("Erro ao remover background:", error);
       toast.error("Erro ao remover background: " + error.message);
+      // Remover a imagem temporária do histórico em caso de erro
+      setImageHistory((prev) => prev.slice(0, -1));
+      setSelectedHistoryIndex(Math.max(0, imageHistory.length - 1));
       setIsGenerating(false);
       setProgress(0);
     }
