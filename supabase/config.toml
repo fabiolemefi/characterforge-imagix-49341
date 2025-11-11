@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.validate-download]
 verify_jwt = false
+
+[functions.replicate-webhook]
+verify_jwt = false

@@ -22,7 +22,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
-    const { imageUrls, prompt, generalPrompt = "" } = await req.json();
+    const { imageUrls, prompt, generalPrompt = "", characterName, characterId } = await req.json();
 
     if (!imageUrls?.length)
       return new Response(JSON.stringify({ error: "imageUrls array is required" }), {
@@ -44,50 +44,70 @@ serve(async (req) => {
     const enhancedPrompt = prompt;
     console.log("Enhanced prompt:", enhancedPrompt);
 
-    // Etapa 1: Gerar imagem com nano-banana
-    console.log("Step 1: Generating image with nano-banana");
-    const generatedOutput = await replicate.run("google/nano-banana", {
+    // Criar registro no banco imediatamente com status 'pending'
+    const { data: dbRecord, error: dbError } = await supabase
+      .from("generated_images")
+      .insert({
+        character_name: characterName || "Unknown",
+        character_id: characterId || null,
+        prompt: enhancedPrompt,
+        image_url: "", // Será preenchido pelo webhook
+        status: "pending",
+        request_params: {
+          imageUrls: limitedImageUrls,
+          prompt: enhancedPrompt,
+          generalPrompt,
+          characterName,
+          characterId
+        }
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error("Database error:", dbError);
+      throw new Error(`Failed to create database record: ${dbError.message}`);
+    }
+
+    console.log("Database record created:", dbRecord.id);
+
+    // Iniciar predição assíncrona no Replicate com webhook
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/replicate-webhook`;
+    console.log("Starting async prediction with webhook:", webhookUrl);
+
+    const prediction = await replicate.predictions.create({
+      version: "google/nano-banana",
       input: {
         prompt: enhancedPrompt,
         image_input: limitedImageUrls,
         aspect_ratio: "1:1",
         output_format: "png",
       },
+      webhook: webhookUrl,
+      webhook_events_filter: ["completed"]
     });
 
-    const generatedImageUrl = typeof generatedOutput === "string" ? generatedOutput : generatedOutput[0];
-    console.log("Generated image URL:", generatedImageUrl);
+    console.log("Prediction created:", prediction.id);
 
-    // Etapa 2: Baixar a imagem
-    console.log("Step 2: Downloading processed image");
-    const imageResponse = await fetch(generatedImageUrl);
-    if (!imageResponse.ok) throw new Error("Failed to download processed image");
-    const imageBlob = await imageResponse.blob();
-    const imageBuffer = await imageBlob.arrayBuffer();
+    // Atualizar registro com prediction_id e status 'processing'
+    const { error: updateError } = await supabase
+      .from("generated_images")
+      .update({
+        prediction_id: prediction.id,
+        status: "processing"
+      })
+      .eq("id", dbRecord.id);
 
-    // Etapa 3: Fazer upload para o storage
-    console.log("Step 3: Uploading to Supabase storage");
-    const fileName = `generated-${Date.now()}-${Math.random()}.png`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("plugin-images")
-      .upload(fileName, imageBuffer, {
-        contentType: "image/png",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
+    if (updateError) {
+      console.error("Error updating prediction_id:", updateError);
     }
 
-    // Etapa 4: Obter URL pública
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("plugin-images").getPublicUrl(fileName);
-
-    console.log("Final stored image URL:", publicUrl);
-
-    return new Response(JSON.stringify({ output: publicUrl }), {
+    // Retornar imediatamente para o frontend
+    return new Response(JSON.stringify({ 
+      recordId: dbRecord.id,
+      predictionId: prediction.id,
+      status: "processing"
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

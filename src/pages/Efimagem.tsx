@@ -53,6 +53,9 @@ interface GeneratedImage {
   url: string;
   character: string;
   prompt: string;
+  status?: string;
+  error_message?: string;
+  request_params?: any;
 }
 
 export default function Efimagem() {
@@ -64,10 +67,7 @@ export default function Efimagem() {
   const [loading, setLoading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [imageReady, setImageReady] = useState(false);
-  const [readyImage, setReadyImage] = useState<GeneratedImage | null>(null);
-  const [minTimePassed, setMinTimePassed] = useState(false);
+  const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
   const [characterFilter, setCharacterFilter] = useState<string>("all");
 
   // Estados para paginação
@@ -92,7 +92,7 @@ export default function Efimagem() {
     loadGeneratedImages();
     loadGeneralPrompt();
 
-    // Setup realtime subscription for new generated images
+    // Setup realtime subscription for generated images
     const channel = supabase
       .channel('generated_images_changes')
       .on(
@@ -105,7 +105,6 @@ export default function Efimagem() {
         (payload) => {
           const newImage = payload.new;
           setGeneratedImages((prev) => {
-            // Verificar se a imagem já existe (adicionada manualmente)
             if (prev.some(img => img.id === newImage.id)) {
               return prev;
             }
@@ -114,8 +113,51 @@ export default function Efimagem() {
               url: newImage.image_url,
               character: newImage.character_name,
               prompt: newImage.prompt,
+              status: newImage.status,
+              error_message: newImage.error_message,
+              request_params: newImage.request_params,
             }, ...prev];
           });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'generated_images'
+        },
+        (payload) => {
+          const updatedImage = payload.new;
+          setGeneratedImages((prev) => 
+            prev.map(img => img.id === updatedImage.id ? {
+              ...img,
+              url: updatedImage.image_url,
+              status: updatedImage.status,
+              error_message: updatedImage.error_message,
+            } : img)
+          );
+          
+          // Se for a imagem atual sendo gerada
+          if (updatedImage.id === currentGenerationId) {
+            if (updatedImage.status === 'completed') {
+              setLoading(false);
+              setCurrentGenerationId(null);
+              toast({
+                title: "Imagem gerada!",
+                description: "Sua imagem foi gerada com sucesso.",
+              });
+              setPrompt("");
+            } else if (updatedImage.status === 'failed') {
+              setLoading(false);
+              setCurrentGenerationId(null);
+              toast({
+                title: "Erro na geração",
+                description: updatedImage.error_message || "Houve um erro ao gerar a imagem.",
+                variant: "destructive",
+              });
+            }
+          }
         }
       )
       .on(
@@ -137,50 +179,6 @@ export default function Efimagem() {
     };
   }, []);
 
-  useEffect(() => {
-    if (loading) {
-      setProgress(0);
-      setImageReady(false);
-      setReadyImage(null);
-      const minWait = Math.random() * 2000 + 15000; // 8000 to 10000 ms
-      const minTimer = setTimeout(() => setMinTimePassed(true), minWait);
-
-      const interval = setInterval(
-        () => {
-          setProgress((prev) => {
-            if (prev >= 100) {
-              clearInterval(interval);
-              return 100;
-            }
-            if (imageReady) {
-              return Math.min(prev + 5, 100); // Fast increment to 100 when ready
-            } else {
-              const increment = Math.random() * 1 + 0.5; // 0.5 to 1.5
-              return Math.min(prev + increment, 90); // Cap at 90 until ready
-            }
-          });
-        },
-        Math.random() * 200 + 100,
-      );
-
-      return () => {
-        clearInterval(interval);
-        clearTimeout(minTimer);
-        setMinTimePassed(false);
-      };
-    }
-  }, [loading]);
-
-  useEffect(() => {
-    if (imageReady && minTimePassed) {
-      setLoading(false);
-      toast({
-        title: "Imagem gerada!",
-        description: "Sua imagem foi gerada com sucesso.",
-      });
-      setPrompt("");
-    }
-  }, [imageReady, minTimePassed, toast]);
 
   // Resetar página quando filtro muda
   useEffect(() => {
@@ -214,6 +212,9 @@ export default function Efimagem() {
             url: img.image_url,
             character: img.character_name,
             prompt: img.prompt,
+            status: img.status,
+            error_message: img.error_message,
+            request_params: img.request_params,
           })),
         );
       }
@@ -316,48 +317,20 @@ export default function Efimagem() {
             imageUrls: imageUrls,
             prompt: fullPrompt,
             generalPrompt: character.general_prompt,
+            characterName: character.name,
+            characterId: character.id,
           },
         })
       );
 
       if (error) throw error;
 
-      if (data?.output) {
-        const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-
-        // Save to database
-        const { data: savedImage, error: saveError } = await supabase
-          .from("generated_images")
-          .insert({
-            character_id: character.id,
-            character_name: character.name,
-            prompt: prompt,
-            image_url: imageUrl,
-          })
-          .select()
-          .single();
-
-        if (saveError) throw saveError;
-
-        if (savedImage) {
-          const newImage = {
-            id: savedImage.id,
-            url: savedImage.image_url,
-            character: savedImage.character_name,
-            prompt: savedImage.prompt,
-          };
-          
-          setReadyImage(newImage);
-          setGeneratedImages((prev) => [newImage, ...prev]);
-          setImageReady(true);
-          setLoading(false);
-
-          toast({
-            title: "Imagem gerada!",
-            description: "Sua imagem foi gerada com sucesso.",
-          });
-          setPrompt("");
-        }
+      if (data?.recordId) {
+        setCurrentGenerationId(data.recordId);
+        toast({
+          title: "Geração iniciada!",
+          description: "Sua imagem está sendo processada. Aguarde...",
+        });
       }
     } catch (error) {
       console.error("Erro ao gerar imagem:", error);
@@ -365,6 +338,53 @@ export default function Efimagem() {
       toast({
         title: "Erro ao gerar imagem",
         description: error.message || "Ocorreu um erro ao gerar a imagem. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRetry = async (imageId: string) => {
+    const image = generatedImages.find(img => img.id === imageId);
+    if (!image?.request_params) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível recuperar os parâmetros da requisição.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await retryWithAuthRefresh(() =>
+        supabase.functions.invoke("generate-character-image", {
+          body: image.request_params,
+        })
+      );
+
+      if (error) throw error;
+
+      if (data?.recordId) {
+        setCurrentGenerationId(data.recordId);
+
+        // Deletar a imagem com erro
+        await supabase
+          .from("generated_images")
+          .delete()
+          .eq("id", imageId);
+
+        toast({
+          title: "Tentando novamente!",
+          description: "A geração foi reiniciada.",
+        });
+      }
+    } catch (error) {
+      console.error("Error retrying generation:", error);
+      setLoading(false);
+      toast({
+        title: "Erro ao tentar novamente",
+        description: error instanceof Error ? error.message : "Ocorreu um erro.",
         variant: "destructive",
       });
     }
@@ -468,9 +488,7 @@ export default function Efimagem() {
             prompt: savedImage.prompt,
           };
           
-          setReadyImage(newImage);
           setGeneratedImages((prev) => [newImage, ...prev]);
-          setImageReady(true);
           setLoading(false);
 
           toast({
@@ -975,61 +993,66 @@ export default function Efimagem() {
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {loading && (
-                              <Card
-                                className="overflow-hidden"
-                                style={{
-                                  transform: `scale(${1 - (progress / 100) * 0.2})`,
-                                  transition: "transform 0.3s ease",
-                                }}
-                              >
-                                <div className="aspect-square bg-muted flex items-center justify-center">
-                                  <div className="relative w-16 h-16">
-                                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
-                                      <circle cx="50" cy="50" r="40" stroke="#e5e7eb" stroke-width="4" fill="none"></circle>
-                                      <circle
-                                        cx="50"
-                                        cy="50"
-                                        r="40"
-                                        stroke="#3b82f6"
-                                        stroke-width="4"
-                                        fill="none"
-                                        stroke-dasharray={`${(progress / 100) * 251} 251`}
-                                        stroke-linecap="round"
-                                        style={{ transition: "stroke-dasharray 0.1s ease" }}
-                                      ></circle>
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <span className="text-sm font-medium text-white">{Math.floor(progress)}%</span>
-                                    </div>
-                                  </div>
+                              <Card className="overflow-hidden">
+                                <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-3 p-6">
+                                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                  <p className="text-sm font-medium text-center">Gerando sua imagem...</p>
+                                  <p className="text-xs text-muted-foreground text-center">
+                                    Aguarde, isso pode levar alguns minutos
+                                  </p>
                                 </div>
                               </Card>
                             )}
                             {paginatedImages.map((img) => (
                               <Card key={img.id} className="overflow-hidden">
                                 <div className="relative group">
-                                  <div
-                                    className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
-                                    onClick={() => setSelectedImage(img.url)}
-                                  >
-                                    <img
-                                      src={img.url}
-                                      alt={`Gerado - ${img.character}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
-                                  </div>
-                                  <Button
-                                    variant="destructive"
-                                    size="icon"
-                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteImage(img.id);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {img.status === 'pending' || img.status === 'processing' ? (
+                                    <div className="aspect-square bg-muted flex flex-col items-center justify-center gap-2">
+                                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                      <p className="text-sm text-muted-foreground">
+                                        {img.status === 'pending' ? 'Na fila...' : 'Gerando...'}
+                                      </p>
+                                    </div>
+                                  ) : img.status === 'failed' ? (
+                                    <div className="aspect-square bg-destructive/10 flex flex-col items-center justify-center gap-3 p-6">
+                                      <p className="text-sm text-destructive font-medium text-center">Erro na geração</p>
+                                      <p className="text-xs text-muted-foreground text-center">
+                                        {img.error_message || 'Falha ao processar'}
+                                      </p>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleRetry(img.id)}
+                                      >
+                                        Tentar Novamente
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div
+                                        className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
+                                        onClick={() => setSelectedImage(img.url)}
+                                      >
+                                        <img
+                                          src={img.url}
+                                          alt={`Gerado - ${img.character}`}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
+                                      </div>
+                                      <Button
+                                        variant="destructive"
+                                        size="icon"
+                                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteImage(img.id);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </Card>
                             ))}

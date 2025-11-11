@@ -474,25 +474,37 @@ export type Database = {
           character_id: string | null
           character_name: string
           created_at: string
+          error_message: string | null
           id: string
           image_url: string
+          prediction_id: string | null
           prompt: string
+          request_params: Json | null
+          status: string | null
         }
         Insert: {
           character_id?: string | null
           character_name: string
           created_at?: string
+          error_message?: string | null
           id?: string
           image_url: string
+          prediction_id?: string | null
           prompt: string
+          request_params?: Json | null
+          status?: string | null
         }
         Update: {
           character_id?: string | null
           character_name?: string
           created_at?: string
+          error_message?: string | null
           id?: string
           image_url?: string
+          prediction_id?: string | null
           prompt?: string
+          request_params?: Json | null
+          status?: string | null
         }
         Relationships: [
           {
