@@ -92,13 +92,9 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
       return;
     }
     
+    setIsGenerating(true);
+    
     try {
-      // Adicionar imagem temporária ao histórico com status "processing"
-      const processingUrl = currentImageUrl;
-      setImageHistory((prev) => [...prev, processingUrl]);
-      setSelectedHistoryIndex(imageHistory.length);
-      setIsGenerating(true);
-      
       const { data, error } = await supabase.functions.invoke("edit-character-image", {
         body: {
           imageUrl: currentImageUrl,
@@ -125,32 +121,24 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
             },
             (payload) => {
               const updated = payload.new;
-              if (updated.prediction_id === data.predictionId) {
-                if (updated.status === 'completed' && updated.image_url !== currentImageUrl) {
-                  setProgress(100);
-                  setTimeout(() => {
-                    // Substituir a última imagem do histórico (a processing) pela finalizada
-                    setImageHistory((prev) => {
-                      const newHistory = [...prev];
-                      newHistory[newHistory.length - 1] = updated.image_url;
-                      return newHistory;
-                    });
-                    setCurrentImageUrl(updated.image_url);
-                    setEditPrompt("");
-                    setIsGenerating(false);
-                    setProgress(0);
-                    toast.success("Imagem editada com sucesso!");
-                    supabase.removeChannel(channel);
-                  }, 500);
-                } else if (updated.status === 'failed') {
-                  // Remover a imagem temporária do histórico
-                  setImageHistory((prev) => prev.slice(0, -1));
-                  setSelectedHistoryIndex(imageHistory.length - 1);
+              if (updated.status === 'completed' && updated.image_url && updated.image_url !== currentImageUrl) {
+                setProgress(100);
+                setTimeout(() => {
+                  // Adicionar nova imagem ao histórico
+                  setImageHistory((prev) => [...prev, updated.image_url]);
+                  setCurrentImageUrl(updated.image_url);
+                  setSelectedHistoryIndex(imageHistory.length);
+                  setEditPrompt("");
                   setIsGenerating(false);
                   setProgress(0);
-                  toast.error("Erro ao editar imagem: " + (updated.error_message || "Falha no processamento"));
+                  toast.success("Imagem editada com sucesso!");
                   supabase.removeChannel(channel);
-                }
+                }, 500);
+              } else if (updated.status === 'failed') {
+                setIsGenerating(false);
+                setProgress(0);
+                toast.error("Erro ao editar imagem: " + (updated.error_message || "Falha no processamento"));
+                supabase.removeChannel(channel);
               }
             }
           )
@@ -159,9 +147,6 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
     } catch (error: any) {
       console.error("Erro ao editar imagem:", error);
       toast.error("Erro ao editar imagem: " + error.message);
-      // Remover a imagem temporária do histórico em caso de erro
-      setImageHistory((prev) => prev.slice(0, -1));
-      setSelectedHistoryIndex(Math.max(0, imageHistory.length - 1));
       setIsGenerating(false);
       setProgress(0);
     }
@@ -196,13 +181,9 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
   };
 
   const handleRemoveBackground = async () => {
+    setIsGenerating(true);
+    
     try {
-      // Adicionar imagem temporária ao histórico com status "processing"
-      const processingUrl = currentImageUrl; // Mantém a imagem atual visível
-      setImageHistory((prev) => [...prev, processingUrl]);
-      setSelectedHistoryIndex(imageHistory.length);
-      setIsGenerating(true);
-      
       const { data, error } = await supabase.functions.invoke("remove-background", {
         body: {
           imageUrl: currentImageUrl,
@@ -228,31 +209,23 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
             },
             (payload) => {
               const updated = payload.new;
-              if (updated.prediction_id === data.predictionId) {
-                if (updated.status === 'completed' && updated.image_url !== currentImageUrl) {
-                  setProgress(100);
-                  setTimeout(() => {
-                    // Substituir a última imagem do histórico (a processing) pela finalizada
-                    setImageHistory((prev) => {
-                      const newHistory = [...prev];
-                      newHistory[newHistory.length - 1] = updated.image_url;
-                      return newHistory;
-                    });
-                    setCurrentImageUrl(updated.image_url);
-                    setIsGenerating(false);
-                    setProgress(0);
-                    toast.success("Background removido com sucesso!");
-                    supabase.removeChannel(channel);
-                  }, 500);
-                } else if (updated.status === 'failed') {
-                  // Remover a imagem temporária do histórico
-                  setImageHistory((prev) => prev.slice(0, -1));
-                  setSelectedHistoryIndex(imageHistory.length - 1);
+              if (updated.status === 'completed' && updated.image_url && updated.image_url !== currentImageUrl) {
+                setProgress(100);
+                setTimeout(() => {
+                  // Adicionar nova imagem ao histórico
+                  setImageHistory((prev) => [...prev, updated.image_url]);
+                  setCurrentImageUrl(updated.image_url);
+                  setSelectedHistoryIndex(imageHistory.length);
                   setIsGenerating(false);
                   setProgress(0);
-                  toast.error("Erro ao remover background: " + (updated.error_message || "Falha no processamento"));
+                  toast.success("Background removido com sucesso!");
                   supabase.removeChannel(channel);
-                }
+                }, 500);
+              } else if (updated.status === 'failed') {
+                setIsGenerating(false);
+                setProgress(0);
+                toast.error("Erro ao remover background: " + (updated.error_message || "Falha no processamento"));
+                supabase.removeChannel(channel);
               }
             }
           )
@@ -261,9 +234,6 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
     } catch (error: any) {
       console.error("Erro ao remover background:", error);
       toast.error("Erro ao remover background: " + error.message);
-      // Remover a imagem temporária do histórico em caso de erro
-      setImageHistory((prev) => prev.slice(0, -1));
-      setSelectedHistoryIndex(Math.max(0, imageHistory.length - 1));
       setIsGenerating(false);
       setProgress(0);
     }
