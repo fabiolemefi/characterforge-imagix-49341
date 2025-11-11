@@ -33,10 +33,16 @@ serve(async (req) => {
 
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
+    // Buscar a versão mais recente do modelo nano-banana
+    console.log("Getting latest version of nano-banana model");
+    const model = await replicate.models.get("google", "nano-banana");
+    const latestVersion = model.latest_version.id;
+    console.log("Using version:", latestVersion);
+
     // Criar predição assíncrona
     console.log("Creating async prediction with nano-banana");
     const prediction = await replicate.predictions.create({
-      version: "5a41a0dd73c4de8e6c7f5c9fcfdf31ae24cc91d93db6b919e8e6ba76b6fbc15d",
+      version: latestVersion,
       input: {
         prompt: prompt,
         image_input: [imageUrl],
