@@ -91,36 +91,77 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
       toast.error("Digite um prompt para edição");
       return;
     }
-
-    setIsGenerating(true);
     
     try {
+      // Adicionar imagem temporária ao histórico com status "processing"
+      const processingUrl = currentImageUrl;
+      setImageHistory((prev) => [...prev, processingUrl]);
+      setSelectedHistoryIndex(imageHistory.length);
+      setIsGenerating(true);
+      
       const { data, error } = await supabase.functions.invoke("edit-character-image", {
         body: {
           imageUrl: currentImageUrl,
           prompt: editPrompt,
+          imageId: imageId,
         },
       });
 
       if (error) throw error;
 
-      if (data?.output) {
-        const newImageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-        setProgress(100);
+      if (data?.predictionId) {
+        toast.success("Editando sua imagem! Será atualizada automaticamente.");
         
-        setTimeout(() => {
-          setImageHistory((prev) => [...prev, newImageUrl]);
-          setCurrentImageUrl(newImageUrl);
-          setSelectedHistoryIndex(imageHistory.length);
-          setEditPrompt("");
-          setIsGenerating(false);
-          setProgress(0);
-          toast.success("Imagem editada com sucesso!");
-        }, 500);
+        // Configurar listener para esta predição específica
+        const channel = supabase
+          .channel(`edit-image-${data.predictionId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'generated_images',
+              filter: `id=eq.${imageId}`
+            },
+            (payload) => {
+              const updated = payload.new;
+              if (updated.prediction_id === data.predictionId) {
+                if (updated.status === 'completed' && updated.image_url !== currentImageUrl) {
+                  setProgress(100);
+                  setTimeout(() => {
+                    // Substituir a última imagem do histórico (a processing) pela finalizada
+                    setImageHistory((prev) => {
+                      const newHistory = [...prev];
+                      newHistory[newHistory.length - 1] = updated.image_url;
+                      return newHistory;
+                    });
+                    setCurrentImageUrl(updated.image_url);
+                    setEditPrompt("");
+                    setIsGenerating(false);
+                    setProgress(0);
+                    toast.success("Imagem editada com sucesso!");
+                    supabase.removeChannel(channel);
+                  }, 500);
+                } else if (updated.status === 'failed') {
+                  // Remover a imagem temporária do histórico
+                  setImageHistory((prev) => prev.slice(0, -1));
+                  setSelectedHistoryIndex(imageHistory.length - 1);
+                  setIsGenerating(false);
+                  setProgress(0);
+                  toast.error("Erro ao editar imagem: " + (updated.error_message || "Falha no processamento"));
+                  supabase.removeChannel(channel);
+                }
+              }
+            }
+          )
+          .subscribe();
       }
     } catch (error: any) {
       console.error("Erro ao editar imagem:", error);
       toast.error("Erro ao editar imagem: " + error.message);
+      // Remover a imagem temporária do histórico em caso de erro
+      setImageHistory((prev) => prev.slice(0, -1));
+      setSelectedHistoryIndex(Math.max(0, imageHistory.length - 1));
       setIsGenerating(false);
       setProgress(0);
     }

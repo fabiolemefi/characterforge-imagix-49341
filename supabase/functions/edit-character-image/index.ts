@@ -23,61 +23,81 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { imageUrl, prompt } = await req.json();
+    const { imageUrl, prompt, imageId } = await req.json();
 
     if (!imageUrl || !prompt) {
       throw new Error('imageUrl and prompt are required');
     }
 
-    console.log('Editing image with prompt:', prompt);
+    console.log('Starting image edit with prompt:', prompt);
 
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
-    // Etapa 1: Editar imagem com nano-banana
-    console.log("Step 1: Editing image with nano-banana");
-    const editedOutput = await replicate.run("google/nano-banana", {
+    // Criar predição assíncrona
+    console.log("Creating async prediction with nano-banana");
+    const prediction = await replicate.predictions.create({
+      version: "5a41a0dd73c4de8e6c7f5c9fcfdf31ae24cc91d93db6b919e8e6ba76b6fbc15d",
       input: {
         prompt: prompt,
         image_input: [imageUrl],
         aspect_ratio: "1:1",
         output_format: "png",
       },
+      webhook: `${SUPABASE_URL}/functions/v1/replicate-webhook`,
+      webhook_events_filter: ["completed"],
     });
 
-    const editedImageUrl = typeof editedOutput === "string" ? editedOutput : editedOutput[0];
-    console.log("Edited image URL:", editedImageUrl);
+    console.log("Prediction created:", prediction.id);
 
-    // Etapa 2: Baixar a imagem
-    console.log("Step 2: Downloading processed image");
-    const imageResponse = await fetch(editedImageUrl);
-    if (!imageResponse.ok) throw new Error("Failed to download processed image");
-    const imageBlob = await imageResponse.blob();
-    const imageBuffer = await imageBlob.arrayBuffer();
+    // Criar ou atualizar registro na tabela generated_images
+    let recordId = imageId;
+    
+    if (imageId) {
+      // Atualizar registro existente
+      const { error: updateError } = await supabase
+        .from("generated_images")
+        .update({
+          prediction_id: prediction.id,
+          status: "processing",
+          request_params: { imageUrl, prompt, type: "edit" },
+        })
+        .eq("id", imageId);
 
-    // Etapa 3: Fazer upload para o storage
-    console.log("Step 3: Uploading to Supabase storage");
-    const fileName = `edited-${Date.now()}-${Math.random()}.png`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("plugin-images")
-      .upload(fileName, imageBuffer, {
-        contentType: "image/png",
-        upsert: false,
-      });
+      if (updateError) {
+        console.error("Error updating record:", updateError);
+        throw new Error(`Failed to update record: ${updateError.message}`);
+      }
+    } else {
+      // Criar novo registro
+      const { data: newRecord, error: insertError } = await supabase
+        .from("generated_images")
+        .insert({
+          character_name: "Edited Image",
+          prompt: prompt,
+          image_url: imageUrl,
+          prediction_id: prediction.id,
+          status: "processing",
+          request_params: { imageUrl, prompt, type: "edit" },
+        })
+        .select()
+        .single();
 
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
+      if (insertError) {
+        console.error("Error creating record:", insertError);
+        throw new Error(`Failed to create record: ${insertError.message}`);
+      }
+
+      recordId = newRecord.id;
     }
 
-    // Etapa 4: Obter URL pública
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("plugin-images").getPublicUrl(fileName);
-
-    console.log("Final stored image URL:", publicUrl);
+    console.log("Record updated/created:", recordId);
 
     return new Response(
-      JSON.stringify({ output: publicUrl }),
+      JSON.stringify({ 
+        recordId,
+        predictionId: prediction.id,
+        status: "processing" 
+      }),
       { 
         headers: { 
           ...corsHeaders, 
