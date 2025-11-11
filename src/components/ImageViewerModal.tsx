@@ -161,23 +161,50 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
       const { data, error } = await supabase.functions.invoke("remove-background", {
         body: {
           imageUrl: currentImageUrl,
+          imageId: imageId,
         },
       });
 
       if (error) throw error;
 
-      if (data?.output) {
-        const newImageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-        setProgress(100);
+      if (data?.predictionId) {
+        toast.success("Remoção de background iniciada! A imagem será atualizada automaticamente.");
         
-        setTimeout(() => {
-          setImageHistory((prev) => [...prev, newImageUrl]);
-          setCurrentImageUrl(newImageUrl);
-          setSelectedHistoryIndex(imageHistory.length);
-          setIsGenerating(false);
-          setProgress(0);
-          toast.success("Background removido com sucesso!");
-        }, 500);
+        // Configurar listener para esta predição específica
+        const channel = supabase
+          .channel(`bg-removal-${data.predictionId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'generated_images',
+              filter: `id=eq.${imageId}`
+            },
+            (payload) => {
+              const updated = payload.new;
+              if (updated.prediction_id === data.predictionId) {
+                if (updated.status === 'completed' && updated.image_url !== currentImageUrl) {
+                  setProgress(100);
+                  setTimeout(() => {
+                    setImageHistory((prev) => [...prev, updated.image_url]);
+                    setCurrentImageUrl(updated.image_url);
+                    setSelectedHistoryIndex(imageHistory.length);
+                    setIsGenerating(false);
+                    setProgress(0);
+                    toast.success("Background removido com sucesso!");
+                    supabase.removeChannel(channel);
+                  }, 500);
+                } else if (updated.status === 'failed') {
+                  setIsGenerating(false);
+                  setProgress(0);
+                  toast.error("Erro ao remover background: " + (updated.error_message || "Falha no processamento"));
+                  supabase.removeChannel(channel);
+                }
+              }
+            }
+          )
+          .subscribe();
       }
     } catch (error: any) {
       console.error("Erro ao remover background:", error);

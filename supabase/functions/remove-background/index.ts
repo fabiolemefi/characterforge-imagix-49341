@@ -23,65 +23,54 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { imageUrl } = await req.json();
+    const { imageUrl, imageId } = await req.json();
 
     if (!imageUrl) {
       throw new Error('imageUrl is required');
     }
 
-    console.log('Removing background from image:', imageUrl);
+    console.log('Starting async background removal for image:', imageUrl);
 
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
-    // Remover background
-    console.log("Removing background");
-    const bgRemovedOutput = await replicate.run(
-      "851-labs/background-remover:a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
-      {
-        input: {
-          image: imageUrl,
-          format: "png",
-          reverse: false,
-          threshold: 0,
-          background_type: "rgba",
-        },
+    // Criar predição assíncrona
+    console.log("Creating background removal prediction");
+    const prediction = await replicate.predictions.create({
+      version: "a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc",
+      input: {
+        image: imageUrl,
+        format: "png",
+        reverse: false,
+        threshold: 0,
+        background_type: "rgba",
       },
-    );
+      webhook: `${SUPABASE_URL}/functions/v1/replicate-webhook`,
+      webhook_events_filter: ["completed"],
+    });
 
-    const finalImageUrl = typeof bgRemovedOutput === "string" ? bgRemovedOutput : bgRemovedOutput[0];
-    console.log("Background removed image URL:", finalImageUrl);
+    console.log("Prediction created:", prediction.id);
 
-    // Baixar a imagem
-    console.log("Downloading processed image");
-    const imageResponse = await fetch(finalImageUrl);
-    if (!imageResponse.ok) throw new Error("Failed to download processed image");
-    const imageBlob = await imageResponse.blob();
-    const imageBuffer = await imageBlob.arrayBuffer();
+    // Criar registro temporário na tabela com status 'processing'
+    if (imageId) {
+      const { error: updateError } = await supabase
+        .from("generated_images")
+        .update({
+          status: 'processing',
+          prediction_id: prediction.id,
+        })
+        .eq('id', imageId);
 
-    // Fazer upload para o storage
-    console.log("Uploading to Supabase storage");
-    const fileName = `no-bg-${Date.now()}-${Math.random()}.png`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("plugin-images")
-      .upload(fileName, imageBuffer, {
-        contentType: "image/png",
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
+      if (updateError) {
+        console.error("Error updating image status:", updateError);
+      }
     }
 
-    // Obter URL pública
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("plugin-images").getPublicUrl(fileName);
-
-    console.log("Final stored image URL:", publicUrl);
-
     return new Response(
-      JSON.stringify({ output: publicUrl }),
+      JSON.stringify({ 
+        predictionId: prediction.id,
+        imageId: imageId,
+        status: 'processing'
+      }),
       { 
         headers: { 
           ...corsHeaders, 

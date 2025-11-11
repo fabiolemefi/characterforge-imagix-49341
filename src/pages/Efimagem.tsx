@@ -327,6 +327,7 @@ export default function Efimagem() {
 
       if (data?.recordId) {
         setCurrentGenerationId(data.recordId);
+        setLoading(false); // Desativar loading imediatamente, o Realtime cuida do resto
         toast({
           title: "Geração iniciada!",
           description: "Sua imagem está sendo processada. Aguarde...",

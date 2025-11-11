@@ -59,7 +59,8 @@ serve(async (req) => {
         .from("generated_images")
         .update({
           status: "failed",
-          error_message: error || "Prediction failed or was canceled"
+          error_message: error || "Prediction failed or was canceled",
+          prediction_id: null, // Limpar o prediction_id após processar
         })
         .eq("id", existingRecord.id);
 
@@ -124,7 +125,8 @@ serve(async (req) => {
         .update({
           status: "completed",
           image_url: publicUrl,
-          error_message: null
+          error_message: null,
+          prediction_id: null, // Limpar o prediction_id após processar
         })
         .eq("id", existingRecord.id);
 
