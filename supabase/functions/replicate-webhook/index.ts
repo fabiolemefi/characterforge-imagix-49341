@@ -36,16 +36,31 @@ serve(async (req) => {
 
     console.log(`Processing webhook for prediction: ${predictionId}, status: ${status}`);
 
-    // Try to find in generated_images first (existing functionality)
+    // Try to find in test_ai_conversations first (most common case)
+    let conversationRecord = null;
+    let conversationError = null;
+    
+    // Retry up to 3 times with delay (in case of timing issues)
+    for (let i = 0; i < 3; i++) {
+      const { data, error } = await supabase
+        .from("test_ai_conversations")
+        .select("*")
+        .eq("prediction_id", predictionId)
+        .maybeSingle();
+      
+      conversationRecord = data;
+      conversationError = error;
+      
+      if (conversationRecord || error) break;
+      
+      // Wait 500ms before retry
+      console.log(`Conversation not found, retrying in 500ms (attempt ${i + 1}/3)`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Try to find in generated_images (for image generation)
     const { data: imageRecord, error: imageError } = await supabase
       .from("generated_images")
-      .select("*")
-      .eq("prediction_id", predictionId)
-      .maybeSingle();
-
-    // Try to find in test_ai_conversations (new functionality)
-    const { data: conversationRecord, error: conversationError } = await supabase
-      .from("test_ai_conversations")
       .select("*")
       .eq("prediction_id", predictionId)
       .maybeSingle();

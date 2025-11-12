@@ -71,10 +71,14 @@ export function useTestAIConversation() {
           // Clear loading state when prediction_id is cleared (response received)
           if (newData.prediction_id === null) {
             setIsLoading(false);
-            // Clear timeout if it exists
+            // Clear timeout and polling if they exist
             if ((window as any).__aiTimeoutId) {
               clearTimeout((window as any).__aiTimeoutId);
               (window as any).__aiTimeoutId = null;
+            }
+            if ((window as any).__aiPollingId) {
+              clearInterval((window as any).__aiPollingId);
+              (window as any).__aiPollingId = null;
             }
           }
         }
@@ -83,12 +87,64 @@ export function useTestAIConversation() {
 
     channelRef.current = channel;
 
+    // Setup polling to check for updates every second (fallback if realtime fails)
+    const pollingInterval = setInterval(async () => {
+      if (!conversationId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("test_ai_conversations")
+          .select("*")
+          .eq("id", conversationId)
+          .single();
+
+        if (error) throw error;
+        if (!data) return;
+
+        // Only update if prediction_id is null (response received)
+        if (data.prediction_id === null) {
+          console.log("Polling detected update");
+          
+          if (data.messages) {
+            setMessages(data.messages as unknown as Message[]);
+          }
+          if (data.extracted_data) {
+            setExtractedData(data.extracted_data as unknown as ExtractedTestData);
+          }
+          if (data.status === "ready") {
+            setIsReady(true);
+          }
+          
+          // Clear loading state
+          setIsLoading(false);
+          
+          // Clear timeout and polling
+          if ((window as any).__aiTimeoutId) {
+            clearTimeout((window as any).__aiTimeoutId);
+            (window as any).__aiTimeoutId = null;
+          }
+          if ((window as any).__aiPollingId) {
+            clearInterval((window as any).__aiPollingId);
+            (window as any).__aiPollingId = null;
+          }
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    }, 1000); // Check every second
+    
+    (window as any).__aiPollingId = pollingInterval;
+
     // Cleanup on unmount or when conversationId changes
     return () => {
-      console.log("Cleaning up realtime channel");
+      console.log("Cleaning up realtime channel and polling");
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if ((window as any).__aiPollingId) {
+        clearInterval((window as any).__aiPollingId);
+        (window as any).__aiPollingId = null;
       }
     };
   }, [conversationId]);
