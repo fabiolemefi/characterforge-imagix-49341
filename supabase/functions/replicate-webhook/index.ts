@@ -18,7 +18,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const webhookData = await req.json();
-    
+
     console.log("Received webhook:", JSON.stringify(webhookData, null, 2));
 
     const predictionId = webhookData.id;
@@ -39,7 +39,7 @@ serve(async (req) => {
     // Try to find in test_ai_conversations first (most common case)
     let conversationRecord = null;
     let conversationError = null;
-    
+
     // Retry up to 10 times with increasing delay (in case of timing issues)
     for (let i = 0; i < 10; i++) {
       const { data, error } = await supabase
@@ -47,16 +47,16 @@ serve(async (req) => {
         .select("*")
         .eq("prediction_id", predictionId)
         .maybeSingle();
-      
+
       conversationRecord = data;
       conversationError = error;
-      
+
       if (conversationRecord || error) break;
-      
+
       // Wait with increasing delay: 200ms, 400ms, 600ms, etc
       const delay = 200 * (i + 1);
       console.log(`Conversation not found, retrying in ${delay}ms (attempt ${i + 1}/10)`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
     // Try to find in generated_images (for image generation)
@@ -83,7 +83,10 @@ serve(async (req) => {
         }
 
         // Clean markdown if present
-        responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        responseText = responseText
+          .replace(/```json\n?/g, "")
+          .replace(/```\n?/g, "")
+          .trim();
 
         try {
           const aiResponse = JSON.parse(responseText);
@@ -138,7 +141,7 @@ serve(async (req) => {
         } catch (parseError) {
           console.error("Error parsing AI response:", parseError);
           console.error("Raw response text:", responseText);
-          
+
           // Add error message to conversation so user knows what happened
           const currentMessages = (conversationRecord.messages || []) as any[];
           const errorMessage = {
@@ -147,7 +150,7 @@ serve(async (req) => {
             timestamp: new Date().toISOString(),
           };
           const updatedMessages = [...currentMessages, errorMessage];
-          
+
           // Clear prediction_id and add error message to allow retry
           await supabase
             .from("test_ai_conversations")
@@ -165,7 +168,7 @@ serve(async (req) => {
         }
       } else if (status === "failed" || status === "canceled") {
         console.log("Prediction failed for conversation:", error);
-        
+
         await supabase
           .from("test_ai_conversations")
           .update({
@@ -202,7 +205,7 @@ serve(async (req) => {
     // Se a predição falhou
     if (status === "failed" || status === "canceled") {
       console.log("Prediction failed or canceled:", error);
-      
+
       const { error: updateError } = await supabase
         .from("generated_images")
         .update({
@@ -225,10 +228,10 @@ serve(async (req) => {
     // Se a predição foi bem-sucedida
     if (status === "succeeded" && output) {
       console.log("Prediction succeeded, processing output");
-      
+
       // O output pode ser uma string (URL) ou array de URLs
       const imageUrl = typeof output === "string" ? output : output[0];
-      
+
       if (!imageUrl) {
         throw new Error("No image URL in output");
       }
@@ -297,7 +300,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-
   } catch (error) {
     console.error("Webhook error:", error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
