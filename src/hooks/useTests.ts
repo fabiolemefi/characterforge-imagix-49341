@@ -11,7 +11,7 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
         .from("tests")
         .select(`
           *,
-          profiles:created_by(full_name, email)
+          profiles!tests_created_by_fkey(full_name, email)
         `)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
@@ -26,7 +26,12 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching tests:", error);
+        throw error;
+      }
+      
+      console.log("Tests fetched:", data);
       return data as unknown as Test[];
     },
   });
@@ -146,7 +151,7 @@ export const useTestCreators = () => {
         .from("tests")
         .select(`
           created_by,
-          profiles:created_by(full_name, email)
+          profiles!tests_created_by_fkey(full_name, email)
         `)
         .eq("is_active", true);
 

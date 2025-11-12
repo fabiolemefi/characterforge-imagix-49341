@@ -65,16 +65,14 @@ export function MultiSelectCombobox({
                 <Badge
                   key={item}
                   variant="secondary"
-                  className="mr-1 hover:bg-secondary"
+                  className="mr-1 hover:bg-secondary flex items-center gap-1"
                 >
-                  {item}
-                  <button
-                    className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  <span>{item}</span>
+                  <X 
+                    className="h-3 w-3 cursor-pointer" 
                     onMouseDown={(e) => removeItem(item, e)}
                     onClick={(e) => e.stopPropagation()}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  />
                 </Badge>
               ))
             ) : (

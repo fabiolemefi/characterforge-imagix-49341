@@ -120,13 +120,16 @@ export default function TestForm() {
       end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
     };
 
-    if (isEditing && id) {
-      await updateTest.mutateAsync({ id, ...data });
-    } else {
-      await createTest.mutateAsync(data);
+    try {
+      if (isEditing && id) {
+        await updateTest.mutateAsync({ id, ...data });
+      } else {
+        await createTest.mutateAsync(data);
+      }
+      navigate("/admin/tests/list");
+    } catch (error) {
+      // Error handling is done in the mutation hooks
     }
-
-    navigate("/admin/tests/list");
   };
 
   return (
@@ -448,8 +451,20 @@ export default function TestForm() {
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isReadOnly}>
-              {isEditing ? "Atualizar" : "Criar"} Teste
+            <Button 
+              type="submit" 
+              disabled={isReadOnly || createTest.isPending || updateTest.isPending}
+            >
+              {createTest.isPending || updateTest.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  {isEditing ? "Atualizando" : "Criando"} teste...
+                </>
+              ) : (
+                <>
+                  {isEditing ? "Atualizar" : "Criar"} Teste
+                </>
+              )}
             </Button>
           </div>
         </form>
