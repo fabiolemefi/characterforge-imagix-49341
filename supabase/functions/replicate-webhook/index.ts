@@ -74,9 +74,10 @@ serve(async (req) => {
         // Parse the AI response
         let responseText = "";
         if (Array.isArray(output)) {
-          responseText = output.join("");
+          // Join array elements and clean up any internal line breaks that might break JSON
+          responseText = output.join("").replace(/\\n/g, "").replace(/\n/g, "");
         } else if (typeof output === "string") {
-          responseText = output;
+          responseText = output.replace(/\\n/g, "").replace(/\n/g, "");
         } else {
           responseText = JSON.stringify(output);
         }
@@ -118,7 +119,7 @@ serve(async (req) => {
             .update({
               messages: updatedMessages,
               extracted_data: aiResponse.extracted_data,
-              status: aiResponse.status === "ready" ? "ready" : "draft",
+              status: aiResponse.status === "ready" ? "completed" : "draft",
               prediction_id: null, // Clear prediction_id
               updated_at: new Date().toISOString(),
             })

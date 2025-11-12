@@ -205,10 +205,13 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                     </AvatarFallback>
                   </Avatar>
                   <div className="bg-muted/50 rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
-                    <div className="space-y-2.5">
-                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-3/4 animate-shimmer bg-[length:200%_100%]" />
-                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-full animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.15s" }} />
-                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-5/6 animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.3s" }} />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Pensando</span>
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-1" />
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-2" />
+                        <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-3" />
+                      </div>
                     </div>
                   </div>
                 </div>

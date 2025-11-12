@@ -34,7 +34,21 @@ export function useTestAIConversation() {
   const [isLoading, setIsLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedTestData>({});
   const [isReady, setIsReady] = useState(false);
+  const [pendingPredictionId, setPendingPredictionId] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Clear loading when message arrives and prediction is complete
+  useEffect(() => {
+    if (pendingPredictionId === null && isLoading && messages.length > 0) {
+      // Check if the last message is from assistant (meaning AI responded)
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        console.log("⏹️ Clearing loading state - AI response received");
+        setIsLoading(false);
+        setPendingPredictionId(null);
+      }
+    }
+  }, [messages, pendingPredictionId, isLoading]);
 
   // Setup realtime listener when conversation is loaded
   useEffect(() => {
@@ -55,35 +69,42 @@ export function useTestAIConversation() {
         },
         (payload) => {
           console.log("🔄 Realtime update received:", payload);
-          const newData = payload.new as any;
+          const newData = payload.new as {
+            messages?: Message[];
+            extracted_data?: ExtractedTestData;
+            status?: string;
+            prediction_id?: string | null;
+          };
           
           // Update local state with new data from database
           if (newData.messages) {
             console.log("📝 Updating messages, count:", newData.messages.length);
             // Force new array reference to ensure React detects the change
-            setMessages([...newData.messages] as Message[]);
+            setMessages([...newData.messages]);
           }
           if (newData.extracted_data) {
             console.log("📊 Updating extracted data:", newData.extracted_data);
-            setExtractedData(newData.extracted_data as ExtractedTestData);
+            setExtractedData(newData.extracted_data);
           }
           if (newData.status === "ready") {
             console.log("✅ Status is ready!");
             setIsReady(true);
           }
           
-          // Clear loading state when prediction_id is cleared (response received)
-          if (newData.prediction_id === null) {
-            console.log("⏹️ Clearing loading state, prediction_id is null");
-            setIsLoading(false);
-            // Clear timeout and polling if they exist
-            if ((window as any).__aiTimeoutId) {
-              clearTimeout((window as any).__aiTimeoutId);
-              (window as any).__aiTimeoutId = null;
-            }
-            if ((window as any).__aiPollingId) {
-              clearInterval((window as any).__aiPollingId);
-              (window as any).__aiPollingId = null;
+          // Update pending prediction ID
+          if (newData.prediction_id !== undefined) {
+            setPendingPredictionId(newData.prediction_id);
+            if (newData.prediction_id === null) {
+              console.log("⏹️ Prediction completed, waiting for message");
+              // Clear timeout and polling if they exist
+              if ((window as any).__aiTimeoutId) {
+                clearTimeout((window as any).__aiTimeoutId);
+                (window as any).__aiTimeoutId = null;
+              }
+              if ((window as any).__aiPollingId) {
+                clearInterval((window as any).__aiPollingId);
+                (window as any).__aiPollingId = null;
+              }
             }
           }
         }
@@ -106,31 +127,29 @@ export function useTestAIConversation() {
         if (error) throw error;
         if (!data) return;
 
-        // Only update if prediction_id is null (response received)
-        if (data.prediction_id === null) {
-          console.log("Polling detected update");
-          
-          if (data.messages) {
-            setMessages(data.messages as unknown as Message[]);
-          }
-          if (data.extracted_data) {
-            setExtractedData(data.extracted_data as unknown as ExtractedTestData);
-          }
-          if (data.status === "ready") {
-            setIsReady(true);
-          }
-          
-          // Clear loading state
-          setIsLoading(false);
-          
-          // Clear timeout and polling
-          if ((window as any).__aiTimeoutId) {
-            clearTimeout((window as any).__aiTimeoutId);
-            (window as any).__aiTimeoutId = null;
-          }
-          if ((window as any).__aiPollingId) {
-            clearInterval((window as any).__aiPollingId);
-            (window as any).__aiPollingId = null;
+        // Update state with latest data
+        if (data.messages) {
+          setMessages(data.messages as unknown as Message[]);
+        }
+        if (data.extracted_data) {
+          setExtractedData(data.extracted_data as unknown as ExtractedTestData);
+        }
+        if (data.status === "ready") {
+          setIsReady(true);
+        }
+        if (data.prediction_id !== undefined) {
+          setPendingPredictionId(data.prediction_id);
+          if (data.prediction_id === null) {
+            console.log("Polling: Prediction completed");
+            // Clear timeout and polling
+            if ((window as any).__aiTimeoutId) {
+              clearTimeout((window as any).__aiTimeoutId);
+              (window as any).__aiTimeoutId = null;
+            }
+            if ((window as any).__aiPollingId) {
+              clearInterval((window as any).__aiPollingId);
+              (window as any).__aiPollingId = null;
+            }
           }
         }
       } catch (error) {
@@ -324,11 +343,15 @@ export function useTestAIConversation() {
       if (!aiData) throw new Error("Nenhuma resposta da IA");
 
       console.log("AI prediction created:", aiData);
-      
+
+      // Store the prediction ID to track when response arrives
+      setPendingPredictionId(aiData.prediction_id);
+
       // Set timeout to detect if response takes too long (60 seconds)
       const timeoutId = setTimeout(() => {
         console.error("AI response timeout - no realtime update received");
         setIsLoading(false);
+        setPendingPredictionId(null);
         toast.error("A resposta da IA está demorando muito. Tente novamente.", {
           action: {
             label: "Tentar novamente",
@@ -339,13 +362,14 @@ export function useTestAIConversation() {
 
       // Store timeout ID to clear it when response arrives
       (window as any).__aiTimeoutId = timeoutId;
-      
+
       // The actual AI response will come through realtime
       // Loading state will be cleared when realtime update arrives
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);
       toast.error("Erro ao enviar mensagem: " + error.message);
       setIsLoading(false);
+      setPendingPredictionId(null);
     }
   };
 

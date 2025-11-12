@@ -86,6 +86,18 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        'typing-dot-1': {
+          "0%, 60%, 100%": { opacity: '0.3', transform: 'scale(0.8)' },
+          "30%": { opacity: '1', transform: 'scale(1)' }
+        },
+        'typing-dot-2': {
+          "0%, 60%, 100%": { opacity: '0.3', transform: 'scale(0.8)' },
+          "30%": { opacity: '1', transform: 'scale(1)' }
+        },
+        'typing-dot-3': {
+          "0%, 60%, 100%": { opacity: '0.3', transform: 'scale(0.8)' },
+          "30%": { opacity: '1', transform: 'scale(1)' }
+        },
         'accordion-down': {
           from: { height: '0' },
           to: { height: 'var(--radix-accordion-content-height)' }
@@ -119,6 +131,9 @@ export default {
         'slide-in': 'slide-in 0.3s ease-out',
         'slide-out': 'slide-out 0.3s ease-out',
         shimmer: 'shimmer 2s ease-in-out infinite',
+        'typing-dot-1': 'typing-dot-1 1.4s ease-in-out infinite',
+        'typing-dot-2': 'typing-dot-2 1.4s ease-in-out infinite 0.2s',
+        'typing-dot-3': 'typing-dot-3 1.4s ease-in-out infinite 0.4s',
       }
     }
   },
