@@ -34,7 +34,7 @@ export default function TestsDashboard() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold">Dashboard de Testes</h1>
         <p className="text-muted-foreground">Visão geral dos testes cadastrados</p>
