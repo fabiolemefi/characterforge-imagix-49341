@@ -51,9 +51,21 @@ export function PDFReportGenerator({ test }: PDFReportGeneratorProps) {
         yPos += 10;
       }
 
-      if (test.success_metric) {
-        doc.text(`Métrica de sucesso: ${test.success_metric}`, 20, yPos);
-        yPos += 10;
+      // Métricas de Sucesso
+      if (test.success_metric && test.success_metric.length > 0) {
+        doc.text("Métricas de Sucesso:", 20, yPos);
+        yPos += 7;
+        doc.setFontSize(10);
+        test.success_metric.forEach(metric => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.text(`• ${metric}`, 25, yPos);
+          yPos += 5;
+        });
+        doc.setFontSize(12);
+        yPos += 5;
       }
 
       if (test.start_date || test.end_date) {

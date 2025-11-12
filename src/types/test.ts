@@ -22,7 +22,7 @@ export interface Test {
   tools: string[];
   target_audience?: string;
   tested_elements?: string;
-  success_metric?: string;
+  success_metric?: string[];
   start_date?: string;
   end_date?: string;
   status: TestStatus;
@@ -42,7 +42,7 @@ export interface TestFormData {
   tools: string[];
   target_audience?: string;
   tested_elements?: string;
-  success_metric?: string;
+  success_metric?: string[];
   start_date?: Date | null;
   end_date?: Date | null;
   attachments: Attachment[];

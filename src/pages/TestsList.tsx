@@ -58,6 +58,7 @@ export default function TestsList() {
                 <TableHead>Status</TableHead>
                 <TableHead>Nome do Teste</TableHead>
                 <TableHead>Tipo</TableHead>
+                <TableHead>Métricas</TableHead>
                 <TableHead>Período</TableHead>
                 <TableHead>Criado por</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -76,6 +77,12 @@ export default function TestsList() {
                     <div className="flex gap-1">
                       <Skeleton className="h-5 w-16" />
                       <Skeleton className="h-5 w-16" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Skeleton className="h-5 w-20" />
+                      <Skeleton className="h-5 w-20" />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -100,6 +107,7 @@ export default function TestsList() {
                 <TableHead>Status</TableHead>
                 <TableHead>Nome do Teste</TableHead>
                 <TableHead>Tipo</TableHead>
+                <TableHead>Métricas</TableHead>
                 <TableHead>Período</TableHead>
                 <TableHead>Criado por</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -123,6 +131,23 @@ export default function TestsList() {
                         <Badge variant="secondary" className="text-xs">
                           +{test.test_types.length - 2}
                         </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {test.success_metric?.slice(0, 2).map((metric: string) => (
+                        <Badge key={metric} variant="outline" className="text-xs">
+                          {metric}
+                        </Badge>
+                      ))}
+                      {test.success_metric?.length > 2 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{test.success_metric.length - 2}
+                        </Badge>
+                      )}
+                      {(!test.success_metric || test.success_metric.length === 0) && (
+                        <span className="text-xs text-muted-foreground">N/A</span>
                       )}
                     </div>
                   </TableCell>
@@ -161,7 +186,7 @@ export default function TestsList() {
               ))}
               {(!tests || tests.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <p className="text-muted-foreground">Nenhum teste encontrado</p>
                   </TableCell>
                 </TableRow>

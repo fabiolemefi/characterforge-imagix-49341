@@ -696,7 +696,7 @@ export type Database = {
           nome_teste: string
           start_date: string | null
           status: Database["public"]["Enums"]["test_status"]
-          success_metric: string | null
+          success_metric: string[] | null
           target_audience: string | null
           test_types: string[]
           tested_elements: string | null
@@ -716,7 +716,7 @@ export type Database = {
           nome_teste: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["test_status"]
-          success_metric?: string | null
+          success_metric?: string[] | null
           target_audience?: string | null
           test_types?: string[]
           tested_elements?: string | null
@@ -736,7 +736,7 @@ export type Database = {
           nome_teste?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["test_status"]
-          success_metric?: string | null
+          success_metric?: string[] | null
           target_audience?: string | null
           test_types?: string[]
           tested_elements?: string | null

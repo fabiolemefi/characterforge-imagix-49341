@@ -35,6 +35,8 @@ import { useTest, useCreateTest, useUpdateTest } from "@/hooks/useTests";
 import { TestStatus } from "@/types/test";
 import { AttachmentsSection } from "@/components/tests/AttachmentsSection";
 import { LinksSection } from "@/components/tests/LinksSection";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import { getAvailableMetrics } from "@/lib/metricsConfig";
 
 const testTypes = ["A/B", "Usabilidade", "Design", "Conteúdo"];
 const tools = [
@@ -52,7 +54,7 @@ const formSchema = z.object({
   tools: z.array(z.string()).min(1, "Selecione pelo menos uma ferramenta"),
   target_audience: z.string().optional(),
   tested_elements: z.string().optional(),
-  success_metric: z.string().optional(),
+  success_metric: z.array(z.string()).default([]),
   start_date: z.date().optional().nullable(),
   end_date: z.date().optional().nullable(),
   status: z.enum(["planejamento", "execucao", "analise", "documentacao"]),
@@ -78,7 +80,7 @@ export default function TestForm() {
       tools: [],
       target_audience: "",
       tested_elements: "",
-      success_metric: "",
+      success_metric: [],
       start_date: null,
       end_date: null,
       status: "planejamento",
@@ -96,7 +98,7 @@ export default function TestForm() {
         tools: test.tools,
         target_audience: test.target_audience || "",
         tested_elements: test.tested_elements || "",
-        success_metric: test.success_metric || "",
+        success_metric: test.success_metric || [],
         start_date: test.start_date ? new Date(test.start_date) : null,
         end_date: test.end_date ? new Date(test.end_date) : null,
         status: test.status,
@@ -107,6 +109,8 @@ export default function TestForm() {
   }, [test, form]);
 
   const currentStatus = form.watch("status");
+  const selectedTools = form.watch("tools");
+  const availableMetrics = getAvailableMetrics(selectedTools);
   const isReadOnly = isEditing && currentStatus !== "planejamento";
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -174,39 +178,18 @@ export default function TestForm() {
           <FormField
             control={form.control}
             name="test_types"
-            render={() => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipo de teste *</FormLabel>
-                <div className="space-y-2">
-                  {testTypes.map((type) => (
-                    <FormField
-                      key={type}
-                      control={form.control}
-                      name="test_types"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(type)}
-                              onCheckedChange={(checked) => {
-                                const current = field.value || [];
-                                field.onChange(
-                                  checked
-                                    ? [...current, type]
-                                    : current.filter((t) => t !== type)
-                                );
-                              }}
-                              disabled={isReadOnly}
-                            />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            {type}
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  ))}
-                </div>
+                <FormControl>
+                  <MultiSelectCombobox
+                    options={testTypes}
+                    selected={field.value}
+                    onChange={field.onChange}
+                    placeholder="Selecione os tipos de teste"
+                    disabled={isReadOnly}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -215,39 +198,18 @@ export default function TestForm() {
           <FormField
             control={form.control}
             name="tools"
-            render={() => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel>Ferramentas *</FormLabel>
-                <div className="space-y-2">
-                  {tools.map((tool) => (
-                    <FormField
-                      key={tool}
-                      control={form.control}
-                      name="tools"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(tool)}
-                              onCheckedChange={(checked) => {
-                                const current = field.value || [];
-                                field.onChange(
-                                  checked
-                                    ? [...current, tool]
-                                    : current.filter((t) => t !== tool)
-                                );
-                              }}
-                              disabled={isReadOnly}
-                            />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">
-                            {tool}
-                          </FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  ))}
-                </div>
+                <FormControl>
+                  <MultiSelectCombobox
+                    options={tools}
+                    selected={field.value}
+                    onChange={field.onChange}
+                    placeholder="Selecione as ferramentas"
+                    disabled={isReadOnly}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -294,14 +256,24 @@ export default function TestForm() {
             name="success_metric"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Métrica de sucesso</FormLabel>
+                <FormLabel>Métricas de sucesso</FormLabel>
                 <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="taxa de conversão, tempo de tarefa, percepção positiva"
-                    disabled={isReadOnly}
+                  <MultiSelectCombobox
+                    options={availableMetrics}
+                    selected={field.value}
+                    onChange={field.onChange}
+                    placeholder={
+                      selectedTools.length === 0 
+                        ? "Selecione ferramentas primeiro" 
+                        : "Selecione as métricas"
+                    }
+                    emptyText="Nenhuma métrica disponível para as ferramentas selecionadas"
+                    disabled={isReadOnly || selectedTools.length === 0}
                   />
                 </FormControl>
+                <p className="text-sm text-muted-foreground mt-1">
+                  As métricas disponíveis variam de acordo com as ferramentas selecionadas
+                </p>
                 <FormMessage />
               </FormItem>
             )}
