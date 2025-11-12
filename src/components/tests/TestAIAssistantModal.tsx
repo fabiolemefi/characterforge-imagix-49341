@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +37,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [userInitials, setUserInitials] = useState("U");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
     conversationId,
@@ -52,6 +54,26 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
     abandonConversation,
     deleteConversation,
   } = useTestAIConversation();
+
+  // Load user data
+  useEffect(() => {
+    const loadUserData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.full_name) {
+        const names = user.user_metadata.full_name.split(" ");
+        const initials = names.length >= 2 
+          ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+          : names[0][0].toUpperCase();
+        setUserInitials(initials);
+      } else if (user?.email) {
+        setUserInitials(user.email[0].toUpperCase());
+      }
+    };
+    
+    if (open) {
+      loadUserData();
+    }
+  }, [open]);
 
   // Check for draft when modal opens
   useEffect(() => {
@@ -69,10 +91,8 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -138,14 +158,10 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
               <Sparkles className="h-5 w-5 text-primary" />
               Assistente de Criação de Teste
             </DialogTitle>
-            <DialogDescription>
-              Converse comigo e vou te ajudar a preencher o formulário com todas as informações
-              necessárias
-            </DialogDescription>
           </DialogHeader>
 
           {/* Chat messages */}
-          <ScrollArea className="flex-1 px-6" ref={scrollRef}>
+          <ScrollArea className="flex-1 px-6">
             <div className="space-y-4 py-4">
               {messages.map((msg, i) => (
                 <div
@@ -156,9 +172,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                   )}
                 >
                   {msg.role === "assistant" && (
-                    <Avatar className="h-9 w-9 shrink-0">
+                    <Avatar className="h-10 w-10 shrink-0">
                       <AvatarFallback className="bg-primary/10">
-                        <Sparkles className="h-4 w-4 text-primary" />
+                        <Sparkles className="h-5 w-5 text-primary" />
                       </AvatarFallback>
                     </Avatar>
                   )}
@@ -171,16 +187,16 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                         : "bg-muted/50 text-foreground border border-border/50"
                     )}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     <span className="text-xs opacity-60 mt-2 block">
                       {format(new Date(msg.timestamp), "HH:mm")}
                     </span>
                   </div>
 
                   {msg.role === "user" && (
-                    <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                        Você
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                        {userInitials}
                       </AvatarFallback>
                     </Avatar>
                   )}
@@ -189,9 +205,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
 
               {isLoading && (
                 <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Avatar className="h-9 w-9 shrink-0">
+                  <Avatar className="h-10 w-10 shrink-0">
                     <AvatarFallback className="bg-primary/10">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                      <Sparkles className="h-5 w-5 text-primary" />
                     </AvatarFallback>
                   </Avatar>
                   <div className="bg-muted/50 rounded-2xl px-4 py-3 border border-border/50">
@@ -205,6 +221,8 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                   <Loader className="h-5 w-5 animate-spin" />
                 </div>
               )}
+              
+              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
 
