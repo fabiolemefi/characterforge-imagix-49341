@@ -88,14 +88,7 @@ export function Sidebar() {
   };
 
   return (
-    <SidebarUI collapsible="icon" className="border-r bg-sidebar">
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-3 bg-sidebar">
-        <div className="flex items-center gap-2">
-          {open && <span className="font-semibold text-sidebar-foreground">Martech Efí</span>}
-          {!open && <img src="/lovable-uploads/407e5ec8-9b67-42ee-acf0-b238e194aa64.png" alt="Logo" className="w-6 h-6" />}
-        </div>
-      </SidebarHeader>
-
+    <SidebarUI collapsible="icon" className="border-r bg-sidebar select-none">
       <SidebarContent className="bg-sidebar">
         <SidebarGroup className="py-2 px-1">
           <SidebarMenu className="gap-1">
@@ -105,7 +98,7 @@ export function Sidebar() {
                 onClick={() => navigate("/")}
                 isActive={isActive("/")}
                 tooltip="Principal"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <HomeIcon className="h-4 w-4" />
                 <span>Principal</span>
@@ -118,7 +111,7 @@ export function Sidebar() {
                 onClick={() => navigate("/blog")}
                 isActive={isPathActive("/blog")}
                 tooltip="Blog"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <FileText className="h-4 w-4" />
                 <span>Blog</span>
@@ -134,7 +127,7 @@ export function Sidebar() {
                 }}
                 isActive={isPathActive("/brand-guide")}
                 tooltip="Guia de Marca"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <Book className="h-4 w-4" />
                 <span>Guia de Marca</span>
@@ -162,7 +155,7 @@ export function Sidebar() {
                         <SidebarMenuSubButton
                           onClick={() => setExpandedCategoryId(expandedCategoryId === category.id ? "" : category.id)}
                           isActive={location.pathname.includes(`/brand-guide/${category.slug}`)}
-                          className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                          className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                         >
                           {getIconComponent(category.icon)}
                           <span>{category.name}</span>
@@ -180,7 +173,7 @@ export function Sidebar() {
                                 <SidebarMenuSubButton
                                   onClick={() => navigate(`/brand-guide/${category.slug}/${page.slug}`)}
                                   isActive={location.pathname === `/brand-guide/${category.slug}/${page.slug}`}
-                                  className="pl-8 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                                  className="cursor-pointer pl-8 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                                 >
                                   {page.name}
                                 </SidebarMenuSubButton>
@@ -201,7 +194,7 @@ export function Sidebar() {
                 onClick={() => setExpandedPlugins(!expandedPlugins)}
                 isActive={isPathActive("/plugin") || isPathActive("/efimail") || isPathActive("/efimagem") || isPathActive("/email-templates")}
                 tooltip="Plugins"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <Plug className="h-4 w-4" />
                 <span>Plugins</span>
@@ -231,7 +224,7 @@ export function Sidebar() {
                           <SidebarMenuSubButton
                             onClick={() => navigate(pluginPath)}
                             isActive={location.pathname === pluginPath}
-                            className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                            className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                           >
                             <Plug className="h-3 w-3" />
                             <span>{plugin.name}</span>
@@ -255,7 +248,7 @@ export function Sidebar() {
                 onClick={() => navigate("/downloads")}
                 isActive={isActive("/downloads")}
                 tooltip="Área para Download"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <Download className="h-4 w-4" />
                 <span>Área para Download</span>
@@ -268,7 +261,7 @@ export function Sidebar() {
                 onClick={() => setExpandedTests(!expandedTests)}
                 isActive={isPathActive("/admin/tests")}
                 tooltip="Cadastro de Testes"
-                className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
               >
                 <FlaskConical className="h-4 w-4" />
                 <span>Cadastro de Testes</span>
@@ -281,7 +274,7 @@ export function Sidebar() {
                     <SidebarMenuSubButton
                       onClick={() => navigate("/admin/tests")}
                       isActive={isActive("/admin/tests")}
-                      className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                     >
                       <LayoutDashboard className="h-3 w-3" />
                       <span>Dashboard</span>
@@ -291,7 +284,7 @@ export function Sidebar() {
                     <SidebarMenuSubButton
                       onClick={() => navigate("/admin/tests/list")}
                       isActive={location.pathname.startsWith("/admin/tests/list") || location.pathname.startsWith("/admin/tests/new") || location.pathname.includes("/admin/tests/") && location.pathname.includes("/edit")}
-                      className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                     >
                       <FlaskConical className="h-3 w-3" />
                       <span>Testes</span>

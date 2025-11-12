@@ -5,7 +5,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 97%;
+    --background: 210 33% 96%;
     --foreground: 0 0% 10%;
 
     --card: 0 0% 100%;
@@ -29,9 +29,10 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 88%;
+    --border: 210 33% 93%;
     --input: 0 0% 88%;
     --ring: 191 100% 31%;
+    --header-background: 210 33% 96%;
 
     --radius: 0.5rem;
     
@@ -49,7 +50,7 @@
   }
 
   .dark {
-    --background: 0 0% 12%;
+    --background: 210 10% 15%;
     --foreground: 0 0% 100%;
 
     --card: 0 0% 15%;
@@ -76,6 +77,7 @@
     --border: 0 0% 20%;
     --input: 0 0% 20%;
     --ring: 191 100% 31%;
+    --header-background: 210 10% 15%;
     
     --sidebar-background: 0 0% 10%;
     --sidebar-foreground: 0 0% 100%;
