@@ -54,22 +54,27 @@ export function useTestAIConversation() {
           filter: `id=eq.${conversationId}`,
         },
         (payload) => {
-          console.log("Realtime update received:", payload);
+          console.log("🔄 Realtime update received:", payload);
           const newData = payload.new as any;
           
           // Update local state with new data from database
           if (newData.messages) {
-            setMessages(newData.messages as Message[]);
+            console.log("📝 Updating messages, count:", newData.messages.length);
+            // Force new array reference to ensure React detects the change
+            setMessages([...newData.messages] as Message[]);
           }
           if (newData.extracted_data) {
+            console.log("📊 Updating extracted data:", newData.extracted_data);
             setExtractedData(newData.extracted_data as ExtractedTestData);
           }
           if (newData.status === "ready") {
+            console.log("✅ Status is ready!");
             setIsReady(true);
           }
           
           // Clear loading state when prediction_id is cleared (response received)
           if (newData.prediction_id === null) {
+            console.log("⏹️ Clearing loading state, prediction_id is null");
             setIsLoading(false);
             // Clear timeout and polling if they exist
             if ((window as any).__aiTimeoutId) {

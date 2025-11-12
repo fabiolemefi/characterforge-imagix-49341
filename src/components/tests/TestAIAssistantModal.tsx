@@ -89,6 +89,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
 
   // Auto-scroll to bottom when messages change or modal opens
   useEffect(() => {
+    console.log("💬 Messages effect triggered - messages:", messages.length, "isLoading:", isLoading, "open:", open);
     if (open && messages.length > 0) {
       // Small delay to ensure DOM is ready
       setTimeout(() => {
