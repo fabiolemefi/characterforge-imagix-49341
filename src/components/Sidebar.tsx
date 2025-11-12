@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, LayoutDashboard, FlaskConical } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -30,6 +30,7 @@ export function Sidebar() {
 
   const [expandedBrandGuide, setExpandedBrandGuide] = useState(false);
   const [expandedPlugins, setExpandedPlugins] = useState(false);
+  const [expandedTests, setExpandedTests] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
 
   // Combinar categorias com páginas
@@ -63,6 +64,11 @@ export function Sidebar() {
     // Auto-expand plugins if on plugin page
     if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates') {
       setExpandedPlugins(true);
+    }
+    
+    // Auto-expand tests if on tests page
+    if (currentPath.startsWith('/admin/tests')) {
+      setExpandedTests(true);
     }
   }, [location.pathname, categories]);
 
@@ -254,6 +260,45 @@ export function Sidebar() {
                 <Download className="h-4 w-4" />
                 <span>Área para Download</span>
               </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Cadastro de Testes */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setExpandedTests(!expandedTests)}
+                isActive={isPathActive("/admin/tests")}
+                tooltip="Cadastro de Testes"
+                className="text-white hover:bg-accent data-[active=true]:bg-accent data-[active=true]:text-white"
+              >
+                <FlaskConical className="h-4 w-4" />
+                <span>Cadastro de Testes</span>
+                {expandedTests ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
+              </SidebarMenuButton>
+
+              {expandedTests && (
+                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => navigate("/admin/tests")}
+                      isActive={isActive("/admin/tests")}
+                      className="text-gray-300 hover:bg-accent hover:text-white data-[active=true]:bg-accent data-[active=true]:text-white"
+                    >
+                      <LayoutDashboard className="h-3 w-3" />
+                      <span>Dashboard</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => navigate("/admin/tests/list")}
+                      isActive={location.pathname.startsWith("/admin/tests/list") || location.pathname.startsWith("/admin/tests/new") || location.pathname.includes("/admin/tests/") && location.pathname.includes("/edit")}
+                      className="text-gray-300 hover:bg-accent hover:text-white data-[active=true]:bg-accent data-[active=true]:text-white"
+                    >
+                      <FlaskConical className="h-3 w-3" />
+                      <span>Testes</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
