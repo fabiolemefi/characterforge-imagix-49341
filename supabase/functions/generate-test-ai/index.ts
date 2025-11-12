@@ -212,16 +212,31 @@ Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicaç
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { error: updateError } = await supabase
-      .from("test_ai_conversations")
-      .update({
-        prediction_id: prediction.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", conversationId);
+    // Force immediate update with retries to ensure it's saved before webhook
+    let updateSuccess = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error: updateError } = await supabase
+        .from("test_ai_conversations")
+        .update({
+          prediction_id: prediction.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversationId)
+        .select()
+        .single();
 
-    if (updateError) {
-      console.error(`[${conversationId}] Erro ao salvar prediction_id:`, updateError);
+      if (!updateError && data) {
+        updateSuccess = true;
+        console.log(`[${conversationId}] Prediction ID salvo com sucesso (tentativa ${attempt + 1})`);
+        break;
+      }
+      
+      console.error(`[${conversationId}] Erro ao salvar prediction_id (tentativa ${attempt + 1}):`, updateError);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    if (!updateSuccess) {
+      console.error(`[${conversationId}] Falha ao salvar prediction_id após 3 tentativas`);
     }
 
     // Return immediately with pending status

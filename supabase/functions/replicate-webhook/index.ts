@@ -40,8 +40,8 @@ serve(async (req) => {
     let conversationRecord = null;
     let conversationError = null;
     
-    // Retry up to 3 times with delay (in case of timing issues)
-    for (let i = 0; i < 3; i++) {
+    // Retry up to 10 times with increasing delay (in case of timing issues)
+    for (let i = 0; i < 10; i++) {
       const { data, error } = await supabase
         .from("test_ai_conversations")
         .select("*")
@@ -53,9 +53,10 @@ serve(async (req) => {
       
       if (conversationRecord || error) break;
       
-      // Wait 500ms before retry
-      console.log(`Conversation not found, retrying in 500ms (attempt ${i + 1}/3)`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait with increasing delay: 200ms, 400ms, 600ms, etc
+      const delay = 200 * (i + 1);
+      console.log(`Conversation not found, retrying in ${delay}ms (attempt ${i + 1}/10)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
 
     // Try to find in generated_images (for image generation)

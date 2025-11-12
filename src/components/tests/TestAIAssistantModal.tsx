@@ -200,14 +200,14 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                 <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Avatar className="h-10 w-10 shrink-0">
                     <AvatarFallback className="bg-primary/10">
-                      <Sparkles className="h-5 w-5 text-primary" />
+                      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                     </AvatarFallback>
                   </Avatar>
                   <div className="bg-muted/50 rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded w-3/4 animate-shimmer bg-[length:200%_100%]" />
-                      <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded w-full animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.1s" }} />
-                      <div className="h-4 bg-gradient-to-r from-muted via-muted-foreground/20 to-muted rounded w-2/3 animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.2s" }} />
+                    <div className="space-y-2.5">
+                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-3/4 animate-shimmer bg-[length:200%_100%]" />
+                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-full animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.15s" }} />
+                      <div className="h-3.5 bg-gradient-to-r from-muted-foreground/10 via-muted-foreground/30 to-muted-foreground/10 rounded w-5/6 animate-shimmer bg-[length:200%_100%]" style={{ animationDelay: "0.3s" }} />
                     </div>
                   </div>
                 </div>
