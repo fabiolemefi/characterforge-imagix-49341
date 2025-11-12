@@ -15,6 +15,9 @@ import Efimagem from "./pages/Efimagem";
 import EmailBuilder from './pages/EmailBuilder';
 import EmailTemplates from './pages/EmailTemplates';
 import AdminEmailBlocks from './pages/AdminEmailBlocks';
+import TestsDashboard from './pages/TestsDashboard';
+import TestsList from './pages/TestsList';
+import TestForm from './pages/TestForm';
 import BrandGuide from './pages/BrandGuide';
 import BrandGuideHome from './pages/BrandGuideHome';
 import AdminBrandGuide from './pages/AdminBrandGuide';
@@ -70,6 +73,10 @@ const App = () => (
           <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/blog/categories" element={<ProtectedRoute><AppLayout><AdminBlogCategories /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/blog/posts" element={<ProtectedRoute><AppLayout><AdminBlogPosts /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/tests" element={<ProtectedRoute><AppLayout><TestsDashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/tests/list" element={<ProtectedRoute><AppLayout><TestsList /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/tests/new" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/tests/:id/edit" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AppLayout><AdminDashboard /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute><AppLayout><AdminUsers /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AppLayout><AdminAnnouncements /></AppLayout></ProtectedRoute>} />

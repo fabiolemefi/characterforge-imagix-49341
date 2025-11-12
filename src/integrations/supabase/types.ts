@@ -683,6 +683,69 @@ export type Database = {
         }
         Relationships: []
       }
+      tests: {
+        Row: {
+          attachments: Json | null
+          created_at: string
+          created_by: string
+          end_date: string | null
+          hypothesis: string
+          id: string
+          is_active: boolean
+          links: Json | null
+          nome_teste: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["test_status"]
+          success_metric: string | null
+          target_audience: string | null
+          test_types: string[]
+          tested_elements: string | null
+          tools: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          attachments?: Json | null
+          created_at?: string
+          created_by: string
+          end_date?: string | null
+          hypothesis: string
+          id?: string
+          is_active?: boolean
+          links?: Json | null
+          nome_teste: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["test_status"]
+          success_metric?: string | null
+          target_audience?: string | null
+          test_types?: string[]
+          tested_elements?: string | null
+          tools?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          attachments?: Json | null
+          created_at?: string
+          created_by?: string
+          end_date?: string | null
+          hypothesis?: string
+          id?: string
+          is_active?: boolean
+          links?: Json | null
+          nome_teste?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["test_status"]
+          success_metric?: string | null
+          target_audience?: string | null
+          test_types?: string[]
+          tested_elements?: string | null
+          tools?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -726,6 +789,7 @@ export type Database = {
         | "three_columns"
         | "title_only"
         | "text_only"
+      test_status: "planejamento" | "execucao" | "analise" | "documentacao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -861,6 +925,7 @@ export const Constants = {
         "title_only",
         "text_only",
       ],
+      test_status: ["planejamento", "execucao", "analise", "documentacao"],
     },
   },
 } as const

@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, FlaskConical } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -51,6 +51,19 @@ const menuItems = [
   },
 ];
 
+const testsMenuItems = [
+  {
+    title: "Dashboard",
+    url: "/admin/tests",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Testes",
+    url: "/admin/tests/list",
+    icon: FlaskConical,
+  },
+];
+
 export function AdminSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -82,6 +95,31 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className={({ isActive }) =>
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted"
+                      }
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Cadastro de Testes</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {testsMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
