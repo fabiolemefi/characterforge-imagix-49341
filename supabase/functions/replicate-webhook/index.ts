@@ -136,19 +136,30 @@ serve(async (req) => {
           });
         } catch (parseError) {
           console.error("Error parsing AI response:", parseError);
+          console.error("Raw response text:", responseText);
           
-          // Mark conversation as error
+          // Add error message to conversation so user knows what happened
+          const currentMessages = (conversationRecord.messages || []) as any[];
+          const errorMessage = {
+            role: "assistant",
+            content: "Desculpe, tive um problema ao processar a resposta. Pode repetir o que você disse?",
+            timestamp: new Date().toISOString(),
+          };
+          const updatedMessages = [...currentMessages, errorMessage];
+          
+          // Clear prediction_id and add error message to allow retry
           await supabase
             .from("test_ai_conversations")
             .update({
+              messages: updatedMessages,
               prediction_id: null,
               updated_at: new Date().toISOString(),
             })
             .eq("id", conversationRecord.id);
 
-          return new Response(JSON.stringify({ error: "Failed to parse AI response" }), {
+          return new Response(JSON.stringify({ error: "Failed to parse AI response, retry message sent" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 500,
+            status: 200,
           });
         }
       } else if (status === "failed" || status === "canceled") {
