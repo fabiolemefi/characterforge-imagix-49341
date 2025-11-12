@@ -101,10 +101,36 @@ serve(async (req) => {
   try {
     const { messages, conversationId } = await req.json();
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Mensagens são obrigatórias" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // If messages array is empty, return initial greeting
+    if (messages.length === 0) {
+      console.log(`[${conversationId}] Retornando saudação inicial`);
+      const initialResponse = {
+        message: "Olá! Vou te ajudar a criar seu teste. Me fala um pouco sobre o que você quer descobrir com ele?",
+        status: "collecting",
+        extracted_data: {
+          nome_teste: null,
+          hypothesis: null,
+          test_types: [],
+          tools: [],
+          target_audience: null,
+          tested_elements: null,
+          success_metric: [],
+          start_date: null,
+          end_date: null,
+        },
+        next_question: "Me conta sobre o objetivo do seu teste e o que você quer testar.",
+      };
+      
+      return new Response(JSON.stringify(initialResponse), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
       });
     }
 
