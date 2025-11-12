@@ -82,6 +82,10 @@ export default {
         sm: 'calc(var(--radius) - 4px)'
       },
       keyframes: {
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
         'accordion-down': {
           from: { height: '0' },
           to: { height: 'var(--radix-accordion-content-height)' }
@@ -113,7 +117,8 @@ export default {
         'fade-in': 'fade-in 0.2s ease-out',
         'fade-out': 'fade-out 0.2s ease-out',
         'slide-in': 'slide-in 0.3s ease-out',
-        'slide-out': 'slide-out 0.3s ease-out'
+        'slide-out': 'slide-out 0.3s ease-out',
+        shimmer: 'shimmer 2s ease-in-out infinite',
       }
     }
   },

@@ -71,6 +71,11 @@ export function useTestAIConversation() {
           // Clear loading state when prediction_id is cleared (response received)
           if (newData.prediction_id === null) {
             setIsLoading(false);
+            // Clear timeout if it exists
+            if ((window as any).__aiTimeoutId) {
+              clearTimeout((window as any).__aiTimeoutId);
+              (window as any).__aiTimeoutId = null;
+            }
           }
         }
       )
@@ -258,6 +263,21 @@ export function useTestAIConversation() {
       if (!aiData) throw new Error("Nenhuma resposta da IA");
 
       console.log("AI prediction created:", aiData);
+      
+      // Set timeout to detect if response takes too long (60 seconds)
+      const timeoutId = setTimeout(() => {
+        console.error("AI response timeout - no realtime update received");
+        setIsLoading(false);
+        toast.error("A resposta da IA está demorando muito. Tente novamente.", {
+          action: {
+            label: "Tentar novamente",
+            onClick: () => sendMessage(content, isGreeting),
+          },
+        });
+      }, 60000);
+
+      // Store timeout ID to clear it when response arrives
+      (window as any).__aiTimeoutId = timeoutId;
       
       // The actual AI response will come through realtime
       // Loading state will be cleared when realtime update arrives
