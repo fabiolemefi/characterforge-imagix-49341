@@ -40,8 +40,8 @@ export const FeaturedAppCard = ({
       </div>
       
       <div className="p-4 flex flex-col flex-grow">
-        <h3 className="font-medium text-white">{title}</h3>
-        <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
+        <h3 className="font-medium text-card-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
         
         <div className="mt-auto pt-4 flex justify-end">
           <Button 
