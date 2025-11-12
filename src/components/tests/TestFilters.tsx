@@ -31,7 +31,7 @@ export function TestFilters({
           onStatusChange(value === "all" ? undefined : (value as TestStatus))
         }
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[200px] bg-white dark:bg-gray-800">
           <SelectValue placeholder="Todos os status" />
         </SelectTrigger>
         <SelectContent>
@@ -49,7 +49,7 @@ export function TestFilters({
           onCreatedByChange(value === "all" ? undefined : value)
         }
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[200px] bg-white dark:bg-gray-800">
           <SelectValue placeholder="Todos os usuários" />
         </SelectTrigger>
         <SelectContent>

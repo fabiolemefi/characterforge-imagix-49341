@@ -111,13 +111,15 @@ export default function Login() {
       setLoading(false);
     }
   };
-  return <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 to-background">
-      <div className="max-w-md w-full p-8 bg-card rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold mb-2 text-center py-[24px]">
+  return <div className="min-h-screen flex items-center justify-center" style={{ backgroundImage: 'url(/hero-laptop.webp)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="max-w-sm w-full p-8 bg-card rounded-lg shadow-lg">
+        <div className="flex justify-center mb-4">
+          <img src="/efi-bank-monochrome-orange.svg" alt="EFI Bank Logo" className="h-12 w-auto" />
+        </div>
+        <h1 className="text-2xl font-bold mb-6 text-center">
           {isSignUp ? "Criar Conta" : "Bem-vindo"}
         </h1>
-        
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Input type="email" placeholder="seu.email@sejaefi.com.br" value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} className="w-full" />
@@ -127,15 +129,11 @@ export default function Login() {
             <Input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} className="w-full" minLength={6} />
           </div>
           
-          <Button type="submit" disabled={loading} className="w-full text-cyan-50 bg-sky-700 hover:bg-sky-600">
+          <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Processando..." : isSignUp ? "Criar conta" : "Entrar"}
           </Button>
 
-          <div className="text-center">
-            <Button type="button" variant="link" onClick={() => setIsSignUp(!isSignUp)} disabled={loading} className="text-sm text-cyan-600">
-              {isSignUp ? "Já tem conta? Faça login" : "Primeiro acesso? Crie sua conta"}
-            </Button>
-          </div>
+
         </form>
 
       </div>

@@ -87,7 +87,7 @@ export function AttachmentsSection({
           {attachments.map((attachment, index) => (
             <div
               key={index}
-              className="flex items-center justify-between p-3 border rounded-lg"
+              className="flex items-center justify-between p-3 border rounded-lg bg-muted"
             >
               <div className="flex items-center gap-2">
                 <File className="h-4 w-4" />

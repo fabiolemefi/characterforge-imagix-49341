@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
+  FormContainer,
   FormControl,
   FormField,
   FormItem,
@@ -123,10 +124,12 @@ export default function TestForm() {
     try {
       if (isEditing && id) {
         await updateTest.mutateAsync({ id, ...data });
+        // Small delay to ensure cache invalidation completes
+        setTimeout(() => navigate("/tests/list"), 100);
       } else {
         await createTest.mutateAsync(data);
+        navigate("/tests/list");
       }
-      navigate("/admin/tests/list");
     } catch (error) {
       // Error handling is done in the mutation hooks
     }
@@ -138,26 +141,61 @@ export default function TestForm() {
         <h1 className="text-3xl font-bold">
           {isEditing ? "Editar Teste" : "Novo Teste"}
         </h1>
-        <p className="text-muted-foreground">
-          {isEditing ? "Atualize as informações do teste" : "Cadastre um novo teste"}
-        </p>
+        
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <FormField
-            control={form.control}
-            name="nome_teste"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nome do Teste *</FormLabel>
-                <FormControl>
-                  <Input {...field} disabled={isReadOnly} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <FormContainer>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="nome_teste"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome do Teste *</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={isReadOnly} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!isEditing}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="planejamento">Planejamento</SelectItem>
+                      <SelectItem value="execucao">
+                        Execução
+                      </SelectItem>
+                      <SelectItem value="analise">
+                        Análise
+                      </SelectItem>
+                      <SelectItem value="documentacao">
+                        Documentação
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <FormField
             control={form.control}
@@ -368,52 +406,7 @@ export default function TestForm() {
             />
           </div>
 
-          {isEditing && (
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="planejamento">Planejamento</SelectItem>
-                      <SelectItem
-                        value="execucao"
-                        disabled={currentStatus === "planejamento"}
-                      >
-                        Execução
-                      </SelectItem>
-                      <SelectItem
-                        value="analise"
-                        disabled={
-                          currentStatus === "planejamento" ||
-                          currentStatus === "execucao"
-                        }
-                      >
-                        Análise
-                      </SelectItem>
-                      <SelectItem
-                        value="documentacao"
-                        disabled={currentStatus !== "analise"}
-                      >
-                        Documentação
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
+
 
           <FormField
             control={form.control}
@@ -447,7 +440,7 @@ export default function TestForm() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate("/admin/tests/list")}
+              onClick={() => navigate("/tests/list")}
             >
               Cancelar
             </Button>
@@ -468,6 +461,7 @@ export default function TestForm() {
             </Button>
           </div>
         </form>
+      </FormContainer>
       </Form>
     </div>
   );

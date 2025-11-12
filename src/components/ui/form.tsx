@@ -70,6 +70,18 @@ const FormItemContext = React.createContext<FormItemContextValue>(
   {} as FormItemContextValue
 )
 
+const FormContainer = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("bg-card rounded-lg border p-6", className)}
+    {...props}
+  />
+))
+FormContainer.displayName = "FormContainer"
+
 const FormItem = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -167,6 +179,7 @@ FormMessage.displayName = "FormMessage"
 export {
   useFormField,
   Form,
+  FormContainer,
   FormItem,
   FormLabel,
   FormControl,

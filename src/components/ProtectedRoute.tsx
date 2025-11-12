@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import Lottie from "lottie-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,7 +13,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
   const [isActive, setIsActive] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [animationData, setAnimationData] = useState(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Fetch Lottie animation data
+    fetch('/loading-outline-default.json')
+      .then(response => response.json())
+      .then(data => setAnimationData(data))
+      .catch(error => console.error('Error loading animation:', error));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -85,7 +95,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Lottie
+          animationData={animationData}
+          loop={true}
+          autoplay={true}
+          style={{ width: 100, height: 100 }}
+        />
       </div>
     );
   }

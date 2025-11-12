@@ -68,7 +68,7 @@ export function LinksSection({ links, onChange, disabled }: LinksSectionProps) {
           {links.map((link, index) => (
             <div
               key={index}
-              className="flex items-center justify-between p-3 border rounded-lg"
+              className="flex items-center justify-between p-3 border rounded-lg bg-muted"
             >
               <div>
                 <p className="text-sm font-medium">{link.title}</p>

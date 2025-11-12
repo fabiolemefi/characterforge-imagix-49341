@@ -11,7 +11,7 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
         .from("tests")
         .select(`
           *,
-          profiles!tests_created_by_fkey(full_name, email)
+          profiles!tests_created_by_fkey(full_name, email, avatar_url)
         `)
         .eq("is_active", true)
         .order("created_at", { ascending: false });

@@ -132,9 +132,7 @@ export default function Downloads() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Área para Download</h1>
-          <p className="text-muted-foreground mt-1">
-            Gerencie arquivos compartilhados com links públicos
-          </p>
+          
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -171,8 +169,8 @@ export default function Downloads() {
             ) : (
               files?.map((file) => (
                 <TableRow key={file.id}>
-                  <TableCell className="font-medium">{file.file_name}</TableCell>
-                  <TableCell>{formatBytes(file.file_size)}</TableCell>
+                  <TableCell className="font-medium text-base">{file.file_name}</TableCell>
+                  <TableCell className="text-sm">{formatBytes(file.file_size)}</TableCell>
                   <TableCell>
                     {file.password_hash ? (
                       <Lock className="h-4 w-4 text-muted-foreground" />
@@ -180,13 +178,13 @@ export default function Downloads() {
                       '-'
                     )}
                   </TableCell>
-                  <TableCell>{formatDate(file.expires_at)}</TableCell>
-                  <TableCell>{file.download_count}</TableCell>
+                  <TableCell className="text-sm">{formatDate(file.expires_at)}</TableCell>
+                  <TableCell className="text-sm">{file.download_count}</TableCell>
                   <TableCell>
                     {isExpired(file.expires_at) ? (
-                      <span className="text-destructive">Expirado</span>
+                      <span className="text-destructive text-sm">Expirado</span>
                     ) : (
-                      <span className="text-green-600">Ativo</span>
+                      <span className="text-green-600 text-sm">Ativo</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">

@@ -27,7 +27,7 @@ export function TestActionsDropdown({
   const isDisabled = status !== "planejamento";
 
   const handleEdit = () => {
-    navigate(`/admin/tests/${testId}/edit`);
+    navigate(`/tests/${testId}/edit`);
   };
 
   const handleDuplicate = async () => {

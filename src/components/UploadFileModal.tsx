@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { FormContainer } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useQueryClient } from '@tanstack/react-query';
@@ -146,7 +147,8 @@ export function UploadFileModal({ open, onOpenChange }: UploadFileModalProps) {
             <Button onClick={handleClose} className="w-full">Concluir</Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <FormContainer>
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="fileName">Nome do arquivo *</Label>
               <Input
@@ -235,6 +237,7 @@ export function UploadFileModal({ open, onOpenChange }: UploadFileModalProps) {
               </Button>
             </div>
           </form>
+          </FormContainer>
         )}
       </DialogContent>
     </Dialog>

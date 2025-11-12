@@ -67,7 +67,7 @@ export function Sidebar() {
     }
     
     // Auto-expand tests if on tests page
-    if (currentPath.startsWith('/admin/tests')) {
+    if (currentPath.startsWith('/tests')) {
       setExpandedTests(true);
     }
   }, [location.pathname, categories]);
@@ -274,7 +274,7 @@ export function Sidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => setExpandedTests(!expandedTests)}
-                isActive={isPathActive("/admin/tests")}
+                isActive={isPathActive("/tests")}
                 tooltip="Cadastro de Testes"
                 className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
@@ -288,10 +288,10 @@ export function Sidebar() {
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
                       onClick={() => {
-                        navigate("/admin/tests");
+                        navigate("/tests");
                         window.scrollTo({ top: 0, behavior: 'instant' });
                       }}
-                      isActive={isActive("/admin/tests")}
+                      isActive={isActive("/tests")}
                       className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
                       <span>Dashboard</span>
@@ -300,10 +300,10 @@ export function Sidebar() {
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
                       onClick={() => {
-                        navigate("/admin/tests/list");
+                        navigate("/tests/list");
                         window.scrollTo({ top: 0, behavior: 'instant' });
                       }}
-                      isActive={location.pathname.startsWith("/admin/tests/list") || location.pathname.startsWith("/admin/tests/new") || location.pathname.includes("/admin/tests/") && location.pathname.includes("/edit")}
+                      isActive={location.pathname.startsWith("/tests/list") || location.pathname.startsWith("/tests/new") || location.pathname.includes("/tests/") && location.pathname.includes("/edit")}
                       className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
                       <span>Testes</span>

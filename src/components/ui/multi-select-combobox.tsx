@@ -65,7 +65,7 @@ export function MultiSelectCombobox({
                 <Badge
                   key={item}
                   variant="secondary"
-                  className="mr-1 hover:bg-secondary flex items-center gap-1"
+                  className="mr-1 hover:bg-primary/90 bg-primary text-primary-foreground flex items-center gap-1"
                 >
                   <span>{item}</span>
                   <X 
