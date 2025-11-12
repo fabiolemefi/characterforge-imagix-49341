@@ -69,7 +69,7 @@ const Navbar = () => {
   };
 
   return (
-    <div className="h-16 flex items-center justify-between px-6 border-b bg-white">
+    <div className="h-16 flex items-center justify-between px-6 border-b bg-[hsl(var(--header-background))]">
       <div className="flex items-center gap-2">
         {open && <span className="font-semibold text-foreground">Martech Efí</span>}
         {!open && <img src="/lovable-uploads/407e5ec8-9b67-42ee-acf0-b238e194aa64.png" alt="Logo" className="w-6 h-6" />}

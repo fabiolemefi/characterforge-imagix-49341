@@ -88,17 +88,20 @@ export function Sidebar() {
   };
 
   return (
-    <SidebarUI collapsible="icon" className="border-r bg-sidebar select-none">
-      <SidebarContent className="bg-sidebar">
-        <SidebarGroup className="py-2 px-1">
+    <SidebarUI collapsible="icon" className="select-none p-4">
+      <SidebarContent className="">
+    <SidebarGroup>
           <SidebarMenu className="gap-1">
             {/* Principal */}
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => navigate("/")}
+                onClick={() => {
+                  navigate("/");
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
                 isActive={isActive("/")}
                 tooltip="Principal"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <HomeIcon className="h-4 w-4" />
                 <span>Principal</span>
@@ -108,10 +111,13 @@ export function Sidebar() {
             {/* Blog */}
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => navigate("/blog")}
+                onClick={() => {
+                  navigate("/blog");
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
                 isActive={isPathActive("/blog")}
                 tooltip="Blog"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <FileText className="h-4 w-4" />
                 <span>Blog</span>
@@ -124,10 +130,11 @@ export function Sidebar() {
                 onClick={() => {
                   setExpandedBrandGuide(!expandedBrandGuide);
                   navigate("/brand-guide");
+                  window.scrollTo({ top: 0, behavior: 'instant' });
                 }}
                 isActive={isPathActive("/brand-guide")}
                 tooltip="Guia de Marca"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <Book className="h-4 w-4" />
                 <span>Guia de Marca</span>
@@ -135,7 +142,7 @@ export function Sidebar() {
               </SidebarMenuButton>
 
               {expandedBrandGuide && (
-                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
+                <SidebarMenuSub>
                   {loadingCategories ? (
                     <SidebarMenuSubItem>
                       <div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
@@ -155,7 +162,7 @@ export function Sidebar() {
                         <SidebarMenuSubButton
                           onClick={() => setExpandedCategoryId(expandedCategoryId === category.id ? "" : category.id)}
                           isActive={location.pathname.includes(`/brand-guide/${category.slug}`)}
-                          className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                          className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                         >
                           {getIconComponent(category.icon)}
                           <span>{category.name}</span>
@@ -167,13 +174,16 @@ export function Sidebar() {
                         </SidebarMenuSubButton>
 
                         {expandedCategoryId === category.id && category.pages && category.pages.length > 0 && (
-                          <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
+                          <SidebarMenuSub>
                             {category.pages.map(page => (
                               <SidebarMenuSubItem key={page.id}>
                                 <SidebarMenuSubButton
-                                  onClick={() => navigate(`/brand-guide/${category.slug}/${page.slug}`)}
+                                  onClick={() => {
+                                    navigate(`/brand-guide/${category.slug}/${page.slug}`);
+                                    window.scrollTo({ top: 0, behavior: 'instant' });
+                                  }}
                                   isActive={location.pathname === `/brand-guide/${category.slug}/${page.slug}`}
-                                  className="cursor-pointer pl-8 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                                  className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-2"
                                 >
                                   {page.name}
                                 </SidebarMenuSubButton>
@@ -194,7 +204,7 @@ export function Sidebar() {
                 onClick={() => setExpandedPlugins(!expandedPlugins)}
                 isActive={isPathActive("/plugin") || isPathActive("/efimail") || isPathActive("/efimagem") || isPathActive("/email-templates")}
                 tooltip="Plugins"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <Plug className="h-4 w-4" />
                 <span>Plugins</span>
@@ -202,7 +212,7 @@ export function Sidebar() {
               </SidebarMenuButton>
 
               {expandedPlugins && (
-                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
+                <SidebarMenuSub>
                   {loadingPlugins ? (
                     <SidebarMenuSubItem>
                       <div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
@@ -221,19 +231,21 @@ export function Sidebar() {
                       const pluginPath = getPluginPath(plugin);
                       return (
                         <SidebarMenuSubItem key={plugin.id}>
-                          <SidebarMenuSubButton
-                            onClick={() => navigate(pluginPath)}
-                            isActive={location.pathname === pluginPath}
-                            className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
-                          >
-                            <Plug className="h-3 w-3" />
-                            <span>{plugin.name}</span>
+                        <SidebarMenuSubButton
+                          onClick={() => {
+                            navigate(pluginPath);
+                            window.scrollTo({ top: 0, behavior: 'instant' });
+                          }}
+                          isActive={location.pathname === pluginPath}
+                          className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                        >
+                          <span>{plugin.name}</span>
                             {plugin.is_new && (
-                              <span className="ml-auto bg-green-500 text-white text-[9px] px-1 py-0.5 rounded font-bold">
-                                NEW
+                              <span className="ml-auto bg-primary text-primary-foreground text-[7px] px-1 py-0 rounded font-bold">
+                                NOVO
                               </span>
                             )}
-                          </SidebarMenuSubButton>
+                        </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       );
                     })
@@ -245,10 +257,13 @@ export function Sidebar() {
             {/* Área para Download */}
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => navigate("/downloads")}
+                onClick={() => {
+                  navigate("/downloads");
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
                 isActive={isActive("/downloads")}
                 tooltip="Área para Download"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <Download className="h-4 w-4" />
                 <span>Área para Download</span>
@@ -261,7 +276,7 @@ export function Sidebar() {
                 onClick={() => setExpandedTests(!expandedTests)}
                 isActive={isPathActive("/admin/tests")}
                 tooltip="Cadastro de Testes"
-                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <FlaskConical className="h-4 w-4" />
                 <span>Cadastro de Testes</span>
@@ -269,24 +284,28 @@ export function Sidebar() {
               </SidebarMenuButton>
 
               {expandedTests && (
-                <SidebarMenuSub className="animate-in slide-in-from-top-2 duration-200">
+                <SidebarMenuSub>
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
-                      onClick={() => navigate("/admin/tests")}
+                      onClick={() => {
+                        navigate("/admin/tests");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
                       isActive={isActive("/admin/tests")}
-                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
-                      <LayoutDashboard className="h-3 w-3" />
                       <span>Dashboard</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
-                      onClick={() => navigate("/admin/tests/list")}
+                      onClick={() => {
+                        navigate("/admin/tests/list");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
                       isActive={location.pathname.startsWith("/admin/tests/list") || location.pathname.startsWith("/admin/tests/new") || location.pathname.includes("/admin/tests/") && location.pathname.includes("/edit")}
-                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
-                      <FlaskConical className="h-3 w-3" />
                       <span>Testes</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
