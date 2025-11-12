@@ -35,7 +35,6 @@ interface TestAIAssistantModalProps {
 export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssistantModalProps) {
   const [input, setInput] = useState("");
   const [showDraftDialog, setShowDraftDialog] = useState(false);
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState("U");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,7 +50,6 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
     startConversation,
     loadConversation,
     sendMessage,
-    abandonConversation,
     deleteConversation,
   } = useTestAIConversation();
 
@@ -89,10 +87,15 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
     }
   }, [open]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change or modal opens
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    if (open && messages.length > 0) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [messages, isLoading, open]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -119,18 +122,8 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
   };
 
   const handleClose = () => {
-    if (conversationId && !isReady && messages.length > 1) {
-      setShowCloseConfirm(true);
-    } else {
-      onClose();
-    }
-  };
-
-  const handleConfirmClose = async () => {
-    if (conversationId) {
-      await abandonConversation();
-    }
-    setShowCloseConfirm(false);
+    // Just close without showing confirmation
+    // The conversation will remain as draft for future resumption
     onClose();
   };
 
@@ -280,21 +273,6 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Close confirmation dialog */}
-      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Deseja sair?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sua conversa será salva como rascunho e você poderá continuar depois.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmClose}>Sair</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
