@@ -23,13 +23,15 @@ const Header = () => {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
-        const { data } = await supabase.rpc('has_role', {
+        const { data } = await supabase.rpc("has_role", {
           _user_id: session.user.id,
-          _role: 'admin'
+          _role: "admin",
         });
         setIsAdmin(data || false);
       }
@@ -37,13 +39,15 @@ const Header = () => {
 
     checkUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
-        const { data } = await supabase.rpc('has_role', {
+        const { data } = await supabase.rpc("has_role", {
           _user_id: session.user.id,
-          _role: 'admin'
+          _role: "admin",
         });
         setIsAdmin(data || false);
       } else {
@@ -58,9 +62,9 @@ const Header = () => {
     await supabase.auth.signOut();
     toast({
       title: "Logout realizado",
-      description: "Até logo!"
+      description: "Até logo!",
     });
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -90,12 +94,7 @@ const Header = () => {
             </div>
           )}
         </div>
-        
-        {/* Credits button */}
-        <button className="px-4 py-1.5 border hover:bg-accent transition-colors text-xs font-bold text-lime-600 rounded-lg">
-          20 Créditos
-        </button>
-        
+
         {/* User info and Settings menu */}
         {user && (
           <>
@@ -107,7 +106,10 @@ const Header = () => {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="cursor-pointer">
+                <DropdownMenuItem
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="cursor-pointer"
+                >
                   {theme === "dark" ? (
                     <>
                       <Sun size={16} className="mr-2" />
@@ -123,7 +125,7 @@ const Header = () => {
                 <DropdownMenuSeparator />
                 {isAdmin && (
                   <>
-                    <DropdownMenuItem onClick={() => navigate('/admin')} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => navigate("/admin")} className="cursor-pointer">
                       <Shield size={16} className="mr-2" />
                       Acessar Admin
                     </DropdownMenuItem>
