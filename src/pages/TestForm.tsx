@@ -29,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTest, useCreateTest, useUpdateTest } from "@/hooks/useTests";
@@ -38,6 +38,9 @@ import { AttachmentsSection } from "@/components/tests/AttachmentsSection";
 import { LinksSection } from "@/components/tests/LinksSection";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { getAvailableMetrics } from "@/lib/metricsConfig";
+import { TestAIAssistantModal } from "@/components/tests/TestAIAssistantModal";
+import { ExtractedTestData } from "@/hooks/useTestAIConversation";
+import { toast } from "sonner";
 
 const testTypes = ["A/B", "Usabilidade", "Design", "Conteúdo"];
 const tools = [
@@ -67,6 +70,7 @@ export default function TestForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
+  const [aiModalOpen, setAIModalOpen] = useState(false);
 
   const { data: test } = useTest(id);
   const createTest = useCreateTest();
@@ -114,6 +118,29 @@ export default function TestForm() {
   const availableMetrics = getAvailableMetrics(selectedTools);
   const isReadOnly = isEditing && currentStatus !== "planejamento";
 
+  const handleAIFormFill = (data: ExtractedTestData) => {
+    // Fill required fields
+    if (data.nome_teste) form.setValue("nome_teste", data.nome_teste);
+    if (data.hypothesis) form.setValue("hypothesis", data.hypothesis);
+    if (data.test_types && data.test_types.length > 0) form.setValue("test_types", data.test_types);
+    if (data.tools && data.tools.length > 0) form.setValue("tools", data.tools);
+
+    // Fill optional fields
+    if (data.target_audience) form.setValue("target_audience", data.target_audience);
+    if (data.tested_elements) form.setValue("tested_elements", data.tested_elements);
+    if (data.success_metric && data.success_metric.length > 0) {
+      form.setValue("success_metric", data.success_metric);
+    }
+    if (data.start_date) {
+      form.setValue("start_date", new Date(data.start_date));
+    }
+    if (data.end_date) {
+      form.setValue("end_date", new Date(data.end_date));
+    }
+
+    setAIModalOpen(false);
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const data = {
       ...values,
@@ -137,11 +164,21 @@ export default function TestForm() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-6">
-      <div>
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">
           {isEditing ? "Editar Teste" : "Novo Teste"}
         </h1>
-        
+
+        {!isEditing && (
+          <Button
+            variant="outline"
+            onClick={() => setAIModalOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Assistente de IA
+          </Button>
+        )}
       </div>
 
       <Form {...form}>
@@ -463,6 +500,12 @@ export default function TestForm() {
         </form>
       </FormContainer>
       </Form>
+
+      <TestAIAssistantModal
+        open={aiModalOpen}
+        onClose={() => setAIModalOpen(false)}
+        onFormFill={handleAIFormFill}
+      />
     </div>
   );
 }

@@ -683,6 +683,50 @@ export type Database = {
         }
         Relationships: []
       }
+      test_ai_conversations: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          extracted_data: Json | null
+          id: string
+          messages: Json
+          status: string
+          test_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          extracted_data?: Json | null
+          id?: string
+          messages?: Json
+          status?: string
+          test_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          extracted_data?: Json | null
+          id?: string
+          messages?: Json
+          status?: string
+          test_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_ai_conversations_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tests: {
         Row: {
           attachments: Json | null
