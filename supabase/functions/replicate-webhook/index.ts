@@ -34,20 +34,140 @@ serve(async (req) => {
       });
     }
 
-    // Buscar o registro no banco pelo prediction_id
-    const { data: existingRecord, error: fetchError } = await supabase
+    console.log(`Processing webhook for prediction: ${predictionId}, status: ${status}`);
+
+    // Try to find in generated_images first (existing functionality)
+    const { data: imageRecord, error: imageError } = await supabase
       .from("generated_images")
       .select("*")
       .eq("prediction_id", predictionId)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !existingRecord) {
-      console.error("Failed to find record with prediction_id:", predictionId, fetchError);
+    // Try to find in test_ai_conversations (new functionality)
+    const { data: conversationRecord, error: conversationError } = await supabase
+      .from("test_ai_conversations")
+      .select("*")
+      .eq("prediction_id", predictionId)
+      .maybeSingle();
+
+    // If it's a conversation AI response
+    if (conversationRecord) {
+      console.log("Found conversation record:", conversationRecord.id);
+
+      if (status === "succeeded" && output) {
+        // Parse the AI response
+        let responseText = "";
+        if (Array.isArray(output)) {
+          responseText = output.join("");
+        } else if (typeof output === "string") {
+          responseText = output;
+        } else {
+          responseText = JSON.stringify(output);
+        }
+
+        // Clean markdown if present
+        responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+        try {
+          const aiResponse = JSON.parse(responseText);
+
+          // Validate response structure
+          if (!aiResponse.message || !aiResponse.status || !aiResponse.extracted_data) {
+            throw new Error("Invalid AI response structure");
+          }
+
+          // Ensure arrays are arrays
+          if (aiResponse.extracted_data.test_types && !Array.isArray(aiResponse.extracted_data.test_types)) {
+            aiResponse.extracted_data.test_types = [];
+          }
+          if (aiResponse.extracted_data.tools && !Array.isArray(aiResponse.extracted_data.tools)) {
+            aiResponse.extracted_data.tools = [];
+          }
+          if (aiResponse.extracted_data.success_metric && !Array.isArray(aiResponse.extracted_data.success_metric)) {
+            aiResponse.extracted_data.success_metric = [];
+          }
+
+          // Add AI message to conversation
+          const currentMessages = (conversationRecord.messages || []) as any[];
+          const aiMessage = {
+            role: "assistant",
+            content: aiResponse.message,
+            timestamp: new Date().toISOString(),
+          };
+          const updatedMessages = [...currentMessages, aiMessage];
+
+          // Update conversation in database
+          const { error: updateError } = await supabase
+            .from("test_ai_conversations")
+            .update({
+              messages: updatedMessages,
+              extracted_data: aiResponse.extracted_data,
+              status: aiResponse.status === "ready" ? "ready" : "draft",
+              prediction_id: null, // Clear prediction_id
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conversationRecord.id);
+
+          if (updateError) {
+            console.error("Error updating conversation:", updateError);
+            throw updateError;
+          }
+
+          console.log("Conversation updated successfully");
+          return new Response(JSON.stringify({ message: "Conversation updated" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        } catch (parseError) {
+          console.error("Error parsing AI response:", parseError);
+          
+          // Mark conversation as error
+          await supabase
+            .from("test_ai_conversations")
+            .update({
+              prediction_id: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conversationRecord.id);
+
+          return new Response(JSON.stringify({ error: "Failed to parse AI response" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 500,
+          });
+        }
+      } else if (status === "failed" || status === "canceled") {
+        console.log("Prediction failed for conversation:", error);
+        
+        await supabase
+          .from("test_ai_conversations")
+          .update({
+            prediction_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversationRecord.id);
+
+        return new Response(JSON.stringify({ message: "Prediction failed" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      return new Response(JSON.stringify({ message: "Status received", status }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    // If it's an image generation (existing functionality)
+    if (!imageRecord) {
+      console.error("No record found with prediction_id:", predictionId);
       return new Response(JSON.stringify({ error: "Record not found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 404,
       });
     }
+
+    const existingRecord = imageRecord;
 
     console.log("Found database record:", existingRecord.id);
 

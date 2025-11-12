@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface Message {
   role: "user" | "assistant";
@@ -33,6 +34,59 @@ export function useTestAIConversation() {
   const [isLoading, setIsLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedTestData>({});
   const [isReady, setIsReady] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Setup realtime listener when conversation is loaded
+  useEffect(() => {
+    if (!conversationId) return;
+
+    console.log("Setting up realtime for conversation:", conversationId);
+
+    // Create channel for this specific conversation
+    const channel = supabase
+      .channel(`conversation-${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "test_ai_conversations",
+          filter: `id=eq.${conversationId}`,
+        },
+        (payload) => {
+          console.log("Realtime update received:", payload);
+          const newData = payload.new as any;
+          
+          // Update local state with new data from database
+          if (newData.messages) {
+            setMessages(newData.messages as Message[]);
+          }
+          if (newData.extracted_data) {
+            setExtractedData(newData.extracted_data as ExtractedTestData);
+          }
+          if (newData.status === "ready") {
+            setIsReady(true);
+          }
+          
+          // Clear loading state when prediction_id is cleared (response received)
+          if (newData.prediction_id === null) {
+            setIsLoading(false);
+          }
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    // Cleanup on unmount or when conversationId changes
+    return () => {
+      console.log("Cleaning up realtime channel");
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [conversationId]);
 
   // Check for existing draft conversation
   const checkForDraft = async (): Promise<string | null> => {
@@ -171,7 +225,7 @@ export function useTestAIConversation() {
     try {
       setIsLoading(true);
 
-      // Add user message to state (skip for greeting)
+      // Add user message to state and database immediately
       let updatedMessages = [...messages];
       if (!isGreeting && content.trim()) {
         const userMessage: Message = {
@@ -181,9 +235,18 @@ export function useTestAIConversation() {
         };
         updatedMessages = [...updatedMessages, userMessage];
         setMessages(updatedMessages);
+
+        // Save user message to database immediately
+        await supabase
+          .from("test_ai_conversations")
+          .update({
+            messages: updatedMessages as unknown as any,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversationId);
       }
 
-      // Call edge function
+      // Call edge function (will return immediately with prediction_id)
       const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-test-ai", {
         body: {
           messages: updatedMessages,
@@ -194,39 +257,13 @@ export function useTestAIConversation() {
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
 
-      const aiResponse: AIResponse = aiData;
-
-      // Add AI message to state
-      const aiMessage: Message = {
-        role: "assistant",
-        content: aiResponse.message,
-        timestamp: new Date().toISOString(),
-      };
-      const finalMessages = [...updatedMessages, aiMessage];
-      setMessages(finalMessages);
-
-      // Update extracted data and status
-      setExtractedData(aiResponse.extracted_data);
-      setIsReady(aiResponse.status === "ready");
-
-      // Save to database
-      const { error: updateError } = await supabase
-        .from("test_ai_conversations")
-        .update({
-          messages: finalMessages as unknown as any,
-          extracted_data: aiResponse.extracted_data as unknown as any,
-          status: aiResponse.status === "ready" ? "ready" : "draft",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", conversationId);
-
-      if (updateError) throw updateError;
-
-      console.log(`Mensagem enviada. Status: ${aiResponse.status}`);
+      console.log("AI prediction created:", aiData);
+      
+      // The actual AI response will come through realtime
+      // Loading state will be cleared when realtime update arrives
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);
       toast.error("Erro ao enviar mensagem: " + error.message);
-    } finally {
       setIsLoading(false);
     }
   };

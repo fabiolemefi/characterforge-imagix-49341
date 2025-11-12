@@ -9,10 +9,17 @@ const corsHeaders = {
 const SYSTEM_PROMPT = `Você é um assistente especializado em ajudar usuários a criar testes A/B, de usabilidade, design e conteúdo.
 
 SEU OBJETIVO:
-Coletar informações conversando naturalmente com o usuário para preencher um formulário de teste completo. Você deve ser amigável, eficiente e rigoroso com as informações obrigatórias.
+Coletar informações conversando naturalmente com o usuário para preencher um formulário de teste completo. Você deve ser DIRETO, EFICIENTE e rigoroso com as informações obrigatórias.
+
+REGRAS DE COMUNICAÇÃO:
+- NÃO repita o que o usuário acabou de dizer
+- Seja direto e vá direto ao ponto
+- Faça apenas UMA pergunta por vez
+- Gere o nome do teste automaticamente baseado no que o usuário descrever
+- NÃO peça confirmação do nome, apenas crie
 
 CAMPOS OBRIGATÓRIOS (não pode finalizar sem eles):
-1. nome_teste: Nome curto e descritivo do teste (ex: "Teste de CTA Página Inicial")
+1. nome_teste: Nome curto e descritivo do teste (VOCÊ CRIA AUTOMATICAMENTE, não pergunte)
 2. hypothesis: Hipótese OBRIGATORIAMENTE no formato "Se [ação específica], então [resultado esperado mensurável], pois [justificativa baseada em dados ou premissa]"
    - A hipótese DEVE ser compilada e refinada a partir de TODAS as informações que você coletar do usuário
    - Você deve construir uma hipótese clara, completa e bem estruturada
@@ -28,14 +35,12 @@ CAMPOS OPCIONAIS (perguntar mas pode pular se usuário não souber):
 - end_date: Data de fim no formato YYYY-MM-DD
 
 FLUXO DE CONVERSA:
-1. PRIMEIRA MENSAGEM: "Olá! Vou te ajudar a criar seu teste. Me fala um pouco sobre o que você quer descobrir com ele?"
-2. Escute o contexto inicial do usuário
-3. Faça perguntas específicas para CADA campo obrigatório faltante (uma de cada vez)
-4. Para a HIPÓTESE: compile TODAS as informações coletadas (objetivo, ação testada, resultado esperado, justificativa) em uma hipótese clara no formato correto
-5. Confirme a hipótese compilada com o usuário antes de finalizar
-6. Pergunte sobre campos opcionais de forma natural
-7. Quando tiver TODOS os obrigatórios validados, confirme: "Perfeito! Tenho tudo que preciso. Posso preencher o formulário?"
-8. Aguarde confirmação do usuário para marcar status: "ready"
+1. PRIMEIRA MENSAGEM: "Olá! Me conta o que você quer testar?"
+2. Escute o contexto do usuário e CRIE O NOME DO TESTE automaticamente
+3. Faça perguntas específicas para CADA campo obrigatório faltante (uma de cada vez, SEM repetir o que o usuário disse)
+4. Para a HIPÓTESE: compile TODAS as informações coletadas em uma hipótese clara no formato correto
+5. Quando tiver TODOS os obrigatórios, confirme: "Tenho tudo! Posso criar o teste?"
+6. Aguarde confirmação do usuário para marcar status: "ready"
 
 REGRAS CRÍTICAS SOBRE A HIPÓTESE:
 - A hipótese é o CAMPO MAIS IMPORTANTE
@@ -75,20 +80,17 @@ VALIDAÇÕES OBRIGATÓRIAS:
 4. hypothesis: DEVE ser compilada de todas as informações coletadas, não apenas repetir o que o usuário disse
 5. Datas: start_date deve ser anterior a end_date
 
-EXEMPLOS DE PERGUNTAS EFICIENTES:
-- "Qual é o nome que você quer dar para esse teste?"
-- "Me conta mais detalhes sobre o que você quer testar exatamente?"
-- "Por que você acha que essa mudança vai funcionar?"
-- "Que resultado você espera ver? Pode ser específico?"
-- "Quais ferramentas você vai usar para medir esse teste?"
-- "É um teste A/B, de usabilidade, design ou conteúdo? Pode ser mais de um!"
+EXEMPLOS DE PERGUNTAS DIRETAS:
+- "Por que você acha que isso vai funcionar?"
+- "Que resultado você espera?"
+- "Quais ferramentas você vai usar?"
+- "É teste A/B, usabilidade, design ou conteúdo?"
 
 IMPORTANTE:
-- Sempre seja conversacional e amigável
-- Não peça todas as informações de uma vez
-- Use o contexto de respostas anteriores
+- Seja DIRETO e EFICIENTE
+- NÃO repita o que o usuário disse
+- CRIE o nome do teste automaticamente
 - Compile a hipótese de forma inteligente
-- Confirme a hipótese antes de finalizar
 - Só marque "ready" quando ter TODOS os obrigatórios E a confirmação do usuário
 - Retorne APENAS JSON válido, sem markdown, sem explicações extras`;
 
@@ -112,7 +114,7 @@ serve(async (req) => {
     if (messages.length === 0) {
       console.log(`[${conversationId}] Retornando saudação inicial`);
       const initialResponse = {
-        message: "Olá! Vou te ajudar a criar seu teste. Me fala um pouco sobre o que você quer descobrir com ele?",
+        message: "Olá! Me conta o que você quer testar?",
         status: "collecting",
         extracted_data: {
           nome_teste: null,
@@ -125,7 +127,7 @@ serve(async (req) => {
           start_date: null,
           end_date: null,
         },
-        next_question: "Me conta sobre o objetivo do seu teste e o que você quer testar.",
+        next_question: null,
       };
       
       return new Response(JSON.stringify(initialResponse), {
@@ -135,8 +137,14 @@ serve(async (req) => {
     }
 
     const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
     if (!REPLICATE_API_KEY) {
       throw new Error("REPLICATE_API_KEY não configurada");
+    }
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase credentials não configuradas");
     }
 
     console.log(`[${conversationId}] Gerando resposta com ${messages.length} mensagens`);
@@ -150,62 +158,58 @@ serve(async (req) => {
       .map((msg: any) => `${msg.role === "user" ? "Usuário" : "Assistente"}: ${msg.content}`)
       .join("\n\n");
 
-    const output = await replicate.run("meta/meta-llama-3.1-405b-instruct", {
-      input: {
-        prompt: `${SYSTEM_PROMPT}
+    const prompt = `${SYSTEM_PROMPT}
 
 HISTÓRICO DA CONVERSA:
 ${conversationHistory}
 
 INSTRUÇÃO:
 Baseado no histórico acima, gere a próxima resposta do assistente seguindo todas as regras.
+Seja DIRETO, não repita o que o usuário disse.
+Crie o nome do teste automaticamente.
 Compile a hipótese de forma inteligente usando TODAS as informações do histórico.
-Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicações.`,
+Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicações.`;
+
+    // Create prediction with webhook
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/replicate-webhook`;
+    console.log(`[${conversationId}] Criando prediction com webhook: ${webhookUrl}`);
+
+    const prediction = await replicate.predictions.create({
+      model: "meta/meta-llama-3.1-405b-instruct",
+      input: {
+        prompt,
         temperature: 0.7,
         max_tokens: 2000,
         top_p: 0.9,
       },
+      webhook: webhookUrl,
+      webhook_events_filter: ["completed"],
     });
 
-    console.log(`[${conversationId}] Resposta da IA recebida`);
+    console.log(`[${conversationId}] Prediction criada: ${prediction.id}`);
 
-    // Parse the output
-    let responseText = "";
-    if (Array.isArray(output)) {
-      responseText = output.join("");
-    } else if (typeof output === "string") {
-      responseText = output;
-    } else {
-      responseText = JSON.stringify(output);
+    // Save prediction_id in conversation for tracking
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { error: updateError } = await supabase
+      .from("test_ai_conversations")
+      .update({
+        prediction_id: prediction.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversationId);
+
+    if (updateError) {
+      console.error(`[${conversationId}] Erro ao salvar prediction_id:`, updateError);
     }
 
-    // Clean markdown if present
-    responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-    console.log(`[${conversationId}] Texto processado (primeiros 200 chars):`, responseText.substring(0, 200));
-
-    // Parse JSON
-    const aiResponse = JSON.parse(responseText);
-
-    // Validate response structure
-    if (!aiResponse.message || !aiResponse.status || !aiResponse.extracted_data) {
-      throw new Error("Estrutura de resposta inválida da IA");
-    }
-
-    // Ensure arrays are arrays
-    if (aiResponse.extracted_data.test_types && !Array.isArray(aiResponse.extracted_data.test_types)) {
-      aiResponse.extracted_data.test_types = [];
-    }
-    if (aiResponse.extracted_data.tools && !Array.isArray(aiResponse.extracted_data.tools)) {
-      aiResponse.extracted_data.tools = [];
-    }
-    if (aiResponse.extracted_data.success_metric && !Array.isArray(aiResponse.extracted_data.success_metric)) {
-      aiResponse.extracted_data.success_metric = [];
-    }
-
-    console.log(`[${conversationId}] Status: ${aiResponse.status}`);
-
-    return new Response(JSON.stringify(aiResponse), {
+    // Return immediately with pending status
+    return new Response(JSON.stringify({
+      status: "pending",
+      prediction_id: prediction.id,
+      conversationId,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

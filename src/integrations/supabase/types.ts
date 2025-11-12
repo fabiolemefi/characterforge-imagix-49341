@@ -690,6 +690,7 @@ export type Database = {
           extracted_data: Json | null
           id: string
           messages: Json
+          prediction_id: string | null
           status: string
           test_id: string | null
           updated_at: string
@@ -701,6 +702,7 @@ export type Database = {
           extracted_data?: Json | null
           id?: string
           messages?: Json
+          prediction_id?: string | null
           status?: string
           test_id?: string | null
           updated_at?: string
@@ -712,6 +714,7 @@ export type Database = {
           extracted_data?: Json | null
           id?: string
           messages?: Json
+          prediction_id?: string | null
           status?: string
           test_id?: string | null
           updated_at?: string
