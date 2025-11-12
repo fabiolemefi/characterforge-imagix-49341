@@ -93,12 +93,7 @@ export default function Login() {
           } else {
             throw signInError;
           }
-        } else {
-          toast({
-            title: "Login realizado!",
-            description: "Bem-vindo de volta"
-          });
-        }
+        } 
       }
     } catch (error: any) {
       console.error('Auth error:', error);
