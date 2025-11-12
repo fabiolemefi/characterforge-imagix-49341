@@ -109,17 +109,49 @@ export function useTestAIConversation() {
       if (error) throw error;
       if (!data) throw new Error("Erro ao criar conversa");
 
-      setConversationId(data.id);
+      const newConversationId = data.id;
+      setConversationId(newConversationId);
       setMessages([]);
       setExtractedData({});
       setIsReady(false);
 
-      console.log("Nova conversa criada:", data.id);
+      console.log("Nova conversa criada:", newConversationId);
 
-      // Get initial greeting from AI
-      await sendMessage("", true); // Empty message to trigger greeting
+      // Get initial greeting from AI with the new conversation ID
+      const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-test-ai", {
+        body: {
+          messages: [],
+          conversationId: newConversationId,
+        },
+      });
 
-      return data.id;
+      if (aiError) throw aiError;
+      if (!aiData) throw new Error("Nenhuma resposta da IA");
+
+      const aiResponse: AIResponse = aiData;
+
+      // Add AI greeting message
+      const aiMessage: Message = {
+        role: "assistant",
+        content: aiResponse.message,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages([aiMessage]);
+      setExtractedData(aiResponse.extracted_data);
+
+      // Update conversation in database
+      const { error: updateError } = await supabase
+        .from("test_ai_conversations")
+        .update({
+          messages: [aiMessage] as unknown as any,
+          extracted_data: aiResponse.extracted_data as unknown as any,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", newConversationId);
+
+      if (updateError) throw updateError;
+
+      return newConversationId;
     } catch (error: any) {
       console.error("Erro ao iniciar conversa:", error);
       toast.error("Erro ao iniciar conversa");
