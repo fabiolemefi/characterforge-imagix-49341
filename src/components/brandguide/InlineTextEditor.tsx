@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import ContentEditable from 'react-contenteditable';
 import { Button } from '@/components/ui/button';
 import { Bold, Italic, Heading1, Heading2, List, ListOrdered } from 'lucide-react';
 
@@ -11,40 +12,19 @@ interface InlineTextEditorProps {
 
 export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: InlineTextEditorProps) => {
   const [showToolbar, setShowToolbar] = useState(false);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const isInitializedRef = useRef(false);
+  const contentRef = useRef(value);
 
-  useEffect(() => {
-    // Only set initial value once
-    if (editorRef.current && !isInitializedRef.current) {
-      editorRef.current.innerHTML = value || '';
-      isInitializedRef.current = true;
-    }
-  }, []);
-
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    if (editorRef.current) {
-      const newValue = editorRef.current.innerHTML;
-      onChange(newValue);
-    }
-  };
-
-  const handleFocus = () => {
-    setShowToolbar(true);
-  };
-
-  const handleBlur = () => {
-    setTimeout(() => setShowToolbar(false), 200);
+  const handleChange = (evt: any) => {
+    contentRef.current = evt.target.value;
+    onChange(evt.target.value);
   };
 
   const executeCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
-    editorRef.current?.focus();
   };
 
   const formatBlock = (tag: string) => {
     document.execCommand('formatBlock', false, tag);
-    editorRef.current?.focus();
   };
 
   if (disabled) {
@@ -57,9 +37,9 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
   }
 
   return (
-    <div className="relative">
+    <div className="relative" data-no-dnd="true">
       {showToolbar && (
-        <div className="absolute -top-12 left-0 z-10 flex gap-1 rounded-lg border bg-background p-1 shadow-lg">
+        <div className="absolute -top-12 left-0 z-50 flex gap-1 rounded-lg border bg-background p-1 shadow-lg">
           <Button
             type="button"
             variant="ghost"
@@ -123,15 +103,14 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
         </div>
       )}
       
-      <div
-        ref={editorRef}
-        contentEditable={!disabled}
-        onInput={handleInput}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
+      <ContentEditable
+        html={contentRef.current}
+        disabled={disabled}
+        onChange={handleChange}
+        onFocus={() => setShowToolbar(true)}
+        onBlur={() => setTimeout(() => setShowToolbar(false), 200)}
         className="prose prose-lg max-w-none min-h-[40px] rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_h1]:text-6xl [&_h1]:font-bold [&_h1]:mb-8 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:mb-4 [&_h2]:pr-32 [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1"
-        data-placeholder={placeholder}
-        suppressContentEditableWarning
+        tagName="div"
       />
     </div>
   );

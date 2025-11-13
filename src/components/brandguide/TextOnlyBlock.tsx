@@ -26,7 +26,6 @@ export const TextOnlyBlock = ({ blockId, content, isAdmin, onContentChange }: Te
   return (
     <div className="w-full max-w-4xl my-8">
       <InlineTextEditor
-        key={blockId}
         value={localContent.text || ''}
         onChange={handleTextChange}
         placeholder="Texto"
