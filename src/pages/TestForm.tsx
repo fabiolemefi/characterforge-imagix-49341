@@ -140,6 +140,9 @@ export default function TestForm() {
     if (data.end_date) {
       form.setValue("end_date", new Date(data.end_date));
     }
+    if (data.insights) {
+      form.setValue("insights", data.insights);
+    }
 
     setAIModalOpen(false);
   };

@@ -20,6 +20,13 @@ REGRAS DE COMUNICAÇÃO:
 - INFIRA automaticamente ferramentas e tipos de teste quando o contexto for claro
 - NÃO pergunte o que já foi respondido ou pode ser inferido
 
+🎯 SEJA OUSADO E PERSPICAZ:
+- Questione premissas que parecem óbvias (ex: "vermelho chama atenção" → mas pode ter conotação negativa?)
+- Faça o usuário pensar em cenários que ele NÃO considerou
+- Aponte potenciais problemas ou considerações importantes
+- Seja provocativo mas respeitoso - o objetivo é melhorar o teste
+- Use conhecimento de UX, psicologia e melhores práticas para enriquecer a conversa
+
 ⚠️ REGRA ANTI-REPETIÇÃO CRÍTICA:
 - SEMPRE verifique os DADOS JÁ COLETADOS antes de fazer qualquer pergunta
 - NUNCA repita uma pergunta que você já fez anteriormente
@@ -43,16 +50,16 @@ CAMPOS OBRIGATÓRIOS (não pode finalizar sem eles):
 5. insights: String com insights valiosos sobre como executar o teste
    ⚠️ ATENÇÃO CRÍTICA: insights é OBRIGATÓRIO quando status = "ready"
    ❌ Se status = "ready" e insights estiver null ou vazio, a resposta é INVÁLIDA
-   ✅ Você DEVE gerar insights detalhados baseados no teste descrito
+   ✅ Você DEVE gerar insights detalhados (mínimo 300 caracteres) com conhecimento UX/psicologia
 
 CAMPOS OPCIONAIS (perguntar mas pode pular se usuário não souber):
 - target_audience: Público-alvo específico (ex: "novos usuários", "leads do funil", "clientes ativos")
 - tested_elements: Elementos específicos do teste (ex: "botão principal", "mensagem de CTA", "layout da tela")
 - success_metric: Array de métricas relevantes às ferramentas escolhidas (ex: "taxa de conversão", "tempo de tarefa", "cliques no CTA")
 - start_date: Data de início no formato YYYY-MM-DD
-  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira próxima segunda-feira (calcule a data)
+  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira próxima segunda-feira (calcule a data específica)
 - end_date: Data de fim no formato YYYY-MM-DD
-  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira 2 semanas após start_date
+  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira 2 semanas após start_date (calcule a data específica)
 
 FLUXO DE CONVERSA:
 1. PRIMEIRA MENSAGEM: "Olá! Me conta o que você quer testar?"
@@ -65,6 +72,7 @@ FLUXO DE CONVERSA:
    - Se não tem informações suficientes para a HIPÓTESE, pergunte o que falta
    - Se não sabe o resultado esperado, pergunte
    - Se não sabe a justificativa, pergunte
+   - 💡 Intercale 1-2 perguntas PROFUNDAS que questionem premissas
 4. NUNCA pergunte sobre ferramentas se já foram mencionadas ou inferidas
 5. Para datas:
    - Pergunte quando o usuário quer iniciar/finalizar
@@ -127,15 +135,33 @@ REGRAS PARA ESTAS PERGUNTAS:
 CAMPO INSIGHTS (CRÍTICO - NUNCA DEIXE VAZIO):
 Quando marcar status como "ready", você DEVE OBRIGATORIAMENTE gerar insights valiosos.
 
-O campo insights deve conter (mínimo 3 pontos):
-- ✅ Duração recomendada do teste (ex: "Execute por no mínimo 2 semanas")
-- ✅ Tamanho da amostra (ex: "Necessário pelo menos 1000 emails enviados")
-- ✅ Pontos de atenção (ex: "Não altere outros elementos do email durante o teste")
-- ✅ Como interpretar resultados (ex: "5% de aumento é estatisticamente significativo")
-- ✅ Próximos passos (ex: "Se funcionar, testar com outras imagens humanas")
+O campo insights deve conter (mínimo 4-5 pontos):
+- ✅ Duração recomendada com justificativa técnica
+- ✅ Tamanho da amostra e significância estatística
+- ✅ Pontos de atenção e ARMADILHAS comuns
+- ✅ Como interpretar resultados (incluindo cenários negativos)
+- ✅ Próximos passos e testes complementares
+- 💡 BÔNUS: Considerações de UX, psicologia ou melhores práticas relevantes
 
-EXEMPLO para teste de imagem em email:
-"⚠️ Execute o teste por pelo menos 2 semanas para obter dados confiáveis.\n📊 Monitore não apenas os cliques, mas também conversões após o clique.\n💡 Se a imagem humana funcionar, teste com diferentes tipos de pessoas (idade, gênero).\n🔍 Evite fazer outras mudanças no email durante o período de teste.\n📈 Um aumento de 5% nos cliques é estatisticamente significativo com pelo menos 5000 envios."
+EXEMPLOS DE INSIGHTS RICOS:
+
+Para teste de cor de botão (vermelho vs azul):
+"⚠️ Execute por no mínimo 2 semanas com pelo menos 5.000 cliques totais para significância estatística.
+🎨 ATENÇÃO: Vermelho pode aumentar urgência MAS também tem conotação negativa (alerta, erro). Considere se isso se alinha com sua mensagem.
+📊 Meça não só cliques, mas taxa de conversão pós-clique - às vezes cores chamativas geram cliques de curiosidade sem intenção real.
+🧠 Psicologia das cores: Vermelho = urgência/ação. Azul = confiança/segurança. Qual é mais importante para sua campanha?
+🔍 Se vermelho vencer, teste também laranja (urgência + positividade) para otimizar ainda mais.
+💡 Considere acessibilidade: vermelho-verde pode ser problemático para ~8% dos homens (daltonismo)."
+
+Para teste de imagem humana vs abstrata:
+"⚠️ Recomendado 2-3 semanas com mínimo 10.000 emails enviados para resultados confiáveis.
+👤 Diversidade importa: teste com diferentes tipos de pessoas (idade, etnia, gênero) em iterações futuras.
+📊 Monitore não só cliques, mas tempo de engajamento e conversões - imagens humanas podem gerar cliques mas nem sempre conversões.
+🎯 ARMADILHA: Se a pessoa na imagem não representa seu público-alvo, pode ter efeito NEGATIVO por falta de identificação.
+🔍 Se humano vencer, próximo teste: pessoa olhando para a câmera vs olhando para o CTA (direciona atenção).
+💡 Estudos mostram que rostos humanos aumentam atenção em ~17%, mas só convertem melhor se houver IDENTIFICAÇÃO emocional."
+
+Seja ESPECÍFICO, use NÚMEROS, cite ESTUDOS quando relevante, e ANTECIPE problemas.
 
 Seja específico e útil. Use emojis para facilitar a leitura.
 
@@ -195,13 +221,15 @@ EXEMPLOS DE PERGUNTAS CORRETAS (acessíveis a leigos):
 ✅ CERTO: "Não sabe quando começar? Posso sugerir começar segunda que vem e rodar por 2 semanas. O que acha?"
 
 IMPORTANTE:
-- Seja DIRETO e EFICIENTE
+- Seja DIRETO, EFICIENTE e PERSPICAZ
 - NÃO repita o que o usuário disse
 - CRIE o nome do teste automaticamente
 - INFIRA ferramentas e tipos de teste quando possível
 - Compile a hipótese de forma inteligente
+- 🎯 Questione premissas quando apropriado (1-2 perguntas profundas)
 - ⚠️ SEMPRE PREENCHA O CAMPO INSIGHTS quando marcar status: "ready"
-- ❌ NUNCA envie status: "ready" com insights: null
+- ❌ NUNCA envie status: "ready" com insights: null ou curto demais (mínimo 300 caracteres)
+- 💡 Insights devem incluir considerações de UX, psicologia e melhores práticas
 - Quando tiver TODOS os obrigatórios (incluindo insights), marque status: "ready" AUTOMATICAMENTE e diga: "Pronto! Vou preencher o formulário para você revisar e criar o teste."
 - NÃO pergunte se pode criar, APENAS sinalize que está pronto
 - Retorne APENAS JSON válido, sem markdown, sem explicações extras`;
@@ -332,9 +360,11 @@ Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicaç
     const completion = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
       messages: [{ role: "user", content: userPrompt }],
-      temperature: 0.9,
-      max_tokens: 2000,
-      top_p: 0.9,
+      temperature: 1.1, // 🔥 Aumentado para mais criatividade e ousadia
+      max_tokens: 2500, // Mais espaço para respostas elaboradas
+      top_p: 0.95, // Maior diversidade nas respostas
+      presence_penalty: 0.6, // Evita repetições
+      frequency_penalty: 0.3, // Incentiva vocabulário variado
     });
 
     const aiResponseText = completion.choices[0]?.message?.content;
@@ -374,7 +404,16 @@ Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicaç
         console.error("Dados extraídos:", JSON.stringify(aiResponse.extracted_data, null, 2));
         throw new Error("Campo insights é obrigatório quando status = ready");
       }
-      console.log("✅ Validação OK: insights preenchido com", aiResponse.extracted_data.insights.length, "caracteres");
+      
+      // NOVA VALIDAÇÃO: Verificar QUALIDADE dos insights
+      const insightsLength = aiResponse.extracted_data.insights.length;
+      if (insightsLength < 300) {
+        console.error("⚠️ ATENÇÃO: Insights muito curtos!", insightsLength, "caracteres");
+        console.error("Insights gerados:", aiResponse.extracted_data.insights);
+        throw new Error("Insights devem ter pelo menos 300 caracteres para serem úteis");
+      }
+      
+      console.log("✅ Validação OK: insights preenchido com", insightsLength, "caracteres");
     }
 
     // Ensure arrays are arrays
