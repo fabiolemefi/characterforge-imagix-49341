@@ -125,34 +125,40 @@ export default function AdminBrandGuideHome() {
     setSaving(true);
     try {
       for (const [blockId, content] of pendingChanges.entries()) {
-        // Upload images if needed
-        if (content.imageFile) {
+        // Upload images if needed (validate File object)
+        if (content.imageFile && content.imageFile instanceof File) {
           const url = await uploadAsset(content.imageFile, 'images');
           if (url) {
             content.media_url = url;
             content.image_url = url;
             delete content.imageFile;
           }
+        } else {
+          delete content.imageFile;
         }
 
-        // Upload videos if needed
-        if (content.videoFile) {
+        // Upload videos if needed (validate File object)
+        if (content.videoFile && content.videoFile instanceof File) {
           const url = await uploadAsset(content.videoFile, 'videos');
           if (url) {
             content.video_url = url;
             delete content.videoFile;
           }
+        } else {
+          delete content.videoFile;
         }
 
-        // Upload images in columns if needed
+        // Upload images in columns if needed (validate File object)
         if (content.columns) {
           for (const column of content.columns) {
-            if (column.imageFile) {
+            if (column.imageFile && column.imageFile instanceof File) {
               const url = await uploadAsset(column.imageFile, 'images');
               if (url) {
                 column.image_url = url;
                 delete column.imageFile;
               }
+            } else {
+              delete column.imageFile;
             }
           }
         }
@@ -256,24 +262,26 @@ export default function AdminBrandGuideHome() {
         style={style}
         className="relative group bg-white rounded-lg"
       >
-        <div className="absolute left-2 top-2 z-10">
+        <div className="flex items-start gap-2 mb-2">
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded"
+            className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded flex-shrink-0"
           >
             <GripVertical className="h-5 w-5 text-muted-foreground" />
           </button>
+          <div className="flex-1 min-w-0">
+            {renderBlockContent(block)}
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            onClick={() => handleDeleteBlock(block.id)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-          onClick={() => handleDeleteBlock(block.id)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        {renderBlockContent(block)}
       </div>
     );
   };

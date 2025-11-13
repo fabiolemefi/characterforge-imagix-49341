@@ -38,7 +38,7 @@ export const EmbedBlock = ({ blockId, content, isAdmin, onContentChange }: Embed
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-4xl">
       {isAdmin ? (
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground border border-border rounded p-2">
