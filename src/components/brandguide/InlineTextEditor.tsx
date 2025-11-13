@@ -11,17 +11,18 @@ interface InlineTextEditorProps {
 
 export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: InlineTextEditorProps) => {
   const [showToolbar, setShowToolbar] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
-    // Only update innerHTML if editor is not focused to prevent cursor jumping
-    if (editorRef.current && !isFocused && editorRef.current.innerHTML !== value) {
+    // Only set initial value once
+    if (editorRef.current && !isInitializedRef.current) {
       editorRef.current.innerHTML = value || '';
+      isInitializedRef.current = true;
     }
-  }, [value, isFocused]);
+  }, []);
 
-  const handleInput = () => {
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     if (editorRef.current) {
       const newValue = editorRef.current.innerHTML;
       onChange(newValue);
@@ -29,12 +30,10 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
   };
 
   const handleFocus = () => {
-    setIsFocused(true);
     setShowToolbar(true);
   };
 
   const handleBlur = () => {
-    setIsFocused(false);
     setTimeout(() => setShowToolbar(false), 200);
   };
 
@@ -65,6 +64,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => executeCommand('bold')}
             className="h-8 w-8 p-0"
           >
@@ -74,6 +74,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => executeCommand('italic')}
             className="h-8 w-8 p-0"
           >
@@ -83,6 +84,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => formatBlock('h1')}
             className="h-8 w-8 p-0"
           >
@@ -92,6 +94,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => formatBlock('h2')}
             className="h-8 w-8 p-0"
           >
@@ -101,6 +104,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => executeCommand('insertUnorderedList')}
             className="h-8 w-8 p-0"
           >
@@ -110,6 +114,7 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
             type="button"
             variant="ghost"
             size="sm"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => executeCommand('insertOrderedList')}
             className="h-8 w-8 p-0"
           >

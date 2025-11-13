@@ -1,5 +1,5 @@
 import { InlineTextEditor } from './InlineTextEditor';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TitleOnlyBlockProps {
   blockId: string;
@@ -13,6 +13,10 @@ interface TitleOnlyBlockProps {
 export const TitleOnlyBlock = ({ blockId, content, isAdmin, onContentChange }: TitleOnlyBlockProps) => {
   const [localContent, setLocalContent] = useState(content);
 
+  useEffect(() => {
+    setLocalContent(content);
+  }, [content]);
+
   const handleTitleChange = (title: string) => {
     const newContent = { ...localContent, title };
     setLocalContent(newContent);
@@ -22,6 +26,7 @@ export const TitleOnlyBlock = ({ blockId, content, isAdmin, onContentChange }: T
   return (
     <div className="w-full max-w-4xl my-8">
       <InlineTextEditor
+        key={blockId}
         value={localContent.title || ''}
         onChange={handleTitleChange}
         placeholder="Título"
