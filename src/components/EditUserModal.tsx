@@ -55,7 +55,8 @@ export function EditUserModal({
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -65,8 +66,19 @@ export function EditUserModal({
       setJobTitle(profile.job_title || "");
       setIsActive(profile.is_active);
       setIsAdmin(profile.is_admin);
+      setSelectedFile(null);
+      setPreviewUrl(null);
     }
   }, [profile]);
+
+  useEffect(() => {
+    // Cleanup preview URL on unmount
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -74,6 +86,37 @@ export function EditUserModal({
     setLoading(true);
 
     try {
+      // Upload avatar if selected
+      let avatarUrl = profile.avatar_url;
+      
+      if (selectedFile) {
+        // Delete old avatar if exists
+        if (profile.avatar_url) {
+          const oldPath = profile.avatar_url.split('/').pop();
+          if (oldPath) {
+            await supabase.storage.from('avatars').remove([`${profile.id}/${oldPath}`]);
+          }
+        }
+
+        // Upload new avatar
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${profile.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+
+        avatarUrl = publicUrl;
+      }
+
       // Update profile
       const { error: profileError } = await supabase
         .from("profiles")
@@ -81,6 +124,7 @@ export function EditUserModal({
           full_name: fullName,
           job_title: jobTitle,
           is_active: isActive,
+          avatar_url: avatarUrl,
         })
         .eq("id", profile.id);
 
@@ -178,8 +222,8 @@ export function EditUserModal({
     fileInputRef.current?.click();
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!profile || !event.target.files || event.target.files.length === 0) {
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) {
       return;
     }
 
@@ -205,59 +249,10 @@ export function EditUserModal({
       return;
     }
 
-    setUploadingAvatar(true);
-
-    try {
-      // Delete old avatar if exists
-      if (profile.avatar_url) {
-        const oldPath = profile.avatar_url.split('/').pop();
-        if (oldPath) {
-          await supabase.storage.from('avatars').remove([`${profile.id}/${oldPath}`]);
-        }
-      }
-
-      // Upload new avatar
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${profile.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      // Update profile with new avatar URL
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', profile.id);
-
-      if (updateError) throw updateError;
-
-      toast({
-        title: "Avatar atualizado",
-        description: "A foto foi atualizada com sucesso",
-      });
-
-      onUserUpdated();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao fazer upload",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setUploadingAvatar(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
+    // Create preview URL
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setSelectedFile(file);
   };
 
   if (!profile) return null;
@@ -277,17 +272,13 @@ export function EditUserModal({
           <div className="flex items-center gap-4">
             <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
               <Avatar className="h-16 w-16">
-                <AvatarImage src={profile.avatar_url || ""} />
+                <AvatarImage src={previewUrl || profile.avatar_url || ""} />
                 <AvatarFallback>
                   {profile.full_name?.charAt(0) || profile.email.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                {uploadingAvatar ? (
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                ) : (
-                  <Upload className="h-6 w-6 text-white" />
-                )}
+                <Upload className="h-6 w-6 text-white" />
               </div>
             </div>
             <input
@@ -295,8 +286,7 @@ export function EditUserModal({
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleAvatarUpload}
-              disabled={uploadingAvatar}
+              onChange={handleAvatarChange}
             />
             <div>
               <p className="font-medium">{profile.email}</p>
@@ -304,7 +294,7 @@ export function EditUserModal({
                 {new Date(profile.created_at).toLocaleDateString('pt-BR')}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Clique no avatar para alterar a foto
+                Clique no avatar para {selectedFile ? "alterar" : "selecionar"} a foto
               </p>
             </div>
           </div>
