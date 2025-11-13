@@ -153,10 +153,10 @@ export default function AdminBrandGuideHome() {
         .insert({
           page_id: null,
           category_id: null,
-          block_type: blockType,
+          block_type: blockType as any,
           position: newPosition,
           content: defaultContent,
-        })
+        } as any)
         .select()
         .single();
 

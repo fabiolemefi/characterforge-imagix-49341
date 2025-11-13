@@ -184,10 +184,10 @@ export const useBrandGuide = () => {
         .insert({
           page_id: pageId,
           category_id: categoryId,
-          block_type: blockType,
+          block_type: blockType as any,
           position: newPosition,
           content: defaultContent,
-        })
+        } as any)
         .select()
         .single();
 
