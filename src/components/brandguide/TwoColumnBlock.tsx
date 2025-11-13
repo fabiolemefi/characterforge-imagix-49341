@@ -43,28 +43,32 @@ export const TwoColumnBlock = ({ blockId, content, isAdmin, onContentChange }: T
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 my-8">
-      {localContent.columns.map((column, index) => (
-        <div key={index} className="space-y-4">
-          <ImageUploader
-            imageUrl={column.image_url}
-            onUpload={(file) => handleImageUpload(index, file)}
-            disabled={!isAdmin}
-          />
-          <InlineTextEditor
-            value={column.title}
-            onChange={(value) => handleTitleChange(index, value)}
-            placeholder="Título"
-            disabled={!isAdmin}
-          />
-          <InlineTextEditor
-            value={column.description}
-            onChange={(value) => handleDescriptionChange(index, value)}
-            placeholder="Descrição"
-            disabled={!isAdmin}
-          />
-        </div>
-      ))}
+    <div className="w-full max-w-4xl mx-auto my-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {localContent.columns.map((column, index) => (
+          <div key={index} className="space-y-4 flex flex-col">
+            <ImageUploader
+              imageUrl={column.image_url}
+              onUpload={(file) => handleImageUpload(index, file)}
+              disabled={!isAdmin}
+              className="w-full"
+              aspectRatio="aspect-auto"
+            />
+            <InlineTextEditor
+              value={column.title}
+              onChange={(value) => handleTitleChange(index, value)}
+              placeholder="Título"
+              disabled={!isAdmin}
+            />
+            <InlineTextEditor
+              value={column.description}
+              onChange={(value) => handleDescriptionChange(index, value)}
+              placeholder="Descrição"
+              disabled={!isAdmin}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
