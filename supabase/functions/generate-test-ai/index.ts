@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Replicate from "https://esm.sh/replicate@0.25.2";
+import OpenAI from "https://esm.sh/openai@4.28.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -229,12 +229,12 @@ serve(async (req) => {
       });
     }
 
-    const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
-    if (!REPLICATE_API_KEY) {
-      throw new Error("REPLICATE_API_KEY não configurada");
+
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não configurada");
     }
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error("Supabase credentials não configuradas");
@@ -242,8 +242,8 @@ serve(async (req) => {
 
     console.log(`[${conversationId}] Gerando resposta com ${messages.length} mensagens`);
 
-    const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
+    const openai = new OpenAI({
+      apiKey: OPENAI_API_KEY,
     });
 
     // Build conversation history for context
@@ -251,7 +251,7 @@ serve(async (req) => {
       .map((msg: any) => `${msg.role === "user" ? "Usuário" : "Assistente"}: ${msg.content}`)
       .join("\n\n");
 
-    const prompt = `${SYSTEM_PROMPT}
+    const userPrompt = `${SYSTEM_PROMPT}
 
 HISTÓRICO DA CONVERSA:
 ${conversationHistory}
@@ -263,61 +263,92 @@ Crie o nome do teste automaticamente.
 Compile a hipótese de forma inteligente usando TODAS as informações do histórico.
 Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicações.`;
 
-    // Create prediction with webhook
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/replicate-webhook`;
-    console.log(`[${conversationId}] Criando prediction com webhook: ${webhookUrl}`);
+    // Call OpenAI API directly
+    console.log(`[${conversationId}] Chamando OpenAI API`);
 
-    const prediction = await replicate.predictions.create({
-      model: "meta/meta-llama-3.1-405b-instruct",
-      input: {
-        prompt,
-        temperature: 0.9,
-        max_tokens: 2000,
-        top_p: 0.9,
-      },
-      webhook: webhookUrl,
-      webhook_events_filter: ["completed"],
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.9,
+      max_tokens: 2000,
+      top_p: 0.9,
     });
 
-    console.log(`[${conversationId}] Prediction criada: ${prediction.id}`);
+    const aiResponseText = completion.choices[0]?.message?.content;
+    if (!aiResponseText) {
+      throw new Error("Nenhuma resposta da OpenAI");
+    }
 
-    // Save prediction_id in conversation for tracking
+    console.log(`[${conversationId}] Resposta da OpenAI recebida`);
+
+    // Parse the AI response
+    let responseText = aiResponseText.trim();
+
+    // Clean markdown if present
+    responseText = responseText
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
+
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Erro ao fazer parse da resposta da OpenAI:", parseError);
+      console.error("Resposta bruta:", responseText);
+      throw new Error("Falha ao parsear resposta da IA");
+    }
+
+    // Validate response structure
+    if (!aiResponse.message || !aiResponse.status || !aiResponse.extracted_data) {
+      throw new Error("Estrutura de resposta da IA inválida");
+    }
+
+    // Ensure arrays are arrays
+    if (aiResponse.extracted_data.test_types && !Array.isArray(aiResponse.extracted_data.test_types)) {
+      aiResponse.extracted_data.test_types = [];
+    }
+    if (aiResponse.extracted_data.tools && !Array.isArray(aiResponse.extracted_data.tools)) {
+      aiResponse.extracted_data.tools = [];
+    }
+    if (aiResponse.extracted_data.success_metric && !Array.isArray(aiResponse.extracted_data.success_metric)) {
+      aiResponse.extracted_data.success_metric = [];
+    }
+
+    // Update conversation in database
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Force immediate update with retries to ensure it's saved before webhook
-    let updateSuccess = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const { data, error: updateError } = await supabase
-        .from("test_ai_conversations")
-        .update({
-          prediction_id: prediction.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", conversationId)
-        .select()
-        .single();
+    // Add AI message to conversation
+    const currentMessages = (messages || []) as any[];
+    const aiMessage = {
+      role: "assistant",
+      content: aiResponse.message,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedMessages = [...currentMessages, aiMessage];
 
-      if (!updateError && data) {
-        updateSuccess = true;
-        console.log(`[${conversationId}] Prediction ID salvo com sucesso (tentativa ${attempt + 1})`);
-        break;
-      }
-      
-      console.error(`[${conversationId}] Erro ao salvar prediction_id (tentativa ${attempt + 1}):`, updateError);
-      await new Promise(resolve => setTimeout(resolve, 100));
+    const { error: updateError } = await supabase
+      .from("test_ai_conversations")
+      .update({
+        messages: updatedMessages,
+        extracted_data: aiResponse.extracted_data,
+        status: aiResponse.status === "ready" ? "ready" : "draft",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversationId);
+
+    if (updateError) {
+      console.error("Erro ao atualizar conversa:", updateError);
+      throw updateError;
     }
 
-    if (!updateSuccess) {
-      console.error(`[${conversationId}] Falha ao salvar prediction_id após 3 tentativas`);
-    }
+    console.log(`[${conversationId}] Conversa atualizada com sucesso`);
 
-    // Return immediately with pending status
-    return new Response(JSON.stringify({
-      status: "pending",
-      prediction_id: prediction.id,
-      conversationId,
-    }), {
+    // Return the AI response directly
+    return new Response(JSON.stringify(aiResponse), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

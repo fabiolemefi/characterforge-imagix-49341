@@ -74,8 +74,8 @@ serve(async (req) => {
         // Parse the AI response
         let responseText = "";
         if (Array.isArray(output)) {
-          // Join array elements and clean up any internal line breaks that might break JSON
-          responseText = output.join("").replace(/\\n/g, "").replace(/\n/g, "");
+        // Join array elements to reconstruct the JSON response
+        responseText = output.join("");
         } else if (typeof output === "string") {
           responseText = output.replace(/\\n/g, "").replace(/\n/g, "");
         } else {

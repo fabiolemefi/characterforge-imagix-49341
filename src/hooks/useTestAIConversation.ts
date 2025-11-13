@@ -332,7 +332,7 @@ export function useTestAIConversation() {
           .eq("id", conversationId);
       }
 
-      // Call edge function (will return immediately with prediction_id)
+      // Call edge function (will return AI response directly)
       const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-test-ai", {
         body: {
           messages: updatedMessages,
@@ -343,29 +343,23 @@ export function useTestAIConversation() {
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
 
-      console.log("AI prediction created:", aiData);
+      console.log("AI response received:", aiData);
 
-      // Store the prediction ID to track when response arrives
-      setPendingPredictionId(aiData.prediction_id);
+      // Process the AI response directly
+      const aiResponse = aiData;
 
-      // Set timeout to detect if response takes too long (60 seconds)
-      const timeoutId = setTimeout(() => {
-        console.error("AI response timeout - no realtime update received");
-        setIsLoading(false);
-        setPendingPredictionId(null);
-        toast.error("A resposta da IA está demorando muito. Tente novamente.", {
-          action: {
-            label: "Tentar novamente",
-            onClick: () => sendMessage(content, isGreeting),
-          },
-        });
-      }, 60000);
+      // Add AI message to local state
+      const aiMessage: Message = {
+        role: "assistant",
+        content: aiResponse.message,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      setExtractedData(aiResponse.extracted_data);
+      setIsReady(aiResponse.status === "ready");
 
-      // Store timeout ID to clear it when response arrives
-      (window as any).__aiTimeoutId = timeoutId;
-
-      // The actual AI response will come through realtime
-      // Loading state will be cleared when realtime update arrives
+      // Clear loading state
+      setIsLoading(false);
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);
       toast.error("Erro ao enviar mensagem: " + error.message);
