@@ -143,25 +143,21 @@ O campo insights deve conter (mínimo 4-5 pontos):
 - ✅ Próximos passos e testes complementares
 - 💡 BÔNUS: Considerações de UX, psicologia ou melhores práticas relevantes
 
-EXEMPLOS DE INSIGHTS RICOS:
+⚠️ FORMATO CRÍTICO: Cada ponto deve estar em uma LINHA SEPARADA.
+Use quebras de linha (\n) entre cada insight para facilitar a leitura.
+Exemplo de formato correto:
+"⚠️ Primeiro insight aqui.\n\n📊 Segundo insight aqui.\n\n🎯 Terceiro insight aqui."
+
+EXEMPLOS DE INSIGHTS RICOS (COM QUEBRAS DE LINHA):
 
 Para teste de cor de botão (vermelho vs azul):
-"⚠️ Execute por no mínimo 2 semanas com pelo menos 5.000 cliques totais para significância estatística.
-🎨 ATENÇÃO: Vermelho pode aumentar urgência MAS também tem conotação negativa (alerta, erro). Considere se isso se alinha com sua mensagem.
-📊 Meça não só cliques, mas taxa de conversão pós-clique - às vezes cores chamativas geram cliques de curiosidade sem intenção real.
-🧠 Psicologia das cores: Vermelho = urgência/ação. Azul = confiança/segurança. Qual é mais importante para sua campanha?
-🔍 Se vermelho vencer, teste também laranja (urgência + positividade) para otimizar ainda mais.
-💡 Considere acessibilidade: vermelho-verde pode ser problemático para ~8% dos homens (daltonismo)."
+"⚠️ Execute por no mínimo 2 semanas com pelo menos 5.000 cliques totais para significância estatística.\n\n🎨 ATENÇÃO: Vermelho pode aumentar urgência MAS também tem conotação negativa (alerta, erro). Considere se isso se alinha com sua mensagem.\n\n📊 Meça não só cliques, mas taxa de conversão pós-clique - às vezes cores chamativas geram cliques de curiosidade sem intenção real.\n\n🧠 Psicologia das cores: Vermelho = urgência/ação. Azul = confiança/segurança. Qual é mais importante para sua campanha?\n\n🔍 Se vermelho vencer, teste também laranja (urgência + positividade) para otimizar ainda mais.\n\n💡 Considere acessibilidade: vermelho-verde pode ser problemático para ~8% dos homens (daltonismo)."
 
 Para teste de imagem humana vs abstrata:
-"⚠️ Recomendado 2-3 semanas com mínimo 10.000 emails enviados para resultados confiáveis.
-👤 Diversidade importa: teste com diferentes tipos de pessoas (idade, etnia, gênero) em iterações futuras.
-📊 Monitore não só cliques, mas tempo de engajamento e conversões - imagens humanas podem gerar cliques mas nem sempre conversões.
-🎯 ARMADILHA: Se a pessoa na imagem não representa seu público-alvo, pode ter efeito NEGATIVO por falta de identificação.
-🔍 Se humano vencer, próximo teste: pessoa olhando para a câmera vs olhando para o CTA (direciona atenção).
-💡 Estudos mostram que rostos humanos aumentam atenção em ~17%, mas só convertem melhor se houver IDENTIFICAÇÃO emocional."
+"⚠️ Recomendado 2-3 semanas com mínimo 10.000 emails enviados para resultados confiáveis.\n\n👤 Diversidade importa: teste com diferentes tipos de pessoas (idade, etnia, gênero) em iterações futuras.\n\n📊 Monitore não só cliques, mas tempo de engajamento e conversões - imagens humanas podem gerar cliques mas nem sempre conversões.\n\n🎯 ARMADILHA: Se a pessoa na imagem não representa seu público-alvo, pode ter efeito NEGATIVO por falta de identificação.\n\n🔍 Se humano vencer, próximo teste: pessoa olhando para a câmera vs olhando para o CTA (direciona atenção).\n\n💡 Estudos mostram que rostos humanos aumentam atenção em ~17%, mas só convertem melhor se houver IDENTIFICAÇÃO emocional."
 
 Seja ESPECÍFICO, use NÚMEROS, cite ESTUDOS quando relevante, e ANTECIPE problemas.
+⚠️ CRÍTICO: Use \n\n entre cada ponto para criar quebras de linha e facilitar leitura.
 
 Seja específico e útil. Use emojis para facilitar a leitura.
 

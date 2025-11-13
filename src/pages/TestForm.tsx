@@ -271,7 +271,7 @@ export default function TestForm() {
                 <FormControl>
                   <Textarea
                     placeholder="Insights sobre execução, acompanhamento e análise do teste..."
-                    className="min-h-[150px] resize-none bg-yellow-50/50 border-yellow-200 focus:border-yellow-400"
+                    className="min-h-[150px] resize-none bg-yellow-50/50 border-yellow-200 focus:border-yellow-400 whitespace-pre-wrap"
                     {...field}
                     disabled={isReadOnly}
                   />
