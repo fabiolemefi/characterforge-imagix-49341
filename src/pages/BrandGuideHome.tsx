@@ -18,91 +18,83 @@ export default function BrandGuideHome() {
     switch (block.block_type) {
       case 'single_column':
         return (
-          <div key={block.id}>
-            <SingleColumnBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <SingleColumnBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'two_columns':
         return (
-          <div key={block.id}>
-            <TwoColumnBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <TwoColumnBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'three_columns':
         return (
-          <div key={block.id}>
-            <ThreeColumnBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <ThreeColumnBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'title_only':
         return (
-          <div key={block.id}>
-            <TitleOnlyBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <TitleOnlyBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'text_only':
         return (
-          <div key={block.id}>
-            <TextOnlyBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <TextOnlyBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'image':
         return (
-          <div key={block.id}>
-            <ImageBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <ImageBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'video':
         return (
-          <div key={block.id}>
-            <VideoBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <VideoBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       case 'embed':
         return (
-          <div key={block.id}>
-            <EmbedBlock 
-              blockId={block.id} 
-              content={block.content} 
-              isAdmin={false} 
-              onContentChange={() => {}} 
-            />
-          </div>
+          <EmbedBlock 
+            key={block.id}
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={false} 
+            onContentChange={() => {}} 
+          />
         );
       default:
         return null;
