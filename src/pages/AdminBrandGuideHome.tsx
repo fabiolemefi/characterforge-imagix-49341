@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ArrowLeft, Save, Image, Video, Youtube, Type, AlignLeft, Columns2, Columns3, Layout, Minus } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, Image, Video, Youtube, Type, AlignLeft, Columns2, Columns3, Layout, Minus, GripVertical } from 'lucide-react';
 import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
@@ -22,6 +22,23 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export default function AdminBrandGuideHome() {
   const navigate = useNavigate();
@@ -30,6 +47,13 @@ export default function AdminBrandGuideHome() {
   const [pendingChanges, setPendingChanges] = useState<Map<string, any>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadHomeBlocks();
@@ -57,6 +81,39 @@ export default function AdminBrandGuideHome() {
 
   const handleContentChange = (blockId: string, content: any) => {
     setPendingChanges(prev => new Map(prev).set(blockId, content));
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = blocks.findIndex((block) => block.id === active.id);
+      const newIndex = blocks.findIndex((block) => block.id === over.id);
+
+      const newBlocks = arrayMove(blocks, oldIndex, newIndex);
+      
+      // Update positions
+      const updatedBlocks = newBlocks.map((block, index) => ({
+        ...block,
+        position: index
+      }));
+      
+      setBlocks(updatedBlocks);
+
+      // Save new positions to database
+      try {
+        for (const block of updatedBlocks) {
+          await supabase
+            .from('brand_guide_blocks')
+            .update({ position: block.position })
+            .eq('id', block.id);
+        }
+        toast.success('Ordem atualizada!');
+      } catch (error) {
+        console.error('Error updating positions:', error);
+        toast.error('Erro ao atualizar ordem');
+      }
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -179,24 +236,52 @@ export default function AdminBrandGuideHome() {
     }
   };
 
-  const renderBlock = (block: BrandGuideBlock) => {
-    const blockWrapper = (content: React.ReactNode) => (
-      <div key={block.id} className="relative group">
-        {content}
+  const SortableBlockItem = ({ block }: { block: BrandGuideBlock }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+    } = useSortable({ id: block.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="relative group bg-white rounded-lg"
+      >
+        <div className="absolute left-2 top-2 z-10">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded"
+          >
+            <GripVertical className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
         <Button
           variant="destructive"
           size="sm"
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
           onClick={() => handleDeleteBlock(block.id)}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
+        {renderBlockContent(block)}
       </div>
     );
+  };
 
+  const renderBlockContent = (block: BrandGuideBlock) => {
     switch (block.block_type) {
       case 'single_column':
-        return blockWrapper(
+        return (
           <SingleColumnBlock 
             blockId={block.id} 
             content={block.content} 
@@ -205,7 +290,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'two_columns':
-        return blockWrapper(
+        return (
           <TwoColumnBlock 
             blockId={block.id} 
             content={block.content} 
@@ -214,7 +299,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'three_columns':
-        return blockWrapper(
+        return (
           <ThreeColumnBlock 
             blockId={block.id} 
             content={block.content} 
@@ -223,7 +308,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'title_only':
-        return blockWrapper(
+        return (
           <TitleOnlyBlock 
             blockId={block.id} 
             content={block.content} 
@@ -232,7 +317,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'text_only':
-        return blockWrapper(
+        return (
           <TextOnlyBlock 
             blockId={block.id} 
             content={block.content} 
@@ -241,7 +326,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'image':
-        return blockWrapper(
+        return (
           <ImageBlock 
             blockId={block.id} 
             content={block.content} 
@@ -250,7 +335,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'video':
-        return blockWrapper(
+        return (
           <VideoBlock 
             blockId={block.id} 
             content={block.content} 
@@ -259,7 +344,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'embed':
-        return blockWrapper(
+        return (
           <EmbedBlock 
             blockId={block.id} 
             content={block.content} 
@@ -268,7 +353,7 @@ export default function AdminBrandGuideHome() {
           />
         );
       case 'separator':
-        return blockWrapper(
+        return (
           <SeparatorBlock 
             blockId={block.id} 
             content={block.content} 
@@ -331,7 +416,22 @@ export default function AdminBrandGuideHome() {
                 </p>
               </div>
             ) : (
-              blocks.map(renderBlock)
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={blocks.map(b => b.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-8">
+                    {blocks.map((block) => (
+                      <SortableBlockItem key={block.id} block={block} />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
 
