@@ -13,16 +13,7 @@ serve(async (req) => {
     // Return version info for direct access (GET requests or invalid JSON)
     if (req.method === "GET") {
       return new Response(JSON.stringify({
-        status: "ok",
-        version: "openai-migration-2025-11-13",
-        last_updated: "2025-11-13T10:08:00Z",
-        description: "Webhook atualizado para usar OpenAI GPT ao invés de Replicate",
-        features: [
-          "OpenAI GPT-4 integration",
-          "Direct API calls (no webhooks)",
-          "Improved JSON parsing",
-          "Real-time responses"
-        ]
+        last_updated: "2025-11-13T10:08:00Z"
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,

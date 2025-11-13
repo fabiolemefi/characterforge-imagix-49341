@@ -195,24 +195,12 @@ serve(async (req) => {
 
   // Return version info for direct access (GET requests)
   if (req.method === "GET") {
-    return new Response(
-      JSON.stringify({
-        status: "ok",
-        version: "openai-migration-2025-11-13",
-        last_updated: "2025-11-13T10:08:00Z",
-        description: "Função generate-test-ai migrada para OpenAI GPT",
-        features: [
-          "OpenAI GPT-4 integration",
-          "Direct API calls (no webhooks)",
-          "Real-time AI responses",
-          "Improved conversation flow",
-        ],
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
-    );
+    return new Response(JSON.stringify({
+      last_updated: "2025-11-13T10:08:00Z"
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
   }
 
   try {
