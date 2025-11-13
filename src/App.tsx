@@ -62,27 +62,27 @@ const App = () => (
           <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/email-blocks" element={<ProtectedRoute><AppLayout><AdminEmailBlocks /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
           <Route path="/brand-guide" element={<ProtectedRoute><AppLayout><BrandGuideHome /></AppLayout></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/brand-guide" element={<ProtectedRoute><AppLayout><AdminBrandGuide /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AppLayout><AdminBrandGuideHome /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><AdminBrandGuidePage /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
+          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
           <Route path="/blog" element={<ProtectedRoute><AppLayout><Blog /></AppLayout></ProtectedRoute>} />
           <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/blog/categories" element={<ProtectedRoute><AppLayout><AdminBlogCategories /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/blog/posts" element={<ProtectedRoute><AppLayout><AdminBlogPosts /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
+          <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
           <Route path="/tests" element={<ProtectedRoute><AppLayout><TestsDashboard /></AppLayout></ProtectedRoute>} />
           <Route path="/tests/list" element={<ProtectedRoute><AppLayout><TestsList /></AppLayout></ProtectedRoute>} />
           <Route path="/tests/new" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
           <Route path="/tests/:id/edit" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AppLayout><AdminDashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute><AppLayout><AdminUsers /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/announcements" element={<ProtectedRoute><AppLayout><AdminAnnouncements /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/plugins" element={<ProtectedRoute><AppLayout><AdminPlugins /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+          <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
+          <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />
           <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
+          <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
           <Route path="/share/file" element={<ShareDownload />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
