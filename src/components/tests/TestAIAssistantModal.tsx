@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Send, CheckCircle, Loader, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,13 +30,15 @@ interface TestAIAssistantModalProps {
   open: boolean;
   onClose: () => void;
   onFormFill: (data: ExtractedTestData) => void;
+  checkForDrafts?: boolean;
 }
 
-export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssistantModalProps) {
+export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts = true }: TestAIAssistantModalProps) {
   const [input, setInput] = useState("");
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState("U");
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,35 +59,40 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
   useEffect(() => {
     const loadUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.user_metadata?.full_name) {
-        const names = user.user_metadata.full_name.split(" ");
-        const initials = names.length >= 2 
-          ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
-          : names[0][0].toUpperCase();
-        setUserInitials(initials);
-      } else if (user?.email) {
-        setUserInitials(user.email[0].toUpperCase());
+      if (user) {
+        // Load profile data for avatar
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        setUserAvatarUrl(profile?.avatar_url || null);
+
+        // Set initials from user metadata or profile
+        if (user.user_metadata?.full_name) {
+          const names = user.user_metadata.full_name.split(" ");
+          const initials = names.length >= 2
+            ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+            : names[0][0].toUpperCase();
+          setUserInitials(initials);
+        } else if (user.email) {
+          setUserInitials(user.email[0].toUpperCase());
+        }
       }
     };
-    
+
     if (open) {
       loadUserData();
     }
   }, [open]);
 
-  // Check for draft when modal opens
+  // Start conversation when modal opens
   useEffect(() => {
     if (open && !conversationId) {
-      checkForDraft().then((id) => {
-        if (id) {
-          setDraftId(id);
-          setShowDraftDialog(true);
-        } else {
-          startConversation();
-        }
-      });
+      startConversation();
     }
-  }, [open]);
+  }, [open, conversationId]);
 
   // Auto-scroll to bottom when messages change or modal opens
   useEffect(() => {
@@ -178,7 +185,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                       "rounded-2xl px-4 py-3 max-w-[80%] shadow-sm",
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted/50 text-foreground border border-border/50"
+                        : "bg-gray-200 text-foreground border border-border/50"
                     )}
                   >
                     <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -189,6 +196,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
 
                   {msg.role === "user" && (
                     <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage src={userAvatarUrl || undefined} alt="User avatar" />
                       <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                         {userInitials}
                       </AvatarFallback>
@@ -204,7 +212,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
                       <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="bg-muted/50 rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
+                  <div className="bg-background rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>Pensando</span>
                       <div className="flex gap-1">

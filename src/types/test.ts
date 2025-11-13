@@ -18,6 +18,7 @@ export interface Test {
   id: string;
   nome_teste: string;
   hypothesis: string;
+  insights?: string;
   test_types: string[];
   tools: string[];
   target_audience?: string;

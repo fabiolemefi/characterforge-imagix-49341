@@ -29,6 +29,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { CalendarIcon, Sparkles, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -101,7 +107,7 @@ export default function TestForm() {
       form.reset({
         nome_teste: test.nome_teste,
         hypothesis: test.hypothesis,
-        insights: (test as any).insights || "",
+        insights: test?.insights || "",
         test_types: test.test_types,
         tools: test.tools,
         target_audience: test.target_audience || "",
@@ -119,7 +125,7 @@ export default function TestForm() {
   const currentStatus = form.watch("status");
   const selectedTools = form.watch("tools");
   const availableMetrics = getAvailableMetrics(selectedTools);
-  const isReadOnly = isEditing && currentStatus !== "planejamento";
+  const isReadOnly = false; // Allow editing in all statuses
 
   const handleAIFormFill = (data: ExtractedTestData) => {
     // Fill required fields
@@ -158,7 +164,7 @@ export default function TestForm() {
       if (isEditing && id) {
         await updateTest.mutateAsync({ id, ...data });
         // Small delay to ensure cache invalidation completes
-        setTimeout(() => navigate("/tests/list"), 100);
+        setTimeout(() => navigate("/tests/list"), 200);
       } else {
         await createTest.mutateAsync(data);
         navigate("/tests/list");
@@ -214,7 +220,6 @@ export default function TestForm() {
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
-                    disabled={!isEditing}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -281,81 +286,85 @@ export default function TestForm() {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="test_types"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipo de teste *</FormLabel>
-                <FormControl>
-                  <MultiSelectCombobox
-                    options={testTypes}
-                    selected={field.value}
-                    onChange={field.onChange}
-                    placeholder="Selecione os tipos de teste"
-                    disabled={isReadOnly}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="test_types"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de teste *</FormLabel>
+                  <FormControl>
+                    <MultiSelectCombobox
+                      options={testTypes}
+                      selected={field.value}
+                      onChange={field.onChange}
+                      placeholder="Selecione os tipos de teste"
+                      disabled={isReadOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="tools"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Ferramentas *</FormLabel>
-                <FormControl>
-                  <MultiSelectCombobox
-                    options={tools}
-                    selected={field.value}
-                    onChange={field.onChange}
-                    placeholder="Selecione as ferramentas"
-                    disabled={isReadOnly}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="tools"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ferramentas *</FormLabel>
+                  <FormControl>
+                    <MultiSelectCombobox
+                      options={tools}
+                      selected={field.value}
+                      onChange={field.onChange}
+                      placeholder="Selecione as ferramentas"
+                      disabled={isReadOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="target_audience"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Público-alvo</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="novos usuários, leads do funil, clientes ativos"
-                    disabled={isReadOnly}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="target_audience"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Público-alvo</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="novos usuários, leads do funil, clientes ativos"
+                      disabled={isReadOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="tested_elements"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Elementos testados</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="botão principal, mensagem de CTA, layout da tela"
-                    disabled={isReadOnly}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="tested_elements"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Elementos testados</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="botão principal, mensagem de CTA, layout da tela"
+                      disabled={isReadOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <FormField
             control={form.control}
@@ -473,33 +482,40 @@ export default function TestForm() {
 
 
 
-          <FormField
-            control={form.control}
-            name="attachments"
-            render={({ field }) => (
-              <FormItem>
-                <AttachmentsSection
-                  attachments={field.value}
-                  onChange={field.onChange}
-                  disabled={isReadOnly}
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="extra-info">
+              <AccordionTrigger>Informações extras</AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="attachments"
+                  render={({ field }) => (
+                    <FormItem>
+                      <AttachmentsSection
+                        attachments={field.value}
+                        onChange={field.onChange}
+                        disabled={isReadOnly}
+                      />
+                    </FormItem>
+                  )}
                 />
-              </FormItem>
-            )}
-          />
 
-          <FormField
-            control={form.control}
-            name="links"
-            render={({ field }) => (
-              <FormItem>
-                <LinksSection
-                  links={field.value}
-                  onChange={field.onChange}
-                  disabled={isReadOnly}
+                <FormField
+                  control={form.control}
+                  name="links"
+                  render={({ field }) => (
+                    <FormItem>
+                      <LinksSection
+                        links={field.value}
+                        onChange={field.onChange}
+                        disabled={isReadOnly}
+                      />
+                    </FormItem>
+                  )}
                 />
-              </FormItem>
-            )}
-          />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           <div className="flex gap-4">
             <Button
@@ -533,6 +549,7 @@ export default function TestForm() {
         open={aiModalOpen}
         onClose={() => setAIModalOpen(false)}
         onFormFill={handleAIFormFill}
+        checkForDrafts={!isEditing}
       />
     </div>
   );
