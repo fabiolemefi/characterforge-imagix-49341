@@ -11,19 +11,31 @@ interface InlineTextEditorProps {
 
 export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: InlineTextEditorProps) => {
   const [showToolbar, setShowToolbar] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
+    // Only update innerHTML if editor is not focused to prevent cursor jumping
+    if (editorRef.current && !isFocused && editorRef.current.innerHTML !== value) {
       editorRef.current.innerHTML = value || '';
     }
-  }, [value]);
+  }, [value, isFocused]);
 
   const handleInput = () => {
     if (editorRef.current) {
       const newValue = editorRef.current.innerHTML;
       onChange(newValue);
     }
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    setShowToolbar(true);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    setTimeout(() => setShowToolbar(false), 200);
   };
 
   const executeCommand = (command: string, value?: string) => {
@@ -110,8 +122,8 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
         ref={editorRef}
         contentEditable={!disabled}
         onInput={handleInput}
-        onFocus={() => setShowToolbar(true)}
-        onBlur={() => setTimeout(() => setShowToolbar(false), 200)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         className="prose prose-lg max-w-none min-h-[40px] rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_h1]:text-6xl [&_h1]:font-bold [&_h1]:mb-8 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:mb-4 [&_h2]:pr-32 [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1"
         data-placeholder={placeholder}
         suppressContentEditableWarning

@@ -220,6 +220,12 @@ export const useBrandGuide = () => {
 
   const uploadAsset = async (file: File, path: string) => {
     try {
+      // Validate if file is a valid File object
+      if (!file || !(file instanceof File) || !file.name) {
+        console.warn('Invalid file provided to uploadAsset');
+        return null;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${path}/${Date.now()}.${fileExt}`;
 
