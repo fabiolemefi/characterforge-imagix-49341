@@ -9,6 +9,7 @@ import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
 import { ImageBlock } from '@/components/brandguide/ImageBlock';
 import { VideoBlock } from '@/components/brandguide/VideoBlock';
 import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
+import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
 
 export default function BrandGuide() {
   const { categorySlug, pageSlug } = useParams();
@@ -122,6 +123,17 @@ export default function BrandGuide() {
         return (
           <div key={block.id}>
             <EmbedBlock 
+              blockId={block.id} 
+              content={block.content} 
+              isAdmin={false} 
+              onContentChange={() => {}} 
+            />
+          </div>
+        );
+      case 'separator':
+        return (
+          <div key={block.id}>
+            <SeparatorBlock 
               blockId={block.id} 
               content={block.content} 
               isAdmin={false} 
