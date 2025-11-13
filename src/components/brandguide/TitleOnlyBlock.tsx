@@ -20,7 +20,7 @@ export const TitleOnlyBlock = ({ blockId, content, isAdmin, onContentChange }: T
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-8">
+    <div className="w-full max-w-4xl my-8">
       <InlineTextEditor
         value={localContent.title || ''}
         onChange={handleTitleChange}

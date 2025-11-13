@@ -43,7 +43,7 @@ export const TwoColumnBlock = ({ blockId, content, isAdmin, onContentChange }: T
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-8">
+    <div className="w-full max-w-4xl my-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {localContent.columns.map((column, index) => (
           <div key={index} className="space-y-4 flex flex-col">

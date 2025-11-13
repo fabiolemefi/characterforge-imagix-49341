@@ -30,7 +30,7 @@ export const ImageBlock = ({ blockId, content, isAdmin, onContentChange }: Image
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-8">
+    <div className="w-full max-w-4xl my-8">
       <ImageUploader
         imageUrl={localContent.image_url}
         onUpload={handleImageUpload}
