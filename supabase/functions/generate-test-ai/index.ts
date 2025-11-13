@@ -250,24 +250,58 @@ serve(async (req) => {
       throw new Error("Supabase credentials não configuradas");
     }
 
+    // Criar cliente Supabase uma única vez
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     console.log(`[${conversationId}] Gerando resposta com ${messages.length} mensagens`);
+
+    // Buscar dados já coletados da conversa
+    const { data: conversationData } = await supabase
+      .from("test_ai_conversations")
+      .select("extracted_data")
+      .eq("id", conversationId)
+      .single();
+    
+    const extractedData = conversationData?.extracted_data || {};
 
     const openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
     });
 
+    // Função para otimizar o contexto (manter mensagens essenciais)
+    function optimizeContext(messages: any[], maxMessages = 10) {
+      if (messages.length <= maxMessages) {
+        return messages;
+      }
+      // Manter primeira mensagem + últimas N mensagens
+      return [
+        messages[0],
+        ...messages.slice(-maxMessages + 1)
+      ];
+    }
+
+    // Otimizar contexto para economizar tokens
+    const optimizedMessages = optimizeContext(messages, 10);
+
+    // Adicionar dados já coletados ao contexto
+    const dataContext = Object.keys(extractedData || {}).length > 0
+      ? `\nDADOS JÁ COLETADOS:\n${JSON.stringify(extractedData, null, 2)}\n`
+      : '';
+
     // Build conversation history for context
-    const conversationHistory = messages
+    const conversationHistory = optimizedMessages
       .map((msg: any) => `${msg.role === "user" ? "Usuário" : "Assistente"}: ${msg.content}`)
       .join("\n\n");
 
     const userPrompt = `${SYSTEM_PROMPT}
-
-HISTÓRICO DA CONVERSA:
+${dataContext}
+HISTÓRICO RECENTE DA CONVERSA:
 ${conversationHistory}
 
 INSTRUÇÃO:
-Baseado no histórico acima, gere a próxima resposta do assistente seguindo todas as regras.
+Baseado nos DADOS JÁ COLETADOS e no histórico RECENTE acima, gere a próxima resposta do assistente.
+NÃO repita perguntas sobre dados que já foram coletados.
 Seja DIRETO, não repita o que o usuário disse.
 Crie o nome do teste automaticamente.
 Compile a hipótese de forma inteligente usando TODAS as informações do histórico.
@@ -277,7 +311,7 @@ Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicaç
     console.log(`[${conversationId}] Chamando OpenAI API`);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4-turbo-preview",
       messages: [{ role: "user", content: userPrompt }],
       temperature: 0.9,
       max_tokens: 2000,
@@ -326,9 +360,6 @@ Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicaç
     }
 
     // Update conversation in database
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     // Add AI message to conversation
     const currentMessages = (messages || []) as any[];
     const aiMessage = {
