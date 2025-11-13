@@ -4,12 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Save, UserPlus, Edit } from "lucide-react";
+import { UserPlus, Edit } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
+import { EditUserModal } from "@/components/EditUserModal";
 import {
   Table,
   TableBody,
@@ -28,16 +27,15 @@ interface Profile {
   is_active: boolean;
   is_admin: boolean;
   created_at: string;
-  credits: number;
 }
 
 export default function AdminUsers() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [editingCredits, setEditingCredits] = useState<{[key: string]: number}>({});
-  const [editingJobTitle, setEditingJobTitle] = useState<{[key: string]: string}>({});
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -109,121 +107,9 @@ export default function AdminUsers() {
     setLoading(false);
   };
 
-  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_active: !currentStatus })
-      .eq("id", userId);
-
-    if (error) {
-      toast({
-        title: "Erro ao atualizar usuário",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Usuário atualizado",
-        description: `Usuário ${!currentStatus ? "ativado" : "desativado"} com sucesso`,
-      });
-      loadProfiles();
-    }
-  };
-
-  const toggleAdminStatus = async (userId: string, currentIsAdmin: boolean) => {
-    if (currentIsAdmin) {
-      // Remove admin role
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", "admin");
-
-      if (error) {
-        toast({
-          title: "Erro ao remover admin",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Admin removido",
-          description: "Privilégios de admin foram removidos",
-        });
-        loadProfiles();
-      }
-    } else {
-      // Add admin role
-      const { error } = await supabase
-        .from("user_roles")
-        .insert([{ user_id: userId, role: "admin" }]);
-
-      if (error) {
-        toast({
-          title: "Erro ao tornar admin",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Admin criado",
-          description: "Usuário agora tem privilégios de admin",
-        });
-        loadProfiles();
-      }
-    }
-  };
-
-  const updateCredits = async (userId: string, credits: number) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ credits })
-      .eq("id", userId);
-
-    if (error) {
-      toast({
-        title: "Erro ao atualizar créditos",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Créditos atualizados",
-        description: "Os créditos foram atualizados com sucesso",
-      });
-      setEditingCredits(prev => {
-        const newState = { ...prev };
-        delete newState[userId];
-        return newState;
-      });
-      loadProfiles();
-    }
-  };
-
-  const updateJobTitle = async (userId: string, job_title: string) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ job_title })
-      .eq("id", userId);
-
-    if (error) {
-      toast({
-        title: "Erro ao atualizar cargo",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Cargo atualizado",
-        description: "O cargo foi atualizado com sucesso",
-      });
-      setEditingJobTitle(prev => {
-        const newState = { ...prev };
-        delete newState[userId];
-        return newState;
-      });
-      loadProfiles();
-    }
+  const handleEditUser = (profile: Profile) => {
+    setSelectedProfile(profile);
+    setEditUserModalOpen(true);
   };
 
   if (!isAdmin) {
@@ -256,7 +142,6 @@ export default function AdminUsers() {
                     <TableHead>Email</TableHead>
                     <TableHead>Cargo</TableHead>
                     <TableHead>Cadastro</TableHead>
-                    <TableHead>Créditos</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Admin</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -265,13 +150,13 @@ export default function AdminUsers() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Carregando...
                       </TableCell>
                     </TableRow>
                   ) : profiles.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -290,55 +175,9 @@ export default function AdminUsers() {
                           </div>
                         </TableCell>
                         <TableCell>{profile.email}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="text"
-                              placeholder="Cargo"
-                              value={editingJobTitle[profile.id] ?? profile.job_title ?? ""}
-                              onChange={(e) => setEditingJobTitle(prev => ({
-                                ...prev,
-                                [profile.id]: e.target.value
-                              }))}
-                              className="w-40"
-                            />
-                            {editingJobTitle[profile.id] !== undefined && 
-                             editingJobTitle[profile.id] !== (profile.job_title ?? "") && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => updateJobTitle(profile.id, editingJobTitle[profile.id])}
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
+                        <TableCell>{profile.job_title || "-"}</TableCell>
                         <TableCell>
                           {new Date(profile.created_at).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              value={editingCredits[profile.id] ?? profile.credits}
-                              onChange={(e) => setEditingCredits(prev => ({
-                                ...prev,
-                                [profile.id]: parseInt(e.target.value) || 0
-                              }))}
-                              className="w-24"
-                            />
-                            {editingCredits[profile.id] !== undefined && 
-                             editingCredits[profile.id] !== profile.credits && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => updateCredits(profile.id, editingCredits[profile.id])}
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
                         </TableCell>
                         <TableCell>
                           <span
@@ -352,34 +191,18 @@ export default function AdminUsers() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Switch
-                            checked={profile.is_admin}
-                            onCheckedChange={() =>
-                              toggleAdminStatus(profile.id, profile.is_admin)
-                            }
-                          />
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${profile.is_admin ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                            {profile.is_admin ? "Admin" : "Usuário"}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                toast({
-                                  title: "Em desenvolvimento",
-                                  description: "Funcionalidade de editar usuário em breve",
-                                });
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Switch
-                              checked={profile.is_active}
-                              onCheckedChange={() =>
-                                toggleUserStatus(profile.id, profile.is_active)
-                              }
-                            />
-                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEditUser(profile)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -395,6 +218,13 @@ export default function AdminUsers() {
         open={addUserModalOpen}
         onOpenChange={setAddUserModalOpen}
         onUserAdded={loadProfiles}
+      />
+      
+      <EditUserModal
+        open={editUserModalOpen}
+        onOpenChange={setEditUserModalOpen}
+        profile={selectedProfile}
+        onUserUpdated={loadProfiles}
       />
     </SidebarProvider>
   );
