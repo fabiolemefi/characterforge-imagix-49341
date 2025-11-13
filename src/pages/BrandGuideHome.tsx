@@ -110,52 +110,33 @@ export default function BrandGuideHome() {
   };
 
   return (
-    <div className="p-8">
-      <div className="max-w-6xl mx-auto">
-            {loading ? (
-              <div className="space-y-8 animate-pulse">
-                <div className="h-12 bg-muted rounded w-1/3"></div>
-                <div className="h-64 bg-muted rounded"></div>
-                <div className="h-64 bg-muted rounded"></div>
-              </div>
-            ) : error ? (
-              <>
-                <div className="mb-8">
-                  <h1 className="text-4xl font-bold mb-2">
-                    Guia de Marca
-                  </h1>
-                </div>
-                <ErrorFallback
-                  title="Erro ao carregar conteúdo"
-                  message={error?.message || 'Erro desconhecido'}
-                  onRetry={() => window.location.reload()}
-                />
-              </>
-            ) : (
-              <>
-                <div className="mb-8">
-                  <h1 className="text-4xl font-bold mb-2">
-                    Guia de Marca
-                  </h1>
-                  <p className="text-muted-foreground">
-                    Bem-vindo ao guia de marca da Efi
-                  </p>
-                </div>
-
-                {blocks.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      Nenhum conteúdo disponível ainda.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-8">
-                    {blocks.map(renderBlock)}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+    <div className="bg-white min-h-screen p-8">
+      {loading ? (
+        <div className="space-y-8 animate-pulse">
+          <div className="h-64 bg-muted rounded"></div>
+          <div className="h-64 bg-muted rounded"></div>
         </div>
+      ) : error ? (
+        <ErrorFallback
+          title="Erro ao carregar conteúdo"
+          message={error?.message || 'Erro desconhecido'}
+          onRetry={() => window.location.reload()}
+        />
+      ) : (
+        <>
+          {blocks.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                Nenhum conteúdo disponível ainda.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {blocks.map(renderBlock)}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
