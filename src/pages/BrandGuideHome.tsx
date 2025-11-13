@@ -110,7 +110,7 @@ export default function BrandGuideHome() {
   };
 
   return (
-    <div className="bg-white min-h-screen p-8 pt-20">
+    <div className="bg-white min-h-screen p-8 pt-8">
       {loading ? (
         <div className="space-y-8 animate-pulse">
           <div className="h-64 bg-muted rounded"></div>
