@@ -29,7 +29,7 @@ export interface BrandGuideBlock {
   id: string;
   page_id?: string;
   category_id?: string;
-  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only';
+  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed';
   position: number;
   content: any;
   created_at: string;
@@ -145,7 +145,7 @@ export const useBrandGuide = () => {
     }
   };
 
-  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only') => {
+  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed') => {
     try {
       const { data: existingBlocks } = await supabase
         .from('brand_guide_blocks')
@@ -171,7 +171,13 @@ export const useBrandGuide = () => {
           ]}
         : blockType === 'title_only'
         ? { title: '' }
-        : { text: '' };
+        : blockType === 'text_only'
+        ? { text: '' }
+        : blockType === 'image'
+        ? { image_url: '', image_alt: '' }
+        : blockType === 'video'
+        ? { video_url: '' }
+        : { embed_url: '' };
 
       const { data, error } = await supabase
         .from('brand_guide_blocks')
