@@ -738,6 +738,7 @@ export type Database = {
           end_date: string | null
           hypothesis: string
           id: string
+          insights: string | null
           is_active: boolean
           links: Json | null
           nome_teste: string
@@ -758,6 +759,7 @@ export type Database = {
           end_date?: string | null
           hypothesis: string
           id?: string
+          insights?: string | null
           is_active?: boolean
           links?: Json | null
           nome_teste: string
@@ -778,6 +780,7 @@ export type Database = {
           end_date?: string | null
           hypothesis?: string
           id?: string
+          insights?: string | null
           is_active?: boolean
           links?: Json | null
           nome_teste?: string

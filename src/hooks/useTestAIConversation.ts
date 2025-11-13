@@ -12,6 +12,7 @@ export interface Message {
 export interface ExtractedTestData {
   nome_teste?: string | null;
   hypothesis?: string | null;
+  insights?: string | null;
   test_types?: string[];
   tools?: string[];
   target_audience?: string | null;
@@ -86,7 +87,7 @@ export function useTestAIConversation() {
             console.log("📊 Updating extracted data:", newData.extracted_data);
             setExtractedData(newData.extracted_data);
           }
-          if (newData.status === "ready") {
+          if (newData.status === "ready" || newData.status === "completed") {
             console.log("✅ Status is ready!");
             setIsReady(true);
           }

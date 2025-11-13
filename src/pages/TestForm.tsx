@@ -29,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, Sparkles } from "lucide-react";
+import { CalendarIcon, Sparkles, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTest, useCreateTest, useUpdateTest } from "@/hooks/useTests";
@@ -54,6 +54,7 @@ const tools = [
 const formSchema = z.object({
   nome_teste: z.string().min(1, "Nome é obrigatório"),
   hypothesis: z.string().min(1, "Hipótese é obrigatória"),
+  insights: z.string().optional(),
   test_types: z.array(z.string()).min(1, "Selecione pelo menos um tipo"),
   tools: z.array(z.string()).min(1, "Selecione pelo menos uma ferramenta"),
   target_audience: z.string().optional(),
@@ -81,6 +82,7 @@ export default function TestForm() {
     defaultValues: {
       nome_teste: "",
       hypothesis: "",
+      insights: "",
       test_types: [],
       tools: [],
       target_audience: "",
@@ -99,6 +101,7 @@ export default function TestForm() {
       form.reset({
         nome_teste: test.nome_teste,
         hypothesis: test.hypothesis,
+        insights: (test as any).insights || "",
         test_types: test.test_types,
         tools: test.tools,
         target_audience: test.target_audience || "",
@@ -246,6 +249,28 @@ export default function TestForm() {
                     placeholder="Se [ação], então [resultado esperado], pois [justificativa]."
                     disabled={isReadOnly}
                     rows={4}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="insights"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-yellow-500" />
+                  Insights e Recomendações
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Insights sobre execução, acompanhamento e análise do teste..."
+                    className="min-h-[150px] resize-none bg-yellow-50/50 border-yellow-200 focus:border-yellow-400"
+                    {...field}
+                    disabled={isReadOnly}
                   />
                 </FormControl>
                 <FormMessage />

@@ -122,7 +122,7 @@ serve(async (req) => {
             .update({
               messages: updatedMessages,
               extracted_data: aiResponse.extracted_data,
-              status: aiResponse.status === "ready" ? "completed" : "draft",
+              status: aiResponse.status === "ready" ? "ready" : "draft",
               prediction_id: null, // Clear prediction_id
               updated_at: new Date().toISOString(),
             })

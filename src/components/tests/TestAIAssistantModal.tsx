@@ -117,8 +117,8 @@ export function TestAIAssistantModal({ open, onClose, onFormFill }: TestAIAssist
     if (!isReady || !extractedData) return;
 
     onFormFill(extractedData);
-    toast.success("Formulário preenchido! ✨", {
-      description: "Revise as informações e clique em criar teste.",
+    toast.success("Dados coletados com sucesso! ✨", {
+      description: "O formulário foi preenchido. Revise e clique em 'Criar Teste'.",
     });
   };
 
