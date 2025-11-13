@@ -30,12 +30,13 @@ export const ImageBlock = ({ blockId, content, isAdmin, onContentChange }: Image
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-4xl mx-auto my-8">
       <ImageUploader
         imageUrl={localContent.image_url}
         onUpload={handleImageUpload}
         disabled={!isAdmin}
-        className="w-full max-w-4xl mx-auto"
+        className="w-full"
+        aspectRatio="aspect-auto"
       />
     </div>
   );
