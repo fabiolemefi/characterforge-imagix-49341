@@ -10,6 +10,10 @@ import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
 import { TitleOnlyBlock } from '@/components/brandguide/TitleOnlyBlock';
 import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
+import { ImageBlock } from '@/components/brandguide/ImageBlock';
+import { VideoBlock } from '@/components/brandguide/VideoBlock';
+import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
+import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -164,6 +168,42 @@ export default function AdminBrandGuidePage() {
       case 'text_only':
         return blockWrapper(
           <TextOnlyBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'image':
+        return blockWrapper(
+          <ImageBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'video':
+        return blockWrapper(
+          <VideoBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'embed':
+        return blockWrapper(
+          <EmbedBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'separator':
+        return blockWrapper(
+          <SeparatorBlock 
             blockId={block.id} 
             content={block.content} 
             isAdmin={true} 

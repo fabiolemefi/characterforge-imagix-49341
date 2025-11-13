@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ArrowLeft, Save, Image, Video, Youtube, Type, AlignLeft, Columns2, Columns3, Layout } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, Image, Video, Youtube, Type, AlignLeft, Columns2, Columns3, Layout, Minus } from 'lucide-react';
 import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
@@ -13,6 +13,7 @@ import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
 import { ImageBlock } from '@/components/brandguide/ImageBlock';
 import { VideoBlock } from '@/components/brandguide/VideoBlock';
 import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
+import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,7 +114,7 @@ export default function AdminBrandGuideHome() {
     }
   };
 
-  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed') => {
+  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'separator') => {
     try {
       const { data: existingBlocks } = await supabase
         .from('brand_guide_blocks')
@@ -146,6 +147,8 @@ export default function AdminBrandGuideHome() {
         ? { image_url: '', image_alt: '' }
         : blockType === 'video'
         ? { video_url: '' }
+        : blockType === 'separator'
+        ? {}
         : { embed_url: '' };
 
       const { data, error } = await supabase
@@ -264,6 +267,15 @@ export default function AdminBrandGuideHome() {
             onContentChange={(content) => handleContentChange(block.id, content)}
           />
         );
+      case 'separator':
+        return blockWrapper(
+          <SeparatorBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
       default:
         return null;
     }
@@ -350,6 +362,10 @@ export default function AdminBrandGuideHome() {
               <DropdownMenuItem onClick={() => handleAddBlock('embed')}>
                 <Youtube className="h-4 w-4 mr-2" />
                 Vídeo YouTube
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('separator')}>
+                <Minus className="h-4 w-4 mr-2" />
+                Separador
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleAddBlock('single_column')}>
                 <Layout className="h-4 w-4 mr-2" />
