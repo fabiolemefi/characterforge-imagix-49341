@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, Image, Video, Youtube, Type, AlignLeft, Columns2, Columns3, Layout } from 'lucide-react';
 import { useBrandGuide, BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
 import { TitleOnlyBlock } from '@/components/brandguide/TitleOnlyBlock';
 import { TextOnlyBlock } from '@/components/brandguide/TextOnlyBlock';
+import { ImageBlock } from '@/components/brandguide/ImageBlock';
+import { VideoBlock } from '@/components/brandguide/VideoBlock';
+import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,7 +72,17 @@ export default function AdminBrandGuideHome() {
           const url = await uploadAsset(content.imageFile, 'images');
           if (url) {
             content.media_url = url;
+            content.image_url = url;
             delete content.imageFile;
+          }
+        }
+
+        // Upload videos if needed
+        if (content.videoFile) {
+          const url = await uploadAsset(content.videoFile, 'videos');
+          if (url) {
+            content.video_url = url;
+            delete content.videoFile;
           }
         }
 
@@ -100,7 +113,7 @@ export default function AdminBrandGuideHome() {
     }
   };
 
-  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only') => {
+  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed') => {
     try {
       const { data: existingBlocks } = await supabase
         .from('brand_guide_blocks')
@@ -127,7 +140,13 @@ export default function AdminBrandGuideHome() {
           ]}
         : blockType === 'title_only'
         ? { title: '' }
-        : { text: '' };
+        : blockType === 'text_only'
+        ? { text: '' }
+        : blockType === 'image'
+        ? { image_url: '', image_alt: '' }
+        : blockType === 'video'
+        ? { video_url: '' }
+        : { embed_url: '' };
 
       const { data, error } = await supabase
         .from('brand_guide_blocks')
@@ -218,6 +237,33 @@ export default function AdminBrandGuideHome() {
             onContentChange={(content) => handleContentChange(block.id, content)}
           />
         );
+      case 'image':
+        return blockWrapper(
+          <ImageBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'video':
+        return blockWrapper(
+          <VideoBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'embed':
+        return blockWrapper(
+          <EmbedBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
       default:
         return null;
     }
@@ -252,11 +298,8 @@ export default function AdminBrandGuideHome() {
                 Voltar
               </Button>
               <h1 className="text-3xl font-bold">
-                Home do Guia de Marca
+                Página Home
               </h1>
-              <p className="text-muted-foreground">
-                Edite o conteúdo da página inicial do guia de marca
-              </p>
             </div>
             <Button 
               onClick={handleSaveChanges} 
@@ -268,7 +311,7 @@ export default function AdminBrandGuideHome() {
             </Button>
           </div>
 
-          <div className="space-y-8 mb-8">
+          <div className="bg-white rounded-lg p-8 space-y-8 mb-8">
             {blocks.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
                 <p className="text-muted-foreground mb-4">
@@ -280,33 +323,48 @@ export default function AdminBrandGuideHome() {
             )}
           </div>
 
-          <div className="flex justify-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Bloco
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleAddBlock('title_only')}>
-                  Título
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAddBlock('text_only')}>
-                  Texto
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAddBlock('single_column')}>
-                  Título + Subtítulo + Imagem
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAddBlock('two_columns')}>
-                  2 Colunas
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleAddBlock('three_columns')}>
-                  3 Colunas
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="w-full" size="lg">
+                <Plus className="h-5 w-5 mr-2" />
+                Adicionar Bloco
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-full">
+              <DropdownMenuItem onClick={() => handleAddBlock('title_only')}>
+                <Type className="h-4 w-4 mr-2" />
+                Título
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('text_only')}>
+                <AlignLeft className="h-4 w-4 mr-2" />
+                Texto
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('image')}>
+                <Image className="h-4 w-4 mr-2" />
+                Imagem
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('video')}>
+                <Video className="h-4 w-4 mr-2" />
+                Vídeo MP4
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('embed')}>
+                <Youtube className="h-4 w-4 mr-2" />
+                Vídeo YouTube
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('single_column')}>
+                <Layout className="h-4 w-4 mr-2" />
+                Título + Subtítulo + Imagem
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('two_columns')}>
+                <Columns2 className="h-4 w-4 mr-2" />
+                2 Colunas
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddBlock('three_columns')}>
+                <Columns3 className="h-4 w-4 mr-2" />
+                3 Colunas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </SidebarProvider>
