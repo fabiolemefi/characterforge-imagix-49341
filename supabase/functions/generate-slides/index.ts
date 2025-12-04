@@ -83,18 +83,12 @@ serve(async (req) => {
     const cleanText = processedText.replace(/`(https?:\/\/[^`]+)`/g, '$1');
     console.log(`[generate-slides] Cleaned backticks from URLs`);
 
-    const hasUserImages = imagesMap && Object.keys(imagesMap).length > 0;
-
     // Build request body for Create from Template API
-    const requestBody: Record<string, unknown> = {
+    // Note: imageOptions is NOT supported - images are detected from URLs in the prompt
+    const requestBody = {
       gammaId: 'g_si92vfr170fkppw', // EFI template ID
       prompt: cleanText.substring(0, 400000), // Max 400k chars
     };
-    
-    // Only add imageOptions if user provided images
-    if (hasUserImages) {
-      requestBody.imageOptions = { source: 'web' };
-    }
 
     console.log(`[generate-slides] Request body:`, JSON.stringify(requestBody, null, 2));
 
