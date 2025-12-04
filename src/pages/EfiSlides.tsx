@@ -28,7 +28,9 @@ export default function EfiSlides() {
   // New configuration states
   const [dimensions, setDimensions] = useState<Dimensions>('fluid');
   const [exportAs, setExportAs] = useState<'pdf' | 'pptx' | ''>('');
+  const [styleMode, setStyleMode] = useState<'theme' | 'model'>('theme');
   const [themeId, setThemeId] = useState<string>('');
+  const [modelId, setModelId] = useState<string>('');
   const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [headerFooter, setHeaderFooter] = useState<HeaderFooterConfig>({
     showLogo: false,
@@ -262,7 +264,9 @@ export default function EfiSlides() {
         headerFooter: (headerFooter.showLogo || headerFooter.showCardNumber || headerFooter.footerText) 
           ? headerFooter 
           : undefined,
+        styleMode,
         themeId: themeId || undefined,
+        modelId: modelId || undefined,
         additionalInstructions: additionalInstructions.trim() || undefined,
       });
 
@@ -279,7 +283,9 @@ export default function EfiSlides() {
       setTextMode('preserve');
       setDimensions('fluid');
       setExportAs('');
+      setStyleMode('theme');
       setThemeId('');
+      setModelId('');
       setAdditionalInstructions('');
       setHeaderFooter({
         showLogo: false,
@@ -568,28 +574,66 @@ export default function EfiSlides() {
                 </Select>
               </div>
 
-              {/* Theme Selector */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Theme:</label>
-                <Select value={themeId || 'default'} onValueChange={(value) => setThemeId(value === 'default' ? '' : value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={isLoadingThemes ? "Carregando themes..." : "Theme padrão"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Theme padrão do workspace</SelectItem>
-                    {themes?.filter(t => t.type === 'custom').map((theme) => (
-                      <SelectItem key={theme.id} value={theme.id}>
-                        {theme.name} (Custom)
-                      </SelectItem>
-                    ))}
-                    {themes?.filter(t => t.type === 'standard').map((theme) => (
-                      <SelectItem key={theme.id} value={theme.id}>
-                        {theme.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Style Mode Selector */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Estilo da apresentação:</label>
+                <RadioGroup 
+                  value={styleMode} 
+                  onValueChange={(value) => {
+                    setStyleMode(value as 'theme' | 'model');
+                    if (value === 'theme') setModelId('');
+                    else setThemeId('');
+                  }}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="theme" id="mode-theme" />
+                    <Label htmlFor="mode-theme" className="cursor-pointer">Usar Theme</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="model" id="mode-model" />
+                    <Label htmlFor="mode-model" className="cursor-pointer">Usar Model (Template)</Label>
+                  </div>
+                </RadioGroup>
               </div>
+
+              {/* Conditional: Theme Selector or Model Input */}
+              {styleMode === 'theme' ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Theme:</label>
+                  <Select value={themeId || 'default'} onValueChange={(value) => setThemeId(value === 'default' ? '' : value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={isLoadingThemes ? "Carregando themes..." : "Theme padrão"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Theme padrão do workspace</SelectItem>
+                      {themes?.filter(t => t.type === 'custom').map((theme) => (
+                        <SelectItem key={theme.id} value={theme.id}>
+                          {theme.name} (Custom)
+                        </SelectItem>
+                      ))}
+                      {themes?.filter(t => t.type === 'standard').map((theme) => (
+                        <SelectItem key={theme.id} value={theme.id}>
+                          {theme.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">ID do Template (gammaId):</label>
+                  <Input
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    placeholder="g_abcdef123456..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Cole o gammaId de uma apresentação existente no Gamma. 
+                    Encontre-o no menu "..." → "Copy gammaId" na sua apresentação.
+                  </p>
+                </div>
+              )}
 
               {/* Additional Instructions */}
               <div className="space-y-2">
