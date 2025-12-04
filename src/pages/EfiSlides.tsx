@@ -3,10 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { useSlideGenerations, SlideGeneration, UploadedImage } from '@/hooks/useSlideGenerations';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X, Copy, Plus } from 'lucide-react';
 import JSZip from 'jszip';
+
+type TextMode = 'generate' | 'condense' | 'preserve';
 
 export default function EfiSlides() {
   const [inputText, setInputText] = useState('');
@@ -15,6 +19,7 @@ export default function EfiSlides() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [textMode, setTextMode] = useState<TextMode>('preserve');
   const { generations, isLoading, createGeneration, uploadImage, deleteImage } = useSlideGenerations();
   const { toast } = useToast();
 
@@ -211,6 +216,7 @@ export default function EfiSlides() {
         sourceType,
         originalFilename: originalFilename || undefined,
         imagesMap: Object.keys(imagesMap).length > 0 ? imagesMap : undefined,
+        textMode,
       });
 
       toast({
@@ -223,6 +229,7 @@ export default function EfiSlides() {
       setSourceType('text');
       setOriginalFilename(null);
       setUploadedImages([]);
+      setTextMode('preserve');
     } catch (error) {
       console.error('Error generating slides:', error);
       toast({
@@ -435,6 +442,41 @@ export default function EfiSlides() {
               <div className="text-xs text-muted-foreground text-right">
                 {inputText.length.toLocaleString()} / 400.000 caracteres
               </div>
+            </div>
+
+            {/* Text Mode Selector */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium">Modo de processamento:</label>
+              <RadioGroup
+                value={textMode}
+                onValueChange={(value) => setTextMode(value as TextMode)}
+                className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+              >
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="preserve" id="preserve" className="mt-0.5" />
+                  <div>
+                    <Label htmlFor="preserve" className="font-medium cursor-pointer">Preservar</Label>
+                    <p className="text-xs text-muted-foreground mt-1">Mantém o texto exatamente como enviado</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="condense" id="condense" className="mt-0.5" />
+                  <div>
+                    <Label htmlFor="condense" className="font-medium cursor-pointer">Resumir</Label>
+                    <p className="text-xs text-muted-foreground mt-1">IA condensa e resume textos longos</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="generate" id="generate" className="mt-0.5" />
+                  <div>
+                    <Label htmlFor="generate" className="font-medium cursor-pointer">Expandir</Label>
+                    <p className="text-xs text-muted-foreground mt-1">IA expande e enriquece o conteúdo</p>
+                  </div>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                💡 Dica: Use <code className="bg-muted px-1 rounded">---</code> em uma linha para definir onde cada slide deve começar.
+              </p>
             </div>
 
             {/* Generate Button */}

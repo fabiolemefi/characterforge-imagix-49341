@@ -106,11 +106,13 @@ export function useSlideGenerations() {
       sourceType, 
       originalFilename,
       imagesMap,
+      textMode = 'preserve',
     }: { 
       inputText: string; 
       sourceType: string; 
       originalFilename?: string;
       imagesMap?: Record<string, string>;
+      textMode?: 'generate' | 'condense' | 'preserve';
     }) => {
       if (!user) throw new Error('User not authenticated');
 
@@ -142,6 +144,7 @@ export function useSlideGenerations() {
           originalFilename,
           recordId: record.id,
           imagesMap: imagesMap || {},
+          textMode,
         },
       });
 
