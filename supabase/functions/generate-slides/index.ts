@@ -79,13 +79,18 @@ serve(async (req) => {
       console.log(`[generate-slides] Warning: ${unusedTags.length} image tags without images: ${unusedTags.join(', ')}`);
     }
 
+    // Remove backticks from image URLs (Gamma API requires plain URLs)
+    const cleanText = processedText.replace(/`(https?:\/\/[^`]+)`/g, '$1');
+    console.log(`[generate-slides] Cleaned backticks from URLs`);
+
     const hasUserImages = imagesMap && Object.keys(imagesMap).length > 0;
 
     // Build request body
     const requestBody: Record<string, unknown> = {
-      inputText: processedText.substring(0, 400000), // Max 400k chars
+      inputText: cleanText.substring(0, 400000), // Max 400k chars
       textMode: textMode as TextMode,
       format: 'presentation',
+      themeId: 'g_si92vfr170fkppw', // EFI custom theme
       cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
       textOptions: {
         language: 'pt-br',
