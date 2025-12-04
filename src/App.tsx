@@ -9,6 +9,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
 import AdminPlugins from "./pages/AdminPlugins";
+import AdminDocumentation from "./pages/AdminDocumentation";
 import PluginDetails from "./pages/PluginDetails";
 import Efimail from "./pages/Efimail";
 import Efimagem from "./pages/Efimagem";
@@ -81,6 +82,7 @@ const App = () => <AuthProvider>
           <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
           <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />
+          <Route path="/admin/documentation" element={<ProtectedRoute><AdminDocumentation /></ProtectedRoute>} />
           <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
           <Route path="/share/file" element={<ShareDownload />} />

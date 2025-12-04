@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, FlaskConical } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, FlaskConical, BookOpen } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -48,6 +48,11 @@ const menuItems = [
     title: "Plugins",
     url: "/admin/plugins",
     icon: Puzzle,
+  },
+  {
+    title: "Documentação",
+    url: "/admin/documentation",
+    icon: BookOpen,
   },
 ];
 

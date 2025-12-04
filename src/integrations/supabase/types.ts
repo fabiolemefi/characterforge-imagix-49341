@@ -854,6 +854,10 @@ export type Database = {
         | "three_columns"
         | "title_only"
         | "text_only"
+        | "image"
+        | "video"
+        | "embed"
+        | "separator"
       test_status: "planejamento" | "execucao" | "analise" | "documentacao"
     }
     CompositeTypes: {
@@ -989,6 +993,10 @@ export const Constants = {
         "three_columns",
         "title_only",
         "text_only",
+        "image",
+        "video",
+        "embed",
+        "separator",
       ],
       test_status: ["planejamento", "execucao", "analise", "documentacao"],
     },
