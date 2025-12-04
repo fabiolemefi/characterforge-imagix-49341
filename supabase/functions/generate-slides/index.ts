@@ -12,6 +12,24 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const TEMPLATE_ID = 'g_si92vfr170fkppw';
 
+// Process image tags in text - replace [img1], [img2], etc. with actual URLs
+function processImageTags(text: string, imagesMap: Record<string, string>): string {
+  if (!imagesMap || Object.keys(imagesMap).length === 0) {
+    return text;
+  }
+
+  let processedText = text;
+  
+  // Replace tags like [img1], [img2], etc.
+  for (const [tag, url] of Object.entries(imagesMap)) {
+    const regex = new RegExp(`\\[${tag}\\]`, 'gi');
+    processedText = processedText.replace(regex, url);
+  }
+
+  console.log(`[generate-slides] Processed ${Object.keys(imagesMap).length} image tags`);
+  return processedText;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -33,13 +51,17 @@ serve(async (req) => {
       throw new Error('Invalid user token');
     }
 
-    const { text, sourceType, originalFilename, recordId } = await req.json();
+    const { text, sourceType, originalFilename, recordId, imagesMap } = await req.json();
 
     if (!text || text.trim().length === 0) {
       throw new Error('Text content is required');
     }
 
     console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}`);
+    console.log(`[generate-slides] Images provided: ${imagesMap ? Object.keys(imagesMap).length : 0}`);
+
+    // Process image tags in the text
+    const processedText = processImageTags(text, imagesMap || {});
 
     // Call Gamma API to create from template
     const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
@@ -50,7 +72,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         gammaId: TEMPLATE_ID,
-        prompt: text.substring(0, 400000), // Max 400k chars
+        prompt: processedText.substring(0, 400000), // Max 400k chars
       }),
     });
 
