@@ -10,7 +10,10 @@ const corsHeaders = {
 const GAMMA_API_KEY = Deno.env.get('GAMMA_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const TEMPLATE_ID = 'g_si92vfr170fkppw';
+const THEME_ID = 'g_si92vfr170fkppw';
+
+// Text modes supported by Gamma API
+type TextMode = 'generate' | 'condense' | 'preserve';
 
 // Process image tags in text - replace [img1], [img2], etc. with actual URLs
 function processImageTags(text: string, imagesMap: Record<string, string>): string {
@@ -51,28 +54,34 @@ serve(async (req) => {
       throw new Error('Invalid user token');
     }
 
-    const { text, sourceType, originalFilename, recordId, imagesMap } = await req.json();
+    const { text, sourceType, originalFilename, recordId, imagesMap, textMode = 'preserve' } = await req.json();
 
     if (!text || text.trim().length === 0) {
       throw new Error('Text content is required');
     }
 
-    console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}`);
+    console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}, textMode: ${textMode}`);
     console.log(`[generate-slides] Images provided: ${imagesMap ? Object.keys(imagesMap).length : 0}`);
 
     // Process image tags in the text
     const processedText = processImageTags(text, imagesMap || {});
 
-    // Call Gamma API to create from template
-    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
+    // Call Gamma API with full generations endpoint
+    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
       method: 'POST',
       headers: {
         'X-API-KEY': GAMMA_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        gammaId: TEMPLATE_ID,
-        prompt: processedText.substring(0, 400000), // Max 400k chars
+        inputText: processedText.substring(0, 400000), // Max 400k chars
+        textMode: textMode as TextMode,
+        format: 'presentation',
+        themeId: THEME_ID,
+        cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
+        textOptions: {
+          language: 'pt-BR',
+        },
       }),
     });
 
