@@ -124,7 +124,8 @@ export function useSlideGenerations() {
       exportAs,
       headerFooter,
       themeId,
-    }: { 
+      additionalInstructions,
+    }: {
       inputText: string; 
       sourceType: string; 
       originalFilename?: string;
@@ -134,6 +135,7 @@ export function useSlideGenerations() {
       exportAs?: 'pdf' | 'pptx';
       headerFooter?: HeaderFooterConfig;
       themeId?: string;
+      additionalInstructions?: string;
     }) => {
       if (!user) throw new Error('User not authenticated');
 
@@ -175,6 +177,7 @@ export function useSlideGenerations() {
           exportAs,
           headerFooter,
           themeId,
+          additionalInstructions,
         },
       });
 

@@ -153,6 +153,7 @@ serve(async (req) => {
       exportAs,
       headerFooter,
       themeId,
+      additionalInstructions,
     } = await req.json();
 
     if (!text || text.trim().length === 0) {
@@ -234,6 +235,12 @@ serve(async (req) => {
     if (themeId) {
       requestBody.themeId = themeId;
       console.log(`[generate-slides] Theme ID: ${themeId}`);
+    }
+
+    // Add additional instructions if specified
+    if (additionalInstructions && additionalInstructions.trim()) {
+      requestBody.additionalInstructions = additionalInstructions.trim();
+      console.log(`[generate-slides] Additional instructions provided`);
     }
 
     console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
