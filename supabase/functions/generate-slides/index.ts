@@ -10,27 +10,36 @@ const corsHeaders = {
 const GAMMA_API_KEY = Deno.env.get('GAMMA_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const THEME_ID = 'g_si92vfr170fkppw';
 
 // Text modes supported by Gamma API
 type TextMode = 'generate' | 'condense' | 'preserve';
 
 // Process image tags in text - replace [img1], [img2], etc. with actual URLs
-function processImageTags(text: string, imagesMap: Record<string, string>): string {
-  if (!imagesMap || Object.keys(imagesMap).length === 0) {
-    return text;
-  }
-
+function processImageTags(text: string, imagesMap: Record<string, string>): { processedText: string; unusedTags: string[] } {
+  // Find all image tags in the text
+  const tagRegex = /\[img\d+\]/gi;
+  const foundTags = text.match(tagRegex) || [];
+  const unusedTags: string[] = [];
+  
   let processedText = text;
+  
+  if (!imagesMap || Object.keys(imagesMap).length === 0) {
+    // All tags are unused if no images provided
+    return { processedText, unusedTags: foundTags };
+  }
   
   // Replace tags like [img1], [img2], etc.
   for (const [tag, url] of Object.entries(imagesMap)) {
     const regex = new RegExp(`\\[${tag}\\]`, 'gi');
     processedText = processedText.replace(regex, url);
   }
+  
+  // Check for any remaining unreplaced tags
+  const remainingTags = processedText.match(tagRegex) || [];
+  unusedTags.push(...remainingTags);
 
-  console.log(`[generate-slides] Processed ${Object.keys(imagesMap).length} image tags`);
-  return processedText;
+  console.log(`[generate-slides] Processed ${Object.keys(imagesMap).length} image tags, ${unusedTags.length} unused`);
+  return { processedText, unusedTags };
 }
 
 serve(async (req) => {
@@ -64,25 +73,40 @@ serve(async (req) => {
     console.log(`[generate-slides] Images provided: ${imagesMap ? Object.keys(imagesMap).length : 0}`);
 
     // Process image tags in the text
-    const processedText = processImageTags(text, imagesMap || {});
+    const { processedText, unusedTags } = processImageTags(text, imagesMap || {});
+    
+    if (unusedTags.length > 0) {
+      console.log(`[generate-slides] Warning: ${unusedTags.length} image tags without images: ${unusedTags.join(', ')}`);
+    }
 
-    // Call Gamma API with full generations endpoint
+    const hasUserImages = imagesMap && Object.keys(imagesMap).length > 0;
+
+    // Build request body
+    const requestBody: Record<string, unknown> = {
+      inputText: processedText.substring(0, 400000), // Max 400k chars
+      textMode: textMode as TextMode,
+      format: 'presentation',
+      cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
+      textOptions: {
+        language: 'pt-BR',
+      },
+    };
+    
+    // Only add imageOptions if user provided images (to not generate AI images)
+    if (hasUserImages) {
+      requestBody.imageOptions = { source: 'noImages' };
+    }
+
+    console.log(`[generate-slides] Request body:`, JSON.stringify(requestBody, null, 2));
+
+    // Call Gamma API
     const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
       method: 'POST',
       headers: {
         'X-API-KEY': GAMMA_API_KEY!,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        inputText: processedText.substring(0, 400000), // Max 400k chars
-        textMode: textMode as TextMode,
-        format: 'presentation',
-        themeId: THEME_ID,
-        cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
-        textOptions: {
-          language: 'pt-BR',
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!gammaResponse.ok) {
@@ -143,19 +167,21 @@ serve(async (req) => {
       if (statusData.status === 'completed') {
         completed = true;
         
+        const gammaUrl = statusData.gammaUrl || `https://gamma.app/docs/${generationId}`;
+        
         // Update record with success
         await supabaseClient
           .from('slide_generations')
           .update({ 
             status: 'completed',
-            gamma_url: statusData.url || `https://gamma.app/docs/${generationId}`,
+            gamma_url: gammaUrl,
           })
           .eq('id', recordId);
 
         return new Response(JSON.stringify({ 
           success: true,
           generationId,
-          url: statusData.url || `https://gamma.app/docs/${generationId}`,
+          url: gammaUrl,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
