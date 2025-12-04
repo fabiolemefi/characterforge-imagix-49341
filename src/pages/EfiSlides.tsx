@@ -210,6 +210,20 @@ export default function EfiSlides() {
       imagesMap[img.tag] = img.url;
     });
 
+    // Check for image tags without corresponding images
+    const tagRegex = /\[img\d+\]/gi;
+    const foundTags = inputText.match(tagRegex) || [];
+    const availableTags = uploadedImages.map(img => `[${img.tag}]`.toLowerCase());
+    const missingTags = foundTags.filter(tag => !availableTags.includes(tag.toLowerCase()));
+    
+    if (missingTags.length > 0) {
+      toast({
+        title: 'Atenção: Tags de imagem sem arquivo',
+        description: `As seguintes tags não têm imagens anexadas e serão ignoradas: ${missingTags.join(', ')}`,
+        variant: 'default',
+      });
+    }
+
     try {
       await createGeneration.mutateAsync({
         inputText: inputText.trim(),
