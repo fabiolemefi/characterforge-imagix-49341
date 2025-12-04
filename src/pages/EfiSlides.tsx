@@ -548,12 +548,12 @@ export default function EfiSlides() {
               {/* Export Option */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Exportar automaticamente como:</label>
-                <Select value={exportAs} onValueChange={(value: '' | 'pdf' | 'pptx') => setExportAs(value)}>
+                <Select value={exportAs || 'none'} onValueChange={(value) => setExportAs(value === 'none' ? '' : value as 'pdf' | 'pptx')}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Nenhum (apenas Gamma)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum (apenas Gamma)</SelectItem>
+                    <SelectItem value="none">Nenhum (apenas Gamma)</SelectItem>
                     <SelectItem value="pdf">PDF</SelectItem>
                     <SelectItem value="pptx">PowerPoint (PPTX)</SelectItem>
                   </SelectContent>
