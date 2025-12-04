@@ -88,7 +88,7 @@ serve(async (req) => {
       format: 'presentation',
       cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
       textOptions: {
-        language: 'pt-BR',
+        language: 'pt-br',
       },
     };
     
