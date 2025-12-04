@@ -63,6 +63,12 @@ export default function PluginDetails() {
       return;
     }
 
+    // Redirecionar para página específica do Efi Slides
+    if (data.name === "Efi Slides") {
+      navigate("/efi-slides");
+      return;
+    }
+
     setPlugin(data);
     setLoading(false);
   };
