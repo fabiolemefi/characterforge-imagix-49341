@@ -85,27 +85,21 @@ serve(async (req) => {
 
     const hasUserImages = imagesMap && Object.keys(imagesMap).length > 0;
 
-    // Build request body
+    // Build request body for Create from Template API
     const requestBody: Record<string, unknown> = {
-      inputText: cleanText.substring(0, 400000), // Max 400k chars
-      textMode: textMode as TextMode,
-      format: 'presentation',
-      themeId: 'g_si92vfr170fkppw', // EFI custom theme
-      cardSplit: 'inputTextBreaks', // Respect \n---\n breaks
-      textOptions: {
-        language: 'pt-br',
-      },
+      gammaId: 'g_si92vfr170fkppw', // EFI template ID
+      prompt: cleanText.substring(0, 400000), // Max 400k chars
     };
     
-    // Only add imageOptions if user provided images (to not generate AI images)
+    // Only add imageOptions if user provided images
     if (hasUserImages) {
-      requestBody.imageOptions = { source: 'noImages' };
+      requestBody.imageOptions = { source: 'web' };
     }
 
     console.log(`[generate-slides] Request body:`, JSON.stringify(requestBody, null, 2));
 
-    // Call Gamma API
-    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
+    // Call Gamma API - Create from Template endpoint
+    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
       method: 'POST',
       headers: {
         'X-API-KEY': GAMMA_API_KEY!,
