@@ -691,6 +691,7 @@ export type Database = {
           gamma_url: string | null
           generation_id: string | null
           id: string
+          images_data: Json | null
           input_text: string
           original_filename: string | null
           source_type: string
@@ -705,6 +706,7 @@ export type Database = {
           gamma_url?: string | null
           generation_id?: string | null
           id?: string
+          images_data?: Json | null
           input_text: string
           original_filename?: string | null
           source_type?: string
@@ -719,6 +721,7 @@ export type Database = {
           gamma_url?: string | null
           generation_id?: string | null
           id?: string
+          images_data?: Json | null
           input_text?: string
           original_filename?: string | null
           source_type?: string

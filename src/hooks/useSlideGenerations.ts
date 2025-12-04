@@ -14,8 +14,16 @@ export interface SlideGeneration {
   gamma_url: string | null;
   export_url: string | null;
   error_message: string | null;
+  images_data: Record<string, string> | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface UploadedImage {
+  id: string;
+  file: File;
+  url: string;
+  tag: string;
 }
 
 export function useSlideGenerations() {
@@ -64,15 +72,45 @@ export function useSlideGenerations() {
     };
   }, [user, queryClient]);
 
+  const uploadImage = async (file: File): Promise<{ url: string; path: string }> => {
+    if (!user) throw new Error('User not authenticated');
+
+    const timestamp = Date.now();
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `${user.id}/${timestamp}_${sanitizedName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('slides-images')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('slides-images')
+      .getPublicUrl(filePath);
+
+    return { url: publicUrl, path: filePath };
+  };
+
+  const deleteImage = async (path: string) => {
+    const { error } = await supabase.storage
+      .from('slides-images')
+      .remove([path]);
+
+    if (error) throw error;
+  };
+
   const createGeneration = useMutation({
     mutationFn: async ({ 
       inputText, 
       sourceType, 
-      originalFilename 
+      originalFilename,
+      imagesMap,
     }: { 
       inputText: string; 
       sourceType: string; 
       originalFilename?: string;
+      imagesMap?: Record<string, string>;
     }) => {
       if (!user) throw new Error('User not authenticated');
 
@@ -84,6 +122,7 @@ export function useSlideGenerations() {
           input_text: inputText,
           source_type: sourceType,
           original_filename: originalFilename || null,
+          images_data: imagesMap || {},
           status: 'pending',
         })
         .select()
@@ -102,6 +141,7 @@ export function useSlideGenerations() {
           sourceType,
           originalFilename,
           recordId: record.id,
+          imagesMap: imagesMap || {},
         },
       });
 
@@ -118,5 +158,7 @@ export function useSlideGenerations() {
     isLoading,
     error,
     createGeneration,
+    uploadImage,
+    deleteImage,
   };
 }
