@@ -29,6 +29,7 @@ export default function EfiSlides() {
   const [dimensions, setDimensions] = useState<Dimensions>('fluid');
   const [exportAs, setExportAs] = useState<'pdf' | 'pptx' | ''>('');
   const [themeId, setThemeId] = useState<string>('');
+  const [additionalInstructions, setAdditionalInstructions] = useState('');
   const [headerFooter, setHeaderFooter] = useState<HeaderFooterConfig>({
     showLogo: false,
     showCardNumber: false,
@@ -262,6 +263,7 @@ export default function EfiSlides() {
           ? headerFooter 
           : undefined,
         themeId: themeId || undefined,
+        additionalInstructions: additionalInstructions.trim() || undefined,
       });
 
       toast({
@@ -278,6 +280,7 @@ export default function EfiSlides() {
       setDimensions('fluid');
       setExportAs('');
       setThemeId('');
+      setAdditionalInstructions('');
       setHeaderFooter({
         showLogo: false,
         showCardNumber: false,
@@ -586,6 +589,22 @@ export default function EfiSlides() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Additional Instructions */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Instruções adicionais (opcional):
+                </label>
+                <Textarea
+                  value={additionalInstructions}
+                  onChange={(e) => setAdditionalInstructions(e.target.value)}
+                  placeholder="Ex: Use títulos chamativos, mantenha tom profissional, foque em dados estatísticos..."
+                  className="min-h-[80px] resize-y"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Adicione instruções extras para personalizar como a IA vai gerar sua apresentação.
+                </p>
               </div>
 
               {/* Header/Footer Options */}
