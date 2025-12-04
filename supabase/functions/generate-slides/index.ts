@@ -1,6 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Declare EdgeRuntime for Deno
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +21,6 @@ type TextMode = 'generate' | 'condense' | 'preserve';
 
 // Process image tags in text - replace [img1], [img2], etc. with actual URLs
 function processImageTags(text: string, imagesMap: Record<string, string>): { processedText: string; unusedTags: string[] } {
-  // Find all image tags in the text
   const tagRegex = /\[img\d+\]/gi;
   const foundTags = text.match(tagRegex) || [];
   const unusedTags: string[] = [];
@@ -24,7 +28,6 @@ function processImageTags(text: string, imagesMap: Record<string, string>): { pr
   let processedText = text;
   
   if (!imagesMap || Object.keys(imagesMap).length === 0) {
-    // All tags are unused if no images provided
     return { processedText, unusedTags: foundTags };
   }
   
@@ -40,6 +43,82 @@ function processImageTags(text: string, imagesMap: Record<string, string>): { pr
 
   console.log(`[generate-slides] Processed ${Object.keys(imagesMap).length} image tags, ${unusedTags.length} unused`);
   return { processedText, unusedTags };
+}
+
+// Background polling function
+async function pollForCompletion(
+  generationId: string, 
+  recordId: string, 
+  supabaseClient: SupabaseClient
+) {
+  const maxAttempts = 90; // 90 × 2s = 180 seconds (3 minutes)
+  
+  console.log(`[generate-slides] Starting background polling for ${generationId}`);
+  
+  for (let attempts = 1; attempts <= maxAttempts; attempts++) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    try {
+      const statusResponse = await fetch(`https://public-api.gamma.app/v1.0/generations/${generationId}`, {
+        method: 'GET',
+        headers: {
+          'X-API-KEY': GAMMA_API_KEY!,
+        },
+      });
+
+      if (!statusResponse.ok) {
+        console.error(`[generate-slides] Background status check failed: ${statusResponse.status}`);
+        continue;
+      }
+
+      const statusData = await statusResponse.json();
+      console.log(`[generate-slides] Background status check ${attempts}: ${statusData.status}`);
+
+      if (statusData.status === 'completed') {
+        const gammaUrl = statusData.gammaUrl || `https://gamma.app/docs/${generationId}`;
+        
+        await (supabaseClient as SupabaseClient)
+          .from('slide_generations')
+          .update({ 
+            status: 'completed',
+            gamma_url: gammaUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', recordId);
+
+        console.log(`[generate-slides] Generation completed: ${gammaUrl}`);
+        return;
+      }
+      
+      if (statusData.status === 'failed') {
+        await (supabaseClient as SupabaseClient)
+          .from('slide_generations')
+          .update({ 
+            status: 'failed',
+            error_message: statusData.error || 'Generation failed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', recordId);
+
+        console.error(`[generate-slides] Generation failed: ${statusData.error}`);
+        return;
+      }
+    } catch (error) {
+      console.error(`[generate-slides] Background polling error:`, error);
+    }
+  }
+
+  // Timeout after 3 minutes
+  await (supabaseClient as SupabaseClient)
+    .from('slide_generations')
+    .update({ 
+      status: 'failed',
+      error_message: 'Generation timed out after 3 minutes',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', recordId);
+
+  console.error(`[generate-slides] Generation timed out after 3 minutes`);
 }
 
 serve(async (req) => {
@@ -79,21 +158,31 @@ serve(async (req) => {
       console.log(`[generate-slides] Warning: ${unusedTags.length} image tags without images: ${unusedTags.join(', ')}`);
     }
 
-    // Remove backticks from image URLs (Gamma API requires plain URLs)
+    // Remove backticks from image URLs
     const cleanText = processedText.replace(/`(https?:\/\/[^`]+)`/g, '$1');
     console.log(`[generate-slides] Cleaned backticks from URLs`);
 
-    // Build request body for Create from Template API
-    // Note: imageOptions is NOT supported - images are detected from URLs in the prompt
+    // Build request body for Generate from Text API (NOT Create from Template)
     const requestBody = {
-      gammaId: 'g_si92vfr170fkppw', // EFI template ID
-      prompt: cleanText.substring(0, 400000), // Max 400k chars
+      inputText: cleanText.substring(0, 400000), // Max 400k chars
+      textMode: textMode as TextMode, // 'preserve', 'generate', or 'condense'
+      format: 'presentation',
+      cardSplit: 'inputTextBreaks', // Respect --- breaks in the text
+      textOptions: {
+        language: 'pt-br',
+      },
+      imageOptions: {
+        source: 'noImages', // Only use images from URLs in the text
+      },
     };
 
-    console.log(`[generate-slides] Request body:`, JSON.stringify(requestBody, null, 2));
+    console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
+      ...requestBody,
+      inputText: requestBody.inputText.substring(0, 500) + '...'
+    }, null, 2));
 
-    // Call Gamma API - Create from Template endpoint
-    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
+    // Call Gamma API - Generate from Text endpoint
+    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
       method: 'POST',
       headers: {
         'X-API-KEY': GAMMA_API_KEY!,
@@ -106,7 +195,6 @@ serve(async (req) => {
       const errorData = await gammaResponse.text();
       console.error('[generate-slides] Gamma API error:', errorData);
       
-      // Update record with error
       await supabaseClient
         .from('slide_generations')
         .update({ 
@@ -124,7 +212,7 @@ serve(async (req) => {
     const generationId = gammaData.generationId;
     console.log(`[generate-slides] Extracted generationId: ${generationId}`);
 
-    // Update record with generation ID
+    // Update record with generation ID and processing status
     await supabaseClient
       .from('slide_generations')
       .update({ 
@@ -133,78 +221,16 @@ serve(async (req) => {
       })
       .eq('id', recordId);
 
-    // Poll for completion (max 60 seconds)
-    let completed = false;
-    let attempts = 0;
-    const maxAttempts = 30;
+    // Start background polling (doesn't block the response)
+    EdgeRuntime.waitUntil(pollForCompletion(generationId, recordId, supabaseClient));
 
-    while (!completed && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      attempts++;
-
-      const statusResponse = await fetch(`https://public-api.gamma.app/v1.0/generations/${generationId}`, {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': GAMMA_API_KEY!,
-        },
-      });
-
-      if (!statusResponse.ok) {
-        console.error(`[generate-slides] Status check failed: ${statusResponse.status}`);
-        continue;
-      }
-
-      const statusData = await statusResponse.json();
-      console.log(`[generate-slides] Status check ${attempts}:`, statusData.status);
-
-      if (statusData.status === 'completed') {
-        completed = true;
-        
-        const gammaUrl = statusData.gammaUrl || `https://gamma.app/docs/${generationId}`;
-        
-        // Update record with success
-        await supabaseClient
-          .from('slide_generations')
-          .update({ 
-            status: 'completed',
-            gamma_url: gammaUrl,
-          })
-          .eq('id', recordId);
-
-        return new Response(JSON.stringify({ 
-          success: true,
-          generationId,
-          url: gammaUrl,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else if (statusData.status === 'failed') {
-        await supabaseClient
-          .from('slide_generations')
-          .update({ 
-            status: 'failed',
-            error_message: statusData.error || 'Generation failed'
-          })
-          .eq('id', recordId);
-
-        throw new Error(statusData.error || 'Generation failed');
-      }
-    }
-
-    // Timeout
-    if (!completed) {
-      await supabaseClient
-        .from('slide_generations')
-        .update({ 
-          status: 'failed',
-          error_message: 'Generation timed out'
-        })
-        .eq('id', recordId);
-
-      throw new Error('Generation timed out');
-    }
-
-    return new Response(JSON.stringify({ success: true }), {
+    // Return immediately to the frontend
+    return new Response(JSON.stringify({ 
+      success: true,
+      generationId,
+      status: 'processing',
+      message: 'Generation started. Status will update automatically.'
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
