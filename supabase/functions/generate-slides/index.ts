@@ -152,7 +152,9 @@ serve(async (req) => {
       dimensions = 'fluid',
       exportAs,
       headerFooter,
+      styleMode = 'theme',
       themeId,
+      modelId,
       additionalInstructions,
     } = await req.json();
 
@@ -243,20 +245,57 @@ serve(async (req) => {
       console.log(`[generate-slides] Additional instructions provided`);
     }
 
-    console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
-      ...requestBody,
-      inputText: (requestBody.inputText as string).substring(0, 500) + '...'
-    }, null, 2));
+    let gammaResponse: Response;
 
-    // Call Gamma API - Generate from Text endpoint
-    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': GAMMA_API_KEY!,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Check if using Model (Template) mode
+    if (styleMode === 'model' && modelId) {
+      console.log(`[generate-slides] Using Model/Template mode with gammaId: ${modelId}`);
+      
+      // Build request for Create from Template API
+      const templateRequestBody: Record<string, unknown> = {
+        gammaId: modelId,
+        prompt: cleanText.substring(0, 400000),
+      };
+
+      // Can optionally apply a theme on top of the template
+      if (themeId) {
+        templateRequestBody.themeId = themeId;
+      }
+
+      if (exportAs && (exportAs === 'pdf' || exportAs === 'pptx')) {
+        templateRequestBody.exportAs = exportAs;
+      }
+
+      console.log(`[generate-slides] Template request body:`, JSON.stringify({
+        ...templateRequestBody,
+        prompt: (templateRequestBody.prompt as string).substring(0, 500) + '...'
+      }, null, 2));
+
+      gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': GAMMA_API_KEY!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(templateRequestBody),
+      });
+    } else {
+      // Default: Use Generate from Text API
+      console.log(`[generate-slides] Using Theme mode`);
+      console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
+        ...requestBody,
+        inputText: (requestBody.inputText as string).substring(0, 500) + '...'
+      }, null, 2));
+
+      gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': GAMMA_API_KEY!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }
 
     if (!gammaResponse.ok) {
       const errorData = await gammaResponse.text();

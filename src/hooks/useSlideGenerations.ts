@@ -123,7 +123,9 @@ export function useSlideGenerations() {
       dimensions = 'fluid',
       exportAs,
       headerFooter,
+      styleMode = 'theme',
       themeId,
+      modelId,
       additionalInstructions,
     }: {
       inputText: string; 
@@ -134,7 +136,9 @@ export function useSlideGenerations() {
       dimensions?: Dimensions;
       exportAs?: 'pdf' | 'pptx';
       headerFooter?: HeaderFooterConfig;
+      styleMode?: 'theme' | 'model';
       themeId?: string;
+      modelId?: string;
       additionalInstructions?: string;
     }) => {
       if (!user) throw new Error('User not authenticated');
@@ -176,7 +180,9 @@ export function useSlideGenerations() {
           dimensions,
           exportAs,
           headerFooter,
+          styleMode,
           themeId,
+          modelId,
           additionalInstructions,
         },
       });
