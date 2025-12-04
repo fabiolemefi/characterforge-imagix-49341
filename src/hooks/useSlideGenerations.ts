@@ -123,6 +123,7 @@ export function useSlideGenerations() {
       dimensions = 'fluid',
       exportAs,
       headerFooter,
+      themeId,
     }: { 
       inputText: string; 
       sourceType: string; 
@@ -132,6 +133,7 @@ export function useSlideGenerations() {
       dimensions?: Dimensions;
       exportAs?: 'pdf' | 'pptx';
       headerFooter?: HeaderFooterConfig;
+      themeId?: string;
     }) => {
       if (!user) throw new Error('User not authenticated');
 
@@ -172,6 +174,7 @@ export function useSlideGenerations() {
           dimensions,
           exportAs,
           headerFooter,
+          themeId,
         },
       });
 

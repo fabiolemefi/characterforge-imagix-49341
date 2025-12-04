@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSlideGenerations, SlideGeneration, UploadedImage, Dimensions, HeaderFooterConfig } from '@/hooks/useSlideGenerations';
+import { useGammaThemes } from '@/hooks/useGammaThemes';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X, Settings2 } from 'lucide-react';
 import JSZip from 'jszip';
@@ -27,6 +28,7 @@ export default function EfiSlides() {
   // New configuration states
   const [dimensions, setDimensions] = useState<Dimensions>('fluid');
   const [exportAs, setExportAs] = useState<'pdf' | 'pptx' | ''>('');
+  const [themeId, setThemeId] = useState<string>('');
   const [headerFooter, setHeaderFooter] = useState<HeaderFooterConfig>({
     showLogo: false,
     showCardNumber: false,
@@ -36,6 +38,7 @@ export default function EfiSlides() {
   });
   
   const { generations, isLoading, createGeneration, uploadImage, deleteImage } = useSlideGenerations();
+  const { data: themes, isLoading: isLoadingThemes } = useGammaThemes();
   const { toast } = useToast();
 
   // Detect image tags in text
@@ -258,6 +261,7 @@ export default function EfiSlides() {
         headerFooter: (headerFooter.showLogo || headerFooter.showCardNumber || headerFooter.footerText) 
           ? headerFooter 
           : undefined,
+        themeId: themeId || undefined,
       });
 
       toast({
@@ -273,6 +277,7 @@ export default function EfiSlides() {
       setTextMode('preserve');
       setDimensions('fluid');
       setExportAs('');
+      setThemeId('');
       setHeaderFooter({
         showLogo: false,
         showCardNumber: false,
@@ -556,6 +561,29 @@ export default function EfiSlides() {
                     <SelectItem value="none">Nenhum (apenas Gamma)</SelectItem>
                     <SelectItem value="pdf">PDF</SelectItem>
                     <SelectItem value="pptx">PowerPoint (PPTX)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Theme Selector */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Theme:</label>
+                <Select value={themeId || 'default'} onValueChange={(value) => setThemeId(value === 'default' ? '' : value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={isLoadingThemes ? "Carregando themes..." : "Theme padrão"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Theme padrão do workspace</SelectItem>
+                    {themes?.filter(t => t.type === 'custom').map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.name} (Custom)
+                      </SelectItem>
+                    ))}
+                    {themes?.filter(t => t.type === 'standard').map((theme) => (
+                      <SelectItem key={theme.id} value={theme.id}>
+                        {theme.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

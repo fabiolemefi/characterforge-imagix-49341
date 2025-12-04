@@ -152,6 +152,7 @@ serve(async (req) => {
       dimensions = 'fluid',
       exportAs,
       headerFooter,
+      themeId,
     } = await req.json();
 
     if (!text || text.trim().length === 0) {
@@ -227,6 +228,12 @@ serve(async (req) => {
     if (exportAs && (exportAs === 'pdf' || exportAs === 'pptx')) {
       requestBody.exportAs = exportAs;
       console.log(`[generate-slides] Export as: ${exportAs}`);
+    }
+
+    // Add theme ID if specified
+    if (themeId) {
+      requestBody.themeId = themeId;
+      console.log(`[generate-slides] Theme ID: ${themeId}`);
     }
 
     console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
