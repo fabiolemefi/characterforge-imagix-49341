@@ -42,15 +42,15 @@ serve(async (req) => {
     console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}`);
 
     // Call Gamma API to create from template
-    const gammaResponse = await fetch('https://api.gamma.app/v1.0/generations/from-template', {
+    const gammaResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GAMMA_API_KEY}`,
+        'X-API-KEY': GAMMA_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         gammaId: TEMPLATE_ID,
-        text: text.substring(0, 400000), // Max 400k chars
+        prompt: text.substring(0, 400000), // Max 400k chars
       }),
     });
 
@@ -63,7 +63,7 @@ serve(async (req) => {
         .from('slide_generations')
         .update({ 
           status: 'failed', 
-          error_message: `Gamma API error: ${gammaResponse.status}` 
+          error_message: `Gamma API error: ${gammaResponse.status} - ${errorData}` 
         })
         .eq('id', recordId);
       
@@ -93,10 +93,10 @@ serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       attempts++;
 
-      const statusResponse = await fetch(`https://api.gamma.app/v1.0/generations/${generationId}`, {
+      const statusResponse = await fetch(`https://public-api.gamma.app/v1.0/generations/${generationId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${GAMMA_API_KEY}`,
+          'X-API-KEY': GAMMA_API_KEY!,
         },
       });
 
