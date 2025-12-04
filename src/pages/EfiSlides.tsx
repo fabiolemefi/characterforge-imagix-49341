@@ -5,9 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { useSlideGenerations, SlideGeneration, UploadedImage } from '@/hooks/useSlideGenerations';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useSlideGenerations, SlideGeneration, UploadedImage, Dimensions, HeaderFooterConfig } from '@/hooks/useSlideGenerations';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X } from 'lucide-react';
+import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X, Settings2 } from 'lucide-react';
 import JSZip from 'jszip';
 
 type TextMode = 'generate' | 'condense' | 'preserve';
@@ -20,6 +23,18 @@ export default function EfiSlides() {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [uploadingTag, setUploadingTag] = useState<string | null>(null);
   const [textMode, setTextMode] = useState<TextMode>('preserve');
+  
+  // New configuration states
+  const [dimensions, setDimensions] = useState<Dimensions>('fluid');
+  const [exportAs, setExportAs] = useState<'pdf' | 'pptx' | ''>('');
+  const [headerFooter, setHeaderFooter] = useState<HeaderFooterConfig>({
+    showLogo: false,
+    showCardNumber: false,
+    footerText: '',
+    hideFromFirstCard: false,
+    hideFromLastCard: false,
+  });
+  
   const { generations, isLoading, createGeneration, uploadImage, deleteImage } = useSlideGenerations();
   const { toast } = useToast();
 
@@ -238,6 +253,11 @@ export default function EfiSlides() {
         originalFilename: originalFilename || undefined,
         imagesMap: Object.keys(imagesMap).length > 0 ? imagesMap : undefined,
         textMode,
+        dimensions,
+        exportAs: exportAs || undefined,
+        headerFooter: (headerFooter.showLogo || headerFooter.showCardNumber || headerFooter.footerText) 
+          ? headerFooter 
+          : undefined,
       });
 
       toast({
@@ -251,6 +271,15 @@ export default function EfiSlides() {
       setOriginalFilename(null);
       setUploadedImages([]);
       setTextMode('preserve');
+      setDimensions('fluid');
+      setExportAs('');
+      setHeaderFooter({
+        showLogo: false,
+        showCardNumber: false,
+        footerText: '',
+        hideFromFirstCard: false,
+        hideFromLastCard: false,
+      });
     } catch (error) {
       console.error('Error generating slides:', error);
       toast({
@@ -484,6 +513,114 @@ export default function EfiSlides() {
               <p className="text-xs text-muted-foreground">
                 💡 Dica: Use <code className="bg-muted px-1 rounded">---</code> em uma linha para definir onde cada slide deve começar.
               </p>
+            </div>
+
+            {/* Page Configuration */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Configurações da apresentação</span>
+              </div>
+
+              {/* Dimensions (Aspect Ratio) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Proporção de tela:</label>
+                <RadioGroup
+                  value={dimensions}
+                  onValueChange={(value) => setDimensions(value as Dimensions)}
+                  className="grid grid-cols-3 gap-3"
+                >
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="fluid" id="fluid" />
+                    <Label htmlFor="fluid" className="cursor-pointer">Fluido</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="16x9" id="16x9" />
+                    <Label htmlFor="16x9" className="cursor-pointer">16:9</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="4x3" id="4x3" />
+                    <Label htmlFor="4x3" className="cursor-pointer">4:3</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Export Option */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exportar automaticamente como:</label>
+                <Select value={exportAs} onValueChange={(value: '' | 'pdf' | 'pptx') => setExportAs(value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Nenhum (apenas Gamma)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum (apenas Gamma)</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="pptx">PowerPoint (PPTX)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Header/Footer Options */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Cabeçalhos e rodapés:</label>
+                <div className="space-y-3 p-3 border rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="showLogo"
+                      checked={headerFooter.showLogo}
+                      onCheckedChange={(checked) => setHeaderFooter(prev => ({ ...prev, showLogo: !!checked }))}
+                    />
+                    <Label htmlFor="showLogo" className="cursor-pointer text-sm">
+                      Exibir logo do tema no canto superior direito
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="showCardNumber"
+                      checked={headerFooter.showCardNumber}
+                      onCheckedChange={(checked) => setHeaderFooter(prev => ({ ...prev, showCardNumber: !!checked }))}
+                    />
+                    <Label htmlFor="showCardNumber" className="cursor-pointer text-sm">
+                      Exibir numeração dos slides
+                    </Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="footerText" className="text-sm">
+                      Texto do rodapé (ex: © 2025 Empresa):
+                    </Label>
+                    <Input
+                      id="footerText"
+                      value={headerFooter.footerText}
+                      onChange={(e) => setHeaderFooter(prev => ({ ...prev, footerText: e.target.value }))}
+                      placeholder="Deixe em branco para não exibir"
+                    />
+                  </div>
+                  {(headerFooter.showLogo || headerFooter.showCardNumber || headerFooter.footerText) && (
+                    <div className="flex flex-wrap gap-4 pt-2 border-t">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="hideFromFirstCard"
+                          checked={headerFooter.hideFromFirstCard}
+                          onCheckedChange={(checked) => setHeaderFooter(prev => ({ ...prev, hideFromFirstCard: !!checked }))}
+                        />
+                        <Label htmlFor="hideFromFirstCard" className="cursor-pointer text-sm">
+                          Ocultar do primeiro slide
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="hideFromLastCard"
+                          checked={headerFooter.hideFromLastCard}
+                          onCheckedChange={(checked) => setHeaderFooter(prev => ({ ...prev, hideFromLastCard: !!checked }))}
+                        />
+                        <Label htmlFor="hideFromLastCard" className="cursor-pointer text-sm">
+                          Ocultar do último slide
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Generate Button */}

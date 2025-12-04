@@ -142,13 +142,23 @@ serve(async (req) => {
       throw new Error('Invalid user token');
     }
 
-    const { text, sourceType, originalFilename, recordId, imagesMap, textMode = 'preserve' } = await req.json();
+    const { 
+      text, 
+      sourceType, 
+      originalFilename, 
+      recordId, 
+      imagesMap, 
+      textMode = 'preserve',
+      dimensions = 'fluid',
+      exportAs,
+      headerFooter,
+    } = await req.json();
 
     if (!text || text.trim().length === 0) {
       throw new Error('Text content is required');
     }
 
-    console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}, textMode: ${textMode}`);
+    console.log(`[generate-slides] Starting generation for user ${user.id}, source: ${sourceType}, textMode: ${textMode}, dimensions: ${dimensions}`);
     console.log(`[generate-slides] Images provided: ${imagesMap ? Object.keys(imagesMap).length : 0}`);
 
     // Process image tags in the text
@@ -162,8 +172,44 @@ serve(async (req) => {
     const cleanText = processedText.replace(/`(https?:\/\/[^`]+)`/g, '$1');
     console.log(`[generate-slides] Cleaned backticks from URLs`);
 
+    // Build cardOptions
+    const cardOptions: Record<string, unknown> = {
+      dimensions: dimensions || 'fluid',
+    };
+
+    // Add headerFooter if configured
+    if (headerFooter && (headerFooter.showLogo || headerFooter.showCardNumber || headerFooter.footerText)) {
+      const headerFooterConfig: Record<string, unknown> = {};
+      
+      if (headerFooter.showLogo) {
+        headerFooterConfig.topRight = {
+          type: 'image',
+          source: 'themeLogo',
+          size: 'sm',
+        };
+      }
+      
+      if (headerFooter.showCardNumber) {
+        headerFooterConfig.bottomRight = {
+          type: 'cardNumber',
+        };
+      }
+      
+      if (headerFooter.footerText) {
+        headerFooterConfig.bottomLeft = {
+          type: 'text',
+          value: headerFooter.footerText,
+        };
+      }
+      
+      headerFooterConfig.hideFromFirstCard = headerFooter.hideFromFirstCard || false;
+      headerFooterConfig.hideFromLastCard = headerFooter.hideFromLastCard || false;
+      
+      cardOptions.headerFooter = headerFooterConfig;
+    }
+
     // Build request body for Generate from Text API (NOT Create from Template)
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       inputText: cleanText.substring(0, 400000), // Max 400k chars
       textMode: textMode as TextMode, // 'preserve', 'generate', or 'condense'
       format: 'presentation',
@@ -174,11 +220,18 @@ serve(async (req) => {
       imageOptions: {
         source: 'noImages', // Only use images from URLs in the text
       },
+      cardOptions,
     };
+
+    // Add export option if specified
+    if (exportAs && (exportAs === 'pdf' || exportAs === 'pptx')) {
+      requestBody.exportAs = exportAs;
+      console.log(`[generate-slides] Export as: ${exportAs}`);
+    }
 
     console.log(`[generate-slides] Request body (truncated):`, JSON.stringify({
       ...requestBody,
-      inputText: requestBody.inputText.substring(0, 500) + '...'
+      inputText: (requestBody.inputText as string).substring(0, 500) + '...'
     }, null, 2));
 
     // Call Gamma API - Generate from Text endpoint
