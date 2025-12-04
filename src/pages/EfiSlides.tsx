@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { useSlideGenerations, SlideGeneration, UploadedImage } from '@/hooks/useSlideGenerations';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X, Copy, Plus } from 'lucide-react';
+import { Upload, FileText, Presentation, Loader2, ExternalLink, Clock, CheckCircle, XCircle, AlertCircle, Image, X } from 'lucide-react';
 import JSZip from 'jszip';
 
 type TextMode = 'generate' | 'condense' | 'preserve';
@@ -18,10 +18,31 @@ export default function EfiSlides() {
   const [originalFilename, setOriginalFilename] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadingTag, setUploadingTag] = useState<string | null>(null);
   const [textMode, setTextMode] = useState<TextMode>('preserve');
   const { generations, isLoading, createGeneration, uploadImage, deleteImage } = useSlideGenerations();
   const { toast } = useToast();
+
+  // Detect image tags in text
+  const detectedTags = useMemo(() => {
+    const regex = /\[img(\d+)\]/gi;
+    const tags: string[] = [];
+    let match;
+    
+    while ((match = regex.exec(inputText)) !== null) {
+      const tag = `img${match[1]}`;
+      if (!tags.includes(tag)) {
+        tags.push(tag);
+      }
+    }
+    
+    // Sort by number
+    return tags.sort((a, b) => {
+      const numA = parseInt(a.replace('img', ''));
+      const numB = parseInt(b.replace('img', ''));
+      return numA - numB;
+    });
+  }, [inputText]);
 
   const extractTextFromDocx = async (file: File): Promise<string> => {
     const zip = new JSZip();
@@ -108,37 +129,47 @@ export default function EfiSlides() {
     }
   }, [toast]);
 
-  const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+  const handleImageUploadForTag = useCallback(async (event: React.ChangeEvent<HTMLInputElement>, tag: string) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    setIsUploadingImage(true);
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: `${file.name} não é uma imagem`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingTag(tag);
 
     try {
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) {
-          toast({
-            title: 'Arquivo inválido',
-            description: `${file.name} não é uma imagem`,
-            variant: 'destructive',
-          });
-          continue;
+      const { url } = await uploadImage(file);
+      
+      // Remove existing image for this tag if any
+      setUploadedImages(prev => {
+        const existingImage = prev.find(img => img.tag === tag);
+        if (existingImage) {
+          // Delete old image from storage
+          const urlParts = existingImage.url.split('/slides-images/');
+          if (urlParts[1]) {
+            deleteImage(urlParts[1]).catch(console.error);
+          }
         }
-
-        const { url } = await uploadImage(file);
-        const newTag = `img${uploadedImages.length + 1}`;
         
-        setUploadedImages(prev => [...prev, {
+        const filtered = prev.filter(img => img.tag !== tag);
+        return [...filtered, {
           id: `${Date.now()}-${file.name}`,
           file,
           url,
-          tag: newTag,
-        }]);
-      }
+          tag,
+        }];
+      });
 
       toast({
-        title: 'Imagens enviadas',
-        description: 'Use as tags no texto para incluir as imagens na apresentação',
+        title: 'Imagem enviada',
+        description: `Imagem associada a [${tag}]`,
       });
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -148,51 +179,30 @@ export default function EfiSlides() {
         variant: 'destructive',
       });
     } finally {
-      setIsUploadingImage(false);
-      // Reset input
+      setUploadingTag(null);
       event.target.value = '';
     }
-  }, [uploadImage, uploadedImages.length, toast]);
+  }, [uploadImage, deleteImage, toast]);
 
-  const handleRemoveImage = useCallback(async (imageId: string) => {
-    const image = uploadedImages.find(img => img.id === imageId);
+  const handleRemoveImage = useCallback(async (tag: string) => {
+    const image = uploadedImages.find(img => img.tag === tag);
     if (!image) return;
 
     try {
-      // Extract path from URL
       const urlParts = image.url.split('/slides-images/');
       if (urlParts[1]) {
         await deleteImage(urlParts[1]);
       }
       
-      setUploadedImages(prev => {
-        const filtered = prev.filter(img => img.id !== imageId);
-        // Renumber tags
-        return filtered.map((img, index) => ({
-          ...img,
-          tag: `img${index + 1}`,
-        }));
-      });
+      setUploadedImages(prev => prev.filter(img => img.tag !== tag));
     } catch (error) {
       console.error('Error removing image:', error);
     }
   }, [uploadedImages, deleteImage]);
 
-  const copyTag = useCallback((tag: string) => {
-    navigator.clipboard.writeText(`[${tag}]`);
-    toast({
-      title: 'Tag copiada',
-      description: `Use [${tag}] no seu texto para incluir esta imagem`,
-    });
-  }, [toast]);
-
-  const insertTag = useCallback((tag: string) => {
-    setInputText(prev => prev + `[${tag}]`);
-    toast({
-      title: 'Tag inserida',
-      description: `[${tag}] foi adicionada ao final do texto`,
-    });
-  }, [toast]);
+  const getImageForTag = useCallback((tag: string) => {
+    return uploadedImages.find(img => img.tag === tag);
+  }, [uploadedImages]);
 
   const handleGenerate = async () => {
     if (!inputText.trim()) {
@@ -211,15 +221,12 @@ export default function EfiSlides() {
     });
 
     // Check for image tags without corresponding images
-    const tagRegex = /\[img\d+\]/gi;
-    const foundTags = inputText.match(tagRegex) || [];
-    const availableTags = uploadedImages.map(img => `[${img.tag}]`.toLowerCase());
-    const missingTags = foundTags.filter(tag => !availableTags.includes(tag.toLowerCase()));
+    const missingTags = detectedTags.filter(tag => !uploadedImages.find(img => img.tag === tag));
     
     if (missingTags.length > 0) {
       toast({
         title: 'Atenção: Tags de imagem sem arquivo',
-        description: `As seguintes tags não têm imagens anexadas e serão ignoradas: ${missingTags.join(', ')}`,
+        description: `As seguintes tags não têm imagens anexadas e serão ignoradas: ${missingTags.map(t => `[${t}]`).join(', ')}`,
         variant: 'default',
       });
     }
@@ -345,100 +352,6 @@ export default function EfiSlides() {
               </div>
             )}
 
-            {/* Image Upload Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Image className="h-4 w-4" />
-                  Imagens para a apresentação
-                </label>
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="image-upload"
-                    disabled={isUploadingImage}
-                  />
-                  <label htmlFor="image-upload">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="cursor-pointer"
-                      asChild
-                      disabled={isUploadingImage}
-                    >
-                      <span>
-                        {isUploadingImage ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Plus className="h-4 w-4 mr-2" />
-                        )}
-                        Adicionar imagem
-                      </span>
-                    </Button>
-                  </label>
-                </div>
-              </div>
-
-              {uploadedImages.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {uploadedImages.map((image) => (
-                    <div
-                      key={image.id}
-                      className="relative group border rounded-lg overflow-hidden bg-muted"
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.file.name}
-                        className="w-full h-24 object-cover"
-                      />
-                      <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => copyTag(image.tag)}
-                          title="Copiar tag"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => insertTag(image.tag)}
-                          title="Inserir no texto"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleRemoveImage(image.id)}
-                          title="Remover"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-background/90 px-2 py-1">
-                        <code className="text-xs font-mono text-primary">[{image.tag}]</code>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {uploadedImages.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Use as tags como <code className="bg-muted px-1 rounded">[img1]</code> no seu texto para incluir as imagens na apresentação.
-                </p>
-              )}
-            </div>
-
             {/* Text Input */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
@@ -457,6 +370,86 @@ export default function EfiSlides() {
                 {inputText.length.toLocaleString()} / 400.000 caracteres
               </div>
             </div>
+
+            {/* Dynamic Image Upload Slots */}
+            {detectedTags.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Image className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Imagens detectadas no texto</span>
+                  <Badge variant="secondary">{detectedTags.length}</Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {detectedTags.map((tag) => {
+                    const existingImage = getImageForTag(tag);
+                    const isUploading = uploadingTag === tag;
+                    
+                    return (
+                      <div
+                        key={tag}
+                        className="relative border rounded-lg overflow-hidden bg-muted"
+                      >
+                        {existingImage ? (
+                          <>
+                            <img
+                              src={existingImage.url}
+                              alt={tag}
+                              className="w-full h-24 object-cover"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6"
+                              onClick={() => handleRemoveImage(tag)}
+                              title="Remover"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center h-24 cursor-pointer hover:bg-muted/80 transition-colors">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUploadForTag(e, tag)}
+                              className="hidden"
+                              disabled={isUploading}
+                            />
+                            {isUploading ? (
+                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            ) : (
+                              <>
+                                <Upload className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground mt-1">Upload</span>
+                              </>
+                            )}
+                          </label>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-background/90 px-2 py-1 text-center">
+                          <code className="text-xs font-mono text-primary">[{tag}]</code>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Faça upload das imagens correspondentes a cada tag detectada no texto.
+                </p>
+              </div>
+            )}
+
+            {/* Helper text when no tags detected */}
+            {detectedTags.length === 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                <Image className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Para adicionar imagens, use tags como <code className="bg-muted px-1 rounded">[img1]</code>, <code className="bg-muted px-1 rounded">[img2]</code> no seu texto. 
+                  Os campos de upload aparecerão automaticamente.
+                </span>
+              </div>
+            )}
 
             {/* Text Mode Selector */}
             <div className="space-y-3">
