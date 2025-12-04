@@ -683,6 +683,51 @@ export type Database = {
         }
         Relationships: []
       }
+      slide_generations: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          export_url: string | null
+          gamma_url: string | null
+          generation_id: string | null
+          id: string
+          input_text: string
+          original_filename: string | null
+          source_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          export_url?: string | null
+          gamma_url?: string | null
+          generation_id?: string | null
+          id?: string
+          input_text: string
+          original_filename?: string | null
+          source_type?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          export_url?: string | null
+          gamma_url?: string | null
+          generation_id?: string | null
+          id?: string
+          input_text?: string
+          original_filename?: string | null
+          source_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       test_ai_conversations: {
         Row: {
           completed_at: string | null

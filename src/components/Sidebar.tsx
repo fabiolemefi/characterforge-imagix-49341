@@ -62,7 +62,7 @@ export function Sidebar() {
     }
     
     // Auto-expand plugins if on plugin page
-    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates') {
+    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates' || currentPath === '/efi-slides') {
       setExpandedPlugins(true);
     }
     
@@ -84,6 +84,7 @@ export function Sidebar() {
     if (plugin.name === 'Efimail') return '/efimail';
     if (plugin.name === 'Efimagem') return '/efimagem';
     if (plugin.name === 'Email Builder') return '/email-templates';
+    if (plugin.name === 'Efi Slides') return '/efi-slides';
     return `/plugin/${plugin.id}`;
   };
 
@@ -202,7 +203,7 @@ export function Sidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => setExpandedPlugins(!expandedPlugins)}
-                isActive={isPathActive("/plugin") || isPathActive("/efimail") || isPathActive("/efimagem") || isPathActive("/email-templates")}
+                isActive={isPathActive("/plugin") || isPathActive("/efimail") || isPathActive("/efimagem") || isPathActive("/email-templates") || isPathActive("/efi-slides")}
                 tooltip="Plugins"
                 className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
               >

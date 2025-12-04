@@ -30,6 +30,7 @@ import AdminBlogCategories from './pages/AdminBlogCategories';
 import AdminBlogPosts from './pages/AdminBlogPosts';
 import Downloads from './pages/Downloads';
 import ShareDownload from './pages/ShareDownload';
+import EfiSlides from './pages/EfiSlides';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
@@ -60,6 +61,7 @@ const App = () => <AuthProvider>
           <Route path="/plugin/:id" element={<ProtectedRoute><AppLayout><PluginDetails /></AppLayout></ProtectedRoute>} />
           <Route path="/efimail" element={<ProtectedRoute><AppLayout><Efimail /></AppLayout></ProtectedRoute>} />
           <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
+          <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
           <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
