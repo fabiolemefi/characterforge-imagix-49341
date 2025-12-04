@@ -686,10 +686,13 @@ export type Database = {
       slide_generations: {
         Row: {
           created_at: string
+          dimensions: string | null
           error_message: string | null
+          export_as: string | null
           export_url: string | null
           gamma_url: string | null
           generation_id: string | null
+          header_footer: Json | null
           id: string
           images_data: Json | null
           input_text: string
@@ -701,10 +704,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dimensions?: string | null
           error_message?: string | null
+          export_as?: string | null
           export_url?: string | null
           gamma_url?: string | null
           generation_id?: string | null
+          header_footer?: Json | null
           id?: string
           images_data?: Json | null
           input_text: string
@@ -716,10 +722,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dimensions?: string | null
           error_message?: string | null
+          export_as?: string | null
           export_url?: string | null
           gamma_url?: string | null
           generation_id?: string | null
+          header_footer?: Json | null
           id?: string
           images_data?: Json | null
           input_text?: string

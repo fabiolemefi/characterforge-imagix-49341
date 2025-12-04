@@ -3,6 +3,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
 
+export type Dimensions = 'fluid' | '16x9' | '4x3';
+
+export interface HeaderFooterConfig {
+  showLogo?: boolean;
+  showCardNumber?: boolean;
+  footerText?: string;
+  hideFromFirstCard?: boolean;
+  hideFromLastCard?: boolean;
+}
+
 export interface SlideGeneration {
   id: string;
   user_id: string;
@@ -15,6 +25,9 @@ export interface SlideGeneration {
   export_url: string | null;
   error_message: string | null;
   images_data: Record<string, string> | null;
+  dimensions: string | null;
+  export_as: string | null;
+  header_footer: HeaderFooterConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,26 +120,37 @@ export function useSlideGenerations() {
       originalFilename,
       imagesMap,
       textMode = 'preserve',
+      dimensions = 'fluid',
+      exportAs,
+      headerFooter,
     }: { 
       inputText: string; 
       sourceType: string; 
       originalFilename?: string;
       imagesMap?: Record<string, string>;
       textMode?: 'generate' | 'condense' | 'preserve';
+      dimensions?: Dimensions;
+      exportAs?: 'pdf' | 'pptx';
+      headerFooter?: HeaderFooterConfig;
     }) => {
       if (!user) throw new Error('User not authenticated');
 
-      // Create record first
+      // Create record first - cast to any to bypass strict typing for new columns
+      const insertData = {
+        user_id: user.id,
+        input_text: inputText,
+        source_type: sourceType,
+        original_filename: originalFilename || null,
+        images_data: imagesMap || {},
+        dimensions: dimensions as string,
+        export_as: exportAs || null,
+        header_footer: headerFooter || {},
+        status: 'pending',
+      };
+      
       const { data: record, error: insertError } = await supabase
         .from('slide_generations')
-        .insert({
-          user_id: user.id,
-          input_text: inputText,
-          source_type: sourceType,
-          original_filename: originalFilename || null,
-          images_data: imagesMap || {},
-          status: 'pending',
-        })
+        .insert(insertData as any)
         .select()
         .single();
 
@@ -145,6 +169,9 @@ export function useSlideGenerations() {
           recordId: record.id,
           imagesMap: imagesMap || {},
           textMode,
+          dimensions,
+          exportAs,
+          headerFooter,
         },
       });
 
