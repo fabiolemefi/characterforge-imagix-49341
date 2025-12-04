@@ -73,7 +73,8 @@ serve(async (req) => {
     const gammaData = await gammaResponse.json();
     console.log('[generate-slides] Gamma response:', JSON.stringify(gammaData));
 
-    const generationId = gammaData.id;
+    const generationId = gammaData.generationId;
+    console.log(`[generate-slides] Extracted generationId: ${generationId}`);
 
     // Update record with generation ID
     await supabaseClient
