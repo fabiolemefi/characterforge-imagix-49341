@@ -482,6 +482,7 @@ export type Database = {
           request_params: Json | null
           retry_count: number | null
           status: string | null
+          user_id: string | null
         }
         Insert: {
           character_id?: string | null
@@ -495,6 +496,7 @@ export type Database = {
           request_params?: Json | null
           retry_count?: number | null
           status?: string | null
+          user_id?: string | null
         }
         Update: {
           character_id?: string | null
@@ -508,6 +510,7 @@ export type Database = {
           request_params?: Json | null
           retry_count?: number | null
           status?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {

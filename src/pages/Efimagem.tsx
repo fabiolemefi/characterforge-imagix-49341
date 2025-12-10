@@ -10,6 +10,7 @@ import { retryWithAuthRefresh } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { ImageMaskEditor } from "@/components/ImageMaskEditor";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Carousel,
   CarouselContent,
@@ -56,6 +57,9 @@ interface GeneratedImage {
   status?: string;
   error_message?: string;
   request_params?: any;
+  user_id?: string;
+  user_full_name?: string;
+  user_avatar_url?: string;
 }
 
 export default function Efimagem() {
@@ -102,8 +106,20 @@ export default function Efimagem() {
           schema: 'public',
           table: 'generated_images'
         },
-        (payload) => {
-          const newImage = payload.new;
+        async (payload) => {
+          const newImage = payload.new as any;
+          
+          // Fetch profile data for the new image
+          let profileData = null;
+          if (newImage.user_id) {
+            const { data } = await supabase
+              .from("profiles")
+              .select("full_name, avatar_url")
+              .eq("id", newImage.user_id)
+              .single();
+            profileData = data;
+          }
+          
           setGeneratedImages((prev) => {
             if (prev.some(img => img.id === newImage.id)) {
               return prev;
@@ -116,6 +132,9 @@ export default function Efimagem() {
               status: newImage.status,
               error_message: newImage.error_message,
               request_params: newImage.request_params,
+              user_id: newImage.user_id,
+              user_full_name: profileData?.full_name,
+              user_avatar_url: profileData?.avatar_url,
             }, ...prev];
           });
         }
@@ -200,14 +219,20 @@ export default function Efimagem() {
     try {
       const { data, error } = await supabase
         .from("generated_images")
-        .select("*")
+        .select(`
+          *,
+          profiles:user_id (
+            full_name,
+            avatar_url
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       if (data) {
         setGeneratedImages(
-          data.map((img) => ({
+          data.map((img: any) => ({
             id: img.id,
             url: img.image_url,
             character: img.character_name,
@@ -215,6 +240,9 @@ export default function Efimagem() {
             status: img.status,
             error_message: img.error_message,
             request_params: img.request_params,
+            user_id: img.user_id,
+            user_full_name: img.profiles?.full_name,
+            user_avatar_url: img.profiles?.avatar_url,
           })),
         );
       }
@@ -1020,26 +1048,50 @@ export default function Efimagem() {
                                       <p className="text-xs text-muted-foreground text-center">
                                         {img.error_message || 'Falha ao processar'}
                                       </p>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleRetry(img.id)}
-                                      >
-                                        Tentar Novamente
-                                      </Button>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleRetry(img.id)}
+                                        >
+                                          Tentar Novamente
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() => handleDeleteImage(img.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   ) : (
                                     <>
                                       <div
-                                        className="aspect-square bg-muted cursor-pointer hover:opacity-80 transition-opacity relative"
+                                        className="aspect-square bg-muted cursor-pointer group/image relative"
                                         onClick={() => setSelectedImage(img.url)}
                                       >
                                         <img
                                           src={img.url}
                                           alt={`Gerado - ${img.character}`}
-                                          className="w-full h-full object-cover"
+                                          className="w-full h-full object-cover transition-opacity group-hover/image:opacity-90"
                                         />
                                         <Badge className="absolute top-1 left-1 z-10">{img.character}</Badge>
+                                        
+                                        {/* Avatar do solicitante - aparece no hover */}
+                                        {img.user_full_name && (
+                                          <div className="absolute bottom-2 left-2 flex items-center gap-2 opacity-0 group-hover/image:opacity-100 transition-opacity bg-black/60 rounded-full pr-3 py-1 pl-1">
+                                            <Avatar className="h-6 w-6">
+                                              <AvatarImage src={img.user_avatar_url || undefined} />
+                                              <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                                                {img.user_full_name?.charAt(0)?.toUpperCase() || '?'}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                            <span className="text-xs text-white font-medium truncate max-w-[100px]">
+                                              {img.user_full_name}
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
                                       <Button
                                         variant="destructive"

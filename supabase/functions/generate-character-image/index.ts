@@ -24,6 +24,15 @@ serve(async (req) => {
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
     const { imageUrls, prompt, generalPrompt = "", characterName, characterId } = await req.json();
 
+    // Get user_id from authorization header
+    const authHeader = req.headers.get("authorization");
+    let userId: string | null = null;
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+    }
+
     if (!imageUrls?.length)
       return new Response(JSON.stringify({ error: "imageUrls array is required" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -53,6 +62,7 @@ serve(async (req) => {
         prompt: enhancedPrompt,
         image_url: "", // Será preenchido pelo webhook
         status: "pending",
+        user_id: userId,
         request_params: {
           imageUrls: limitedImageUrls,
           prompt: enhancedPrompt,
