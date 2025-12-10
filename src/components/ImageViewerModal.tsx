@@ -32,11 +32,15 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(0);
 
   useEffect(() => {
-    setCurrentImageUrl(imageUrl);
-    setImageHistory([imageUrl]);
-    setSelectedHistoryIndex(0);
-    setIsEditing(false);
-    setEditPrompt("");
+    if (open) {
+      setCurrentImageUrl(imageUrl);
+      setImageHistory([imageUrl]);
+      setSelectedHistoryIndex(0);
+      setIsEditing(false);
+      setEditPrompt("");
+      setIsGenerating(false);
+      setProgress(0);
+    }
   }, [imageUrl, open]);
 
   useEffect(() => {
