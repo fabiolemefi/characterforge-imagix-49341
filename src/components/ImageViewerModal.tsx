@@ -128,10 +128,13 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
               if (updated.status === 'completed' && updated.image_url && updated.image_url !== currentImageUrl) {
                 setProgress(100);
                 setTimeout(() => {
-                  // Adicionar nova imagem ao histórico
-                  setImageHistory((prev) => [...prev, updated.image_url]);
+                  // Adicionar nova imagem ao histórico e atualizar índice corretamente
+                  setImageHistory((prev) => {
+                    const newHistory = [...prev, updated.image_url];
+                    setSelectedHistoryIndex(newHistory.length - 1);
+                    return newHistory;
+                  });
                   setCurrentImageUrl(updated.image_url);
-                  setSelectedHistoryIndex(imageHistory.length);
                   setEditPrompt("");
                   setIsGenerating(false);
                   setProgress(0);
@@ -216,10 +219,13 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
               if (updated.status === 'completed' && updated.image_url && updated.image_url !== currentImageUrl) {
                 setProgress(100);
                 setTimeout(() => {
-                  // Adicionar nova imagem ao histórico
-                  setImageHistory((prev) => [...prev, updated.image_url]);
+                  // Adicionar nova imagem ao histórico e atualizar índice corretamente
+                  setImageHistory((prev) => {
+                    const newHistory = [...prev, updated.image_url];
+                    setSelectedHistoryIndex(newHistory.length - 1);
+                    return newHistory;
+                  });
                   setCurrentImageUrl(updated.image_url);
-                  setSelectedHistoryIndex(imageHistory.length);
                   setIsGenerating(false);
                   setProgress(0);
                   toast.success("Background removido com sucesso!");
