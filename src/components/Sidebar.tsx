@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, LayoutDashboard, FlaskConical } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -31,6 +31,7 @@ export function Sidebar() {
   const [expandedBrandGuide, setExpandedBrandGuide] = useState(false);
   const [expandedPlugins, setExpandedPlugins] = useState(false);
   const [expandedTests, setExpandedTests] = useState(false);
+  const [expandedCanva, setExpandedCanva] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
 
   // Combinar categorias com páginas
@@ -69,6 +70,11 @@ export function Sidebar() {
     // Auto-expand tests if on tests page
     if (currentPath.startsWith('/tests')) {
       setExpandedTests(true);
+    }
+
+    // Auto-expand canva if on canva page
+    if (currentPath.startsWith('/canva')) {
+      setExpandedCanva(true);
     }
   }, [location.pathname, categories]);
 
@@ -308,6 +314,38 @@ export function Sidebar() {
                       className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
                       <span>Testes</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
+            </SidebarMenuItem>
+
+            {/* Canva */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setExpandedCanva(!expandedCanva)}
+                isActive={isPathActive("/canva")}
+                tooltip="Canva"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <Palette className="h-4 w-4" />
+                <span>Canva</span>
+                {expandedCanva ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
+              </SidebarMenuButton>
+
+              {expandedCanva && (
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/canva/blocos");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/canva/blocos")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <LayoutGrid className="h-3 w-3 mr-2" />
+                      <span>Blocos</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
