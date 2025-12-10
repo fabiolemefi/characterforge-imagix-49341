@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import Replicate from "https://esm.sh/replicate@0.25.2";
+
+const MAX_RETRIES = 3;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -216,12 +219,86 @@ serve(async (req) => {
     if (status === "failed" || status === "canceled") {
       console.log("Prediction failed or canceled:", error);
 
+      // Check if this is a retryable error (E6716 or similar transient errors)
+      const isRetryableError = error && (
+        error.includes("unexpected error handling prediction") ||
+        error.includes("E6716") ||
+        error.includes("Director:")
+      );
+
+      const currentRetryCount = existingRecord.retry_count || 0;
+
+      // Auto-retry if retryable error and under max retries
+      if (isRetryableError && currentRetryCount < MAX_RETRIES) {
+        console.log(`Retryable error detected. Attempting retry ${currentRetryCount + 1}/${MAX_RETRIES}`);
+
+        try {
+          const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+          if (!REPLICATE_API_KEY) {
+            throw new Error("REPLICATE_API_KEY not configured");
+          }
+
+          const replicate = new Replicate({ auth: REPLICATE_API_KEY });
+
+          // Get original request params from the record
+          const requestParams = existingRecord.request_params || {};
+          const webhookUrl = `${SUPABASE_URL}/functions/v1/replicate-webhook`;
+
+          console.log("Creating new prediction with params:", JSON.stringify(requestParams));
+
+          // Create new prediction with the same parameters
+          const newPrediction = await replicate.predictions.create({
+            model: "google/nano-banana",
+            input: requestParams,
+            webhook: webhookUrl,
+            webhook_events_filter: ["completed"],
+          });
+
+          console.log("New prediction created:", newPrediction.id);
+
+          // Update record with new prediction_id and increment retry count
+          const { error: updateError } = await supabase
+            .from("generated_images")
+            .update({
+              prediction_id: newPrediction.id,
+              status: "processing",
+              retry_count: currentRetryCount + 1,
+              error_message: null,
+            })
+            .eq("id", existingRecord.id);
+
+          if (updateError) {
+            console.error("Error updating record for retry:", updateError);
+            throw updateError;
+          }
+
+          console.log(`Retry initiated successfully (attempt ${currentRetryCount + 1})`);
+
+          return new Response(JSON.stringify({ 
+            message: "Retry initiated", 
+            retry_count: currentRetryCount + 1,
+            new_prediction_id: newPrediction.id 
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        } catch (retryError) {
+          console.error("Failed to initiate retry:", retryError);
+          // Fall through to mark as failed
+        }
+      }
+
+      // Mark as failed (no more retries or retry failed)
+      const finalErrorMessage = currentRetryCount >= MAX_RETRIES 
+        ? `Falha após ${MAX_RETRIES} tentativas: ${error || "Erro desconhecido"}`
+        : error || "Prediction failed or was canceled";
+
       const { error: updateError } = await supabase
         .from("generated_images")
         .update({
           status: "failed",
-          error_message: error || "Prediction failed or was canceled",
-          prediction_id: null, // Limpar o prediction_id após processar
+          error_message: finalErrorMessage,
+          prediction_id: null,
         })
         .eq("id", existingRecord.id);
 
