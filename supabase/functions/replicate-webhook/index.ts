@@ -249,7 +249,12 @@ serve(async (req) => {
           // Create new prediction with the same parameters
           const newPrediction = await replicate.predictions.create({
             model: "google/nano-banana",
-            input: requestParams,
+            input: {
+              prompt: requestParams.prompt,
+              image_input: requestParams.image_input || requestParams.imageUrls,
+              aspect_ratio: requestParams.aspectRatio || "1:1",
+              output_format: "png",
+            },
             webhook: webhookUrl,
             webhook_events_filter: ["completed"],
           });

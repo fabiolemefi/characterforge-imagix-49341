@@ -22,7 +22,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
-    const { imageUrls, prompt, generalPrompt = "", characterName, characterId } = await req.json();
+    const { imageUrls, prompt, generalPrompt = "", characterName, characterId, aspectRatio = "1:1" } = await req.json();
 
     // Get user_id from authorization header
     const authHeader = req.headers.get("authorization");
@@ -64,11 +64,12 @@ serve(async (req) => {
         status: "pending",
         user_id: userId,
         request_params: {
-          imageUrls: limitedImageUrls,
+          image_input: limitedImageUrls,
           prompt: enhancedPrompt,
           generalPrompt,
           characterName,
-          characterId
+          characterId,
+          aspectRatio
         }
       })
       .select()
@@ -90,7 +91,7 @@ serve(async (req) => {
       input: {
         prompt: enhancedPrompt,
         image_input: limitedImageUrls,
-        aspect_ratio: "1:1",
+        aspect_ratio: aspectRatio,
         output_format: "png",
       },
       webhook: webhookUrl,

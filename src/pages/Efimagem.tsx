@@ -87,6 +87,9 @@ export default function Efimagem() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageUploadActivated, setImageUploadActivated] = useState(false);
 
+  // Estado para formato da imagem
+  const [aspectRatio, setAspectRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
+
 
 
   const { toast } = useToast();
@@ -347,6 +350,7 @@ export default function Efimagem() {
             generalPrompt: character.general_prompt,
             characterName: character.name,
             characterId: character.id,
+            aspectRatio: aspectRatio,
           },
         })
       );
@@ -486,6 +490,7 @@ export default function Efimagem() {
             imageUrls: imageUrls,
             prompt: fullPrompt,
             generalPrompt: character.general_prompt,
+            aspectRatio: aspectRatio,
           },
         })
       );
@@ -968,20 +973,32 @@ export default function Efimagem() {
                             />
                           </div>
 
-                          <Button
-                            onClick={handleGenerate}
-                            disabled={loading || !prompt.trim()}
-                            className="ml-auto"
-                          >
-                            {loading ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Gerando imagem...
-                              </>
-                            ) : (
-                              "Gerar Imagem"
-                            )}
-                          </Button>
+                          <div className="flex gap-4 items-center justify-end">
+                            <Select value={aspectRatio} onValueChange={(value: "1:1" | "16:9" | "9:16") => setAspectRatio(value)}>
+                              <SelectTrigger className="w-[160px]">
+                                <SelectValue placeholder="Formato" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1:1">Quadrado (1:1)</SelectItem>
+                                <SelectItem value="16:9">Horizontal (16:9)</SelectItem>
+                                <SelectItem value="9:16">Vertical (9:16)</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Button
+                              onClick={handleGenerate}
+                              disabled={loading || !prompt.trim()}
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Gerando imagem...
+                                </>
+                              ) : (
+                                "Gerar Imagem"
+                              )}
+                            </Button>
+                          </div>
                         </>
                       )}
                     </div>
