@@ -31,6 +31,8 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
   const [imageHistory, setImageHistory] = useState<string[]>([imageUrl]);
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(0);
 
+  // Só reseta quando o modal ABRE (open muda para true)
+  // Não quando imageUrl muda durante edições
   useEffect(() => {
     if (open) {
       setCurrentImageUrl(imageUrl);
@@ -41,7 +43,7 @@ export const ImageViewerModal = ({ open, onOpenChange, imageUrl, imageId, onImag
       setIsGenerating(false);
       setProgress(0);
     }
-  }, [imageUrl, open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isGenerating) {
