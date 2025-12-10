@@ -520,6 +520,13 @@ export type Database = {
             referencedRelation: "plugin_characters"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generated_images_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       plugin_characters: {
