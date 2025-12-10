@@ -480,6 +480,7 @@ export type Database = {
           prediction_id: string | null
           prompt: string
           request_params: Json | null
+          retry_count: number | null
           status: string | null
         }
         Insert: {
@@ -492,6 +493,7 @@ export type Database = {
           prediction_id?: string | null
           prompt: string
           request_params?: Json | null
+          retry_count?: number | null
           status?: string | null
         }
         Update: {
@@ -504,6 +506,7 @@ export type Database = {
           prediction_id?: string | null
           prompt?: string
           request_params?: Json | null
+          retry_count?: number | null
           status?: string | null
         }
         Relationships: [
