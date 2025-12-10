@@ -25,24 +25,18 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { imageUrl, prompt, imageId } = await req.json();
 
+    console.log("Starting image edit with:", { imageUrl, prompt, imageId });
+
     if (!imageUrl || !prompt) {
       throw new Error('imageUrl and prompt are required');
     }
 
-    console.log('Starting image edit with prompt:', prompt);
-
     const replicate = new Replicate({ auth: REPLICATE_API_KEY });
 
-    // Buscar a versão mais recente do modelo nano-banana
-    console.log("Getting latest version of nano-banana model");
-    const model = await replicate.models.get("google", "nano-banana");
-    const latestVersion = model.latest_version.id;
-    console.log("Using version:", latestVersion);
-
-    // Criar predição assíncrona
-    console.log("Creating async prediction with nano-banana");
+    // Usar o mesmo formato que funciona no generate-character-image
+    console.log("Creating async prediction with nano-banana (direct version)");
     const prediction = await replicate.predictions.create({
-      version: latestVersion,
+      version: "google/nano-banana",
       input: {
         prompt: prompt,
         image_input: [imageUrl],
@@ -60,6 +54,7 @@ serve(async (req) => {
     
     if (imageId) {
       // Atualizar registro existente
+      console.log("Updating existing record:", imageId);
       const { error: updateError } = await supabase
         .from("generated_images")
         .update({
@@ -75,6 +70,7 @@ serve(async (req) => {
       }
     } else {
       // Criar novo registro
+      console.log("Creating new record");
       const { data: newRecord, error: insertError } = await supabase
         .from("generated_images")
         .insert({
@@ -96,7 +92,7 @@ serve(async (req) => {
       recordId = newRecord.id;
     }
 
-    console.log("Record updated/created:", recordId);
+    console.log("Record updated/created successfully:", recordId);
 
     return new Response(
       JSON.stringify({ 
