@@ -297,6 +297,45 @@ export type Database = {
           },
         ]
       }
+      canva_blocks: {
+        Row: {
+          block_type: string
+          created_at: string
+          created_by: string | null
+          html_content: string
+          id: string
+          is_active: boolean
+          name: string
+          thumbnail_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          block_type: string
+          created_at?: string
+          created_by?: string | null
+          html_content?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          block_type?: string
+          created_at?: string
+          created_by?: string | null
+          html_content?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       character_images: {
         Row: {
           character_id: string

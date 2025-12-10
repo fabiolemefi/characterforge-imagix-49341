@@ -31,6 +31,7 @@ import AdminBlogPosts from './pages/AdminBlogPosts';
 import Downloads from './pages/Downloads';
 import ShareDownload from './pages/ShareDownload';
 import EfiSlides from './pages/EfiSlides';
+import CanvaBlocks from './pages/CanvaBlocks';
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
@@ -88,6 +89,7 @@ const App = () => <AuthProvider>
           <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
           <Route path="/share/file" element={<ShareDownload />} />
+          <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
