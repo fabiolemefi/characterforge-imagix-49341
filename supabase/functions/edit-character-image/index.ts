@@ -46,7 +46,7 @@ serve(async (req) => {
       input: {
         prompt: prompt,
         image_input: [imageUrl],
-        aspect_ratio: "1:1",
+        aspect_ratio: "match_input_image",
         output_format: "png",
       },
       webhook: `${SUPABASE_URL}/functions/v1/replicate-webhook`,
