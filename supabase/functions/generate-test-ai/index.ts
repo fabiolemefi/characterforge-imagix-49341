@@ -156,35 +156,74 @@ serve(async (req) => {
     // Get last user message for smart extraction
     const lastUserMessage = messages.filter((m: any) => m.role === "user").pop()?.content || "";
 
+    // Build dynamic fields list from assistant configuration
+    const fieldsSchema = assistant?.fields_schema || [];
+    const fieldsToExtract = fieldsSchema.length > 0
+      ? fieldsSchema.map((f: any) => `- ${f.name}: ${f.label || f.name}${f.required ? ' (OBRIGATÓRIO)' : ''}`).join("\n")
+      : "- Extraia campos relevantes da mensagem";
+
+    // Identify already filled fields
+    const filledFields = Object.entries(extractedData || {})
+      .filter(([_, value]) => value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))
+      .map(([key, _]) => key);
+    
+    const pendingFields = fieldsSchema
+      .filter((f: any) => !filledFields.includes(f.name))
+      .map((f: any) => `- ${f.name}: ${f.label || f.name}`)
+      .join("\n");
+
     const userPrompt = `${systemPrompt}
 ${dataContext}
 HISTÓRICO RECENTE DA CONVERSA:
 ${conversationHistory}
 
+## CAMPOS QUE VOCÊ DEVE ATIVAMENTE BUSCAR NA ÚLTIMA MENSAGEM:
+${fieldsToExtract}
+
+## CAMPOS JÁ PREENCHIDOS: ${filledFields.join(", ") || "nenhum ainda"}
+
+## CAMPOS PENDENTES (foque nestes):
+${pendingFields || "todos preenchidos"}
+
+## PROCESSO DE ANÁLISE OBRIGATÓRIO (execute para CADA campo pendente):
+1. Leia a última mensagem COMPLETAMENTE
+2. Para CADA campo pendente, pergunte internamente: "Há informação sobre este campo no texto?"
+3. Se SIM (mesmo que implícito) → extraia e inclua em extracted_data
+4. Só deixe como null campos sem NENHUMA pista no texto
+
+## REGRAS DE INFERÊNCIA (aplique sempre):
+- "o time enviará a base" → base_manual_ou_automatica = "manual"
+- "o sistema criará automaticamente" → base_manual_ou_automatica = "automatica"
+- "mostrar passo a passo" / "ensinar" → acao_desejada relacionada
+- "taxa de abertura/clique/conversão" → metrica_de_negocio = essa métrica
+- Menção de PJ/PF/MEI → tipo_usuario
+- Menção de agro/varejo/saúde/etc → publico (segmento)
+- "precisa urgente" / "para ontem" → prioridade_urgencia = "alta"
+- "sem pressa" → prioridade_urgencia = "baixa"
+
+## EXEMPLO DE EXTRAÇÃO MÁXIMA:
+Texto: "O time de negócios vai enviar a base de clientes PJ do agro. Queremos que eles usem o novo recurso de antecipação. É urgente."
+extracted_data extraído:
+{
+  "base_manual_ou_automatica": "manual",
+  "tipo_usuario": "PJ",
+  "publico": "segmento agronegócio",
+  "acao_desejada": "usar o novo recurso de antecipação",
+  "prioridade_urgencia": "alta"
+}
+
 ## INSTRUÇÃO CRÍTICA - EXTRAÇÃO SILENCIOSA:
-1. ANALISE TODA a última mensagem buscando informações para MÚLTIPLOS campos
-2. EXTRAIA TODOS os dados que puder identificar de uma só vez no extracted_data
-3. NÃO liste campos preenchidos - apenas continue a conversa naturalmente
-4. NÃO diga "extraímos", "coletamos", "preenchemos" ou similar
-5. Após extrair, simplesmente faça a próxima pergunta de forma fluida
+1. EXTRAIA TODOS os dados que puder identificar de uma só vez no extracted_data
+2. NÃO liste campos preenchidos - apenas continue a conversa naturalmente
+3. NÃO diga "extraímos", "coletamos", "preenchemos" ou similar
+4. Após extrair, simplesmente faça a próxima pergunta de forma fluida
 
 ## ESTILO DE COMUNICAÇÃO - SEJA UM CONSULTOR ESTRATÉGICO:
-- NUNCA use frases genéricas como "Agora, precisamos saber...", "Poderia me informar...", "Qual é o..."
+- NUNCA use frases genéricas como "Agora, precisamos saber...", "Poderia me informar..."
 - Faça perguntas PROVOCATIVAS que levem à REFLEXÃO
 - Questione premissas e explore implicações
-- Varie seu estilo - cada pergunta deve parecer única
 
-EXEMPLOS DE TRANSFORMAÇÃO:
-❌ "Qual é o público-alvo?" 
-✅ "Quem exatamente você quer atingir? E por que esse perfil especificamente?"
-
-❌ "Qual é a métrica de sucesso?"
-✅ "Se isso der certo, qual número vai mudar? Como você vai provar o sucesso?"
-
-❌ "Qual é o objetivo?"
-✅ "O que precisa acontecer para você considerar isso um sucesso absoluto?"
-
-## REGRAS:
+## REGRAS FINAIS:
 - Retorne APENAS JSON válido, sem markdown
 - Se todos os campos OBRIGATÓRIOS estão completos, marque status="ready"
 
