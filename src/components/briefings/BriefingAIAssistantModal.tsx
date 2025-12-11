@@ -29,8 +29,10 @@ export function BriefingAIAssistantModal({
   assistantSlug = "briefing-assistent",
 }: BriefingAIAssistantModalProps) {
   const [inputValue, setInputValue] = useState("");
+  const [loadingTime, setLoadingTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     conversationId,
@@ -43,6 +45,7 @@ export function BriefingAIAssistantModal({
     sendMessage,
     checkForDraft,
     resetConversation,
+    cancelLoading,
   } = useTestAIConversation(assistantSlug);
 
   // Reset conversation when modal closes
@@ -51,6 +54,27 @@ export function BriefingAIAssistantModal({
       resetConversation();
     }
   }, [open]);
+
+  // Track loading time for progressive feedback
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingTime(0);
+      loadingTimerRef.current = setInterval(() => {
+        setLoadingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      setLoadingTime(0);
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+      }
+    };
+  }, [isLoading]);
 
   // Start or resume conversation when modal opens
   useEffect(() => {
@@ -152,8 +176,27 @@ export function BriefingAIAssistantModal({
                     <Bot className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="bg-muted rounded-lg px-4 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="bg-muted rounded-lg px-4 py-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm text-muted-foreground">
+                      {loadingTime > 15 
+                        ? "Processando dados extensos..." 
+                        : loadingTime > 5 
+                          ? "Analisando informações..." 
+                          : "Pensando..."}
+                    </span>
+                  </div>
+                  {loadingTime > 10 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={cancelLoading}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
