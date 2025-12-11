@@ -101,19 +101,15 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
             setIsReady(true);
           }
           
-          // Update pending prediction ID
+          // Update pending prediction ID (don't stop polling - it must continue for the entire conversation)
           if (newData.prediction_id !== undefined) {
             setPendingPredictionId(newData.prediction_id);
             if (newData.prediction_id === null) {
-              console.log("⏹️ Prediction completed, waiting for message");
-              // Clear timeout and polling if they exist
+              console.log("⏹️ Prediction completed, clearing timeout only");
+              // Clear timeout only, keep polling active
               if ((window as any).__aiTimeoutId) {
                 clearTimeout((window as any).__aiTimeoutId);
                 (window as any).__aiTimeoutId = null;
-              }
-              if ((window as any).__aiPollingId) {
-                clearInterval((window as any).__aiPollingId);
-                (window as any).__aiPollingId = null;
               }
             }
           }
@@ -124,8 +120,11 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     channelRef.current = channel;
 
     // Setup polling to check for updates every second (fallback if realtime fails)
+    // IMPORTANT: Polling must continue for the entire conversation lifecycle
     const pollingInterval = setInterval(async () => {
       if (!conversationId) return;
+      
+      console.log("🔄 [polling] Verificando atualizações...");
       
       try {
         const { data, error } = await supabase
@@ -151,15 +150,11 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         if (data.prediction_id !== undefined) {
           setPendingPredictionId(data.prediction_id);
           if (data.prediction_id === null) {
-            console.log("Polling: Prediction completed");
-            // Clear timeout and polling
+            console.log("Polling: Prediction completed, clearing timeout only");
+            // Clear timeout only, keep polling active for future messages
             if ((window as any).__aiTimeoutId) {
               clearTimeout((window as any).__aiTimeoutId);
               (window as any).__aiTimeoutId = null;
-            }
-            if ((window as any).__aiPollingId) {
-              clearInterval((window as any).__aiPollingId);
-              (window as any).__aiPollingId = null;
             }
           }
         }
