@@ -55,13 +55,21 @@ export function BriefingAIAssistantModal({
     }
   }, [open]);
 
-  // Track loading time for progressive feedback
+  // Track loading time for progressive feedback + safety timeout
   useEffect(() => {
+    let safetyTimeoutId: NodeJS.Timeout | null = null;
+    
     if (isLoading) {
       setLoadingTime(0);
       loadingTimerRef.current = setInterval(() => {
         setLoadingTime(prev => prev + 1);
       }, 1000);
+
+      // Safety timeout - força reset após 90 segundos
+      safetyTimeoutId = setTimeout(() => {
+        console.warn("⚠️ [BriefingModal] Safety timeout ativado após 90 segundos");
+        cancelLoading();
+      }, 90000);
     } else {
       setLoadingTime(0);
       if (loadingTimerRef.current) {
@@ -69,12 +77,16 @@ export function BriefingAIAssistantModal({
         loadingTimerRef.current = null;
       }
     }
+
     return () => {
       if (loadingTimerRef.current) {
         clearInterval(loadingTimerRef.current);
       }
+      if (safetyTimeoutId) {
+        clearTimeout(safetyTimeoutId);
+      }
     };
-  }, [isLoading]);
+  }, [isLoading, cancelLoading]);
 
   // Start or resume conversation when modal opens
   useEffect(() => {

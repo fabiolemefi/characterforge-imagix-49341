@@ -137,8 +137,9 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         if (error) throw error;
         if (!data) return;
 
-        // Update state with latest data
-        if (data.messages) {
+        // Update state with latest data - only if more messages than local (avoid race condition)
+        if (data.messages && Array.isArray(data.messages) && data.messages.length > messages.length) {
+          console.log("🔄 [polling] Atualizando mensagens:", data.messages.length, "vs local:", messages.length);
           setMessages(data.messages as unknown as Message[]);
         }
         if (data.extracted_data) {
@@ -357,14 +358,20 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
           .eq("id", conversationId);
       }
 
-      // Create timeout promise (60 seconds)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout: A IA demorou muito para responder. Tente novamente.")), 60000)
-      );
+      console.log("📡 [sendMessage] Chamando Edge Function...", { 
+        messagesCount: updatedMessages.length,
+        conversationId 
+      });
 
-      console.log("📡 Chamando Edge Function...");
+      // Timeout promise que REJEITA corretamente
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          console.error("⏰ [sendMessage] TIMEOUT após 60 segundos");
+          reject(new Error("Timeout: A IA demorou muito para responder."));
+        }, 60000);
+      });
 
-      // Call edge function with timeout
+      // Promise da requisição
       const responsePromise = supabase.functions.invoke("generate-test-ai", {
         body: {
           messages: updatedMessages,
@@ -373,15 +380,26 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         },
       });
 
-      const { data: aiData, error: aiError } = await Promise.race([
-        responsePromise,
-        timeoutPromise.then(() => { throw new Error("Timeout: A IA demorou muito para responder."); })
-      ]) as { data: any; error: any };
+      // Race correta entre timeout e resposta
+      let aiData: any;
+      let aiError: any;
+      
+      try {
+        const result = await Promise.race([responsePromise, timeoutPromise]);
+        aiData = result.data;
+        aiError = result.error;
+        console.log("📥 [sendMessage] Resposta recebida:", { 
+          hasData: !!aiData, 
+          hasError: !!aiError,
+          status: aiData?.status 
+        });
+      } catch (raceError) {
+        console.error("❌ [sendMessage] Race error:", raceError);
+        throw raceError;
+      }
 
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
-
-      console.log("📥 Resposta recebida:", { status: aiData.status, hasMessage: !!aiData.message });
 
       // Process the AI response directly
       const aiResponse = aiData;
@@ -396,14 +414,15 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
       setExtractedData(aiResponse.extracted_data);
       setIsReady(aiResponse.status === "ready");
 
-      // Clear loading state
-      setIsLoading(false);
-      console.log("✅ Mensagem processada com sucesso");
+      console.log("✅ [sendMessage] Sucesso! setIsLoading(false)");
     } catch (error: any) {
-      console.error("❌ Erro ao enviar mensagem:", error);
+      console.error("❌ [sendMessage] Erro:", error);
       toast.error(error.message || "Erro ao enviar mensagem");
-      setIsLoading(false);
       setPendingPredictionId(null);
+    } finally {
+      // SEMPRE reseta o loading
+      console.log("🏁 [sendMessage] Finally block - resetando loading");
+      setIsLoading(false);
     }
   };
 
