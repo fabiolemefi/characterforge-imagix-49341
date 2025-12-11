@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, FlaskConical, BookOpen } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, BookOpen, Bot } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -11,7 +11,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 
 const menuItems = [
   {
@@ -28,6 +27,11 @@ const menuItems = [
     title: "Comunicados",
     url: "/admin/announcements",
     icon: Megaphone,
+  },
+  {
+    title: "Assistentes IA",
+    url: "/admin/ai-assistants",
+    icon: Bot,
   },
   {
     title: "Guia de Marca",

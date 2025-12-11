@@ -26,14 +26,15 @@ import { format } from "date-fns";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
 import { toast } from "sonner";
 
-interface TestAIAssistantModalProps {
+export interface TestAIAssistantModalProps {
   open: boolean;
   onClose: () => void;
   onFormFill: (data: ExtractedTestData) => void;
   checkForDrafts?: boolean;
+  assistantSlug?: string;
 }
 
-export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts = true }: TestAIAssistantModalProps) {
+export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts = true, assistantSlug = "test-creation" }: TestAIAssistantModalProps) {
   const [input, setInput] = useState("");
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);

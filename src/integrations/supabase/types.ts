@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_assistants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          fields_schema: Json | null
+          greeting_message: string | null
+          id: string
+          is_active: boolean
+          model_config: Json
+          name: string
+          ready_message: string | null
+          slug: string
+          system_prompt: string
+          updated_at: string
+          updated_by: string | null
+          validations: Json | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fields_schema?: Json | null
+          greeting_message?: string | null
+          id?: string
+          is_active?: boolean
+          model_config?: Json
+          name: string
+          ready_message?: string | null
+          slug: string
+          system_prompt: string
+          updated_at?: string
+          updated_by?: string | null
+          validations?: Json | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fields_schema?: Json | null
+          greeting_message?: string | null
+          id?: string
+          is_active?: boolean
+          model_config?: Json
+          name?: string
+          ready_message?: string | null
+          slug?: string
+          system_prompt?: string
+          updated_at?: string
+          updated_by?: string | null
+          validations?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_assistants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_assistants_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           color: string
@@ -794,6 +863,7 @@ export type Database = {
       }
       test_ai_conversations: {
         Row: {
+          assistant_id: string | null
           completed_at: string | null
           created_at: string
           extracted_data: Json | null
@@ -806,6 +876,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assistant_id?: string | null
           completed_at?: string | null
           created_at?: string
           extracted_data?: Json | null
@@ -818,6 +889,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assistant_id?: string | null
           completed_at?: string | null
           created_at?: string
           extracted_data?: Json | null
@@ -830,6 +902,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "test_ai_conversations_assistant_id_fkey"
+            columns: ["assistant_id"]
+            isOneToOne: false
+            referencedRelation: "ai_assistants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "test_ai_conversations_test_id_fkey"
             columns: ["test_id"]
