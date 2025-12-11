@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Send, Bot, User, Check } from "lucide-react";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
+import { CollectionProgress } from "@/components/ai-assistant/CollectionProgress";
 
 interface BriefingAIAssistantModalProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function BriefingAIAssistantModal({
     isLoading,
     extractedData,
     isReady,
+    fieldsSchema,
     startConversation,
     sendMessage,
     checkForDraft,
@@ -95,12 +97,18 @@ export function BriefingAIAssistantModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[600px] h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="sm:max-w-[600px] h-[85vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-4 border-b space-y-3">
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
             Assistente de Briefing
           </DialogTitle>
+          {fieldsSchema.length > 0 && (
+            <CollectionProgress
+              extractedData={extractedData}
+              fieldsSchema={fieldsSchema}
+            />
+          )}
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6">

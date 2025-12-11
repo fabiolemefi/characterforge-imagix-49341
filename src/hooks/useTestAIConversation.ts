@@ -20,6 +20,14 @@ export interface ExtractedTestData {
   success_metric?: string[];
   start_date?: string | null;
   end_date?: string | null;
+  [key: string]: any; // Allow dynamic fields for different assistants
+}
+
+export interface FieldSchema {
+  name: string;
+  type: string;
+  description: string;
+  required: boolean;
 }
 
 interface AIResponse {
@@ -36,6 +44,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
   const [extractedData, setExtractedData] = useState<ExtractedTestData>({});
   const [isReady, setIsReady] = useState(false);
   const [pendingPredictionId, setPendingPredictionId] = useState<string | null>(null);
+  const [fieldsSchema, setFieldsSchema] = useState<FieldSchema[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Clear loading when message arrives and prediction is complete
@@ -233,6 +242,20 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
+
+      // Fetch the assistant's fields_schema
+      const { data: assistantData, error: assistantError } = await supabase
+        .from("ai_assistants")
+        .select("fields_schema")
+        .eq("slug", assistantSlug)
+        .single();
+
+      if (assistantError) {
+        console.error("Erro ao buscar assistente:", assistantError);
+      } else if (assistantData?.fields_schema) {
+        console.log("📋 Fields schema loaded:", assistantData.fields_schema);
+        setFieldsSchema(assistantData.fields_schema as unknown as FieldSchema[]);
+      }
 
       // Create initial conversation in database
       const { data, error } = await supabase
@@ -436,6 +459,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     setExtractedData({});
     setIsReady(false);
     setPendingPredictionId(null);
+    setFieldsSchema([]);
     
     // Cleanup realtime channel
     if (channelRef.current) {
@@ -460,6 +484,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     isLoading,
     extractedData,
     isReady,
+    fieldsSchema,
     checkForDraft,
     startConversation,
     loadConversation,

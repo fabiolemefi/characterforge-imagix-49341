@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
 import { toast } from "sonner";
+import { CollectionProgress } from "@/components/ai-assistant/CollectionProgress";
 
 export interface TestAIAssistantModalProps {
   open: boolean;
@@ -49,6 +50,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     isLoading,
     extractedData,
     isReady,
+    fieldsSchema,
     checkForDraft,
     startConversation,
     loadConversation,
@@ -162,12 +164,18 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[700px] h-[700px] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+        <DialogContent className="sm:max-w-[700px] h-[750px] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b space-y-3">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Sparkles className="h-5 w-5 text-primary" />
               Assistente de Criação de Teste
             </DialogTitle>
+            {fieldsSchema.length > 0 && (
+              <CollectionProgress
+                extractedData={extractedData}
+                fieldsSchema={fieldsSchema}
+              />
+            )}
           </DialogHeader>
 
           {/* Chat messages */}
