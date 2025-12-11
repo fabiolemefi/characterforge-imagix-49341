@@ -153,18 +153,36 @@ serve(async (req) => {
       .map((msg: any) => `${msg.role === "user" ? "Usuário" : "Assistente"}: ${msg.content}`)
       .join("\n\n");
 
+    // Get last user message for smart extraction
+    const lastUserMessage = messages.filter((m: any) => m.role === "user").pop()?.content || "";
+
     const userPrompt = `${systemPrompt}
 ${dataContext}
 HISTÓRICO RECENTE DA CONVERSA:
 ${conversationHistory}
 
-INSTRUÇÃO:
-Baseado nos DADOS JÁ COLETADOS e no histórico RECENTE acima, gere a próxima resposta do assistente.
-- NÃO repita perguntas sobre informações que já foram coletadas
-- VERIFIQUE os DADOS JÁ COLETADOS antes de perguntar qualquer coisa
-- AVANCE para a próxima informação que ainda falta
+## INSTRUÇÃO CRÍTICA - EXTRAÇÃO INTELIGENTE:
+1. ANALISE TODA a última mensagem do usuário buscando informações para MÚLTIPLOS campos
+2. EXTRAIA TODOS os dados que puder identificar de uma só vez no extracted_data
+3. Se o texto mencionar objetivos, público, métricas, datas, etc. - capture TUDO de uma vez
+4. NÃO pergunte campos que podem ser claramente inferidos do texto do usuário
+5. Após extrair múltiplos campos, LISTE quais foram preenchidos na sua resposta
+6. Só pergunte pelos campos que REALMENTE ainda faltam após a análise completa
+
+## EXEMPLOS DE EXTRAÇÃO MÚLTIPLA:
+- Se usuário diz "quero testar um banner para clientes PJ do agro com foco em conversão de leads"
+  → Extraia: objetivo (conversão de leads), público (clientes PJ), segmento (agro), elemento testado (banner)
+- Se usuário diz "o teste vai rodar de janeiro a março no app e no site"
+  → Extraia: start_date, end_date, tools (app, site)
+
+## OUTRAS REGRAS:
+- NÃO repita perguntas sobre informações já coletadas
+- VERIFIQUE os DADOS JÁ COLETADOS antes de perguntar
 - Se todos os dados obrigatórios estão completos (incluindo insights), marque status como "ready"
-- Retorne APENAS JSON válido, sem markdown, sem explicações extras.`;
+- Retorne APENAS JSON válido, sem markdown, sem explicações extras.
+
+ÚLTIMA MENSAGEM DO USUÁRIO PARA ANÁLISE:
+"${lastUserMessage}"`;
 
     console.log(`[${conversationId}] Chamando OpenAI com modelo ${modelConfig.model}...`);
 
