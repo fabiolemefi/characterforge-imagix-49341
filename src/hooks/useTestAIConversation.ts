@@ -334,6 +334,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
 
     try {
       setIsLoading(true);
+      console.log("📤 Iniciando envio de mensagem...", { contentLength: content.length, conversationId });
 
       // Add user message to state and database immediately
       let updatedMessages = [...messages];
@@ -356,8 +357,15 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
           .eq("id", conversationId);
       }
 
-      // Call edge function (will return AI response directly)
-      const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-test-ai", {
+      // Create timeout promise (60 seconds)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout: A IA demorou muito para responder. Tente novamente.")), 60000)
+      );
+
+      console.log("📡 Chamando Edge Function...");
+
+      // Call edge function with timeout
+      const responsePromise = supabase.functions.invoke("generate-test-ai", {
         body: {
           messages: updatedMessages,
           conversationId: conversationId,
@@ -365,10 +373,15 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         },
       });
 
+      const { data: aiData, error: aiError } = await Promise.race([
+        responsePromise,
+        timeoutPromise.then(() => { throw new Error("Timeout: A IA demorou muito para responder."); })
+      ]) as { data: any; error: any };
+
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
 
-      console.log("AI response received:", aiData);
+      console.log("📥 Resposta recebida:", { status: aiData.status, hasMessage: !!aiData.message });
 
       // Process the AI response directly
       const aiResponse = aiData;
@@ -385,9 +398,10 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
 
       // Clear loading state
       setIsLoading(false);
+      console.log("✅ Mensagem processada com sucesso");
     } catch (error: any) {
-      console.error("Erro ao enviar mensagem:", error);
-      toast.error("Erro ao enviar mensagem: " + error.message);
+      console.error("❌ Erro ao enviar mensagem:", error);
+      toast.error(error.message || "Erro ao enviar mensagem");
       setIsLoading(false);
       setPendingPredictionId(null);
     }
@@ -451,6 +465,14 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     }
   };
 
+  // Cancel loading state manually
+  const cancelLoading = () => {
+    console.log("🛑 Loading cancelado pelo usuário");
+    setIsLoading(false);
+    setPendingPredictionId(null);
+    toast.info("Operação cancelada. Você pode tentar novamente.");
+  };
+
   // Reset conversation state
   const resetConversation = () => {
     console.log("🔄 Resetting conversation state");
@@ -458,6 +480,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     setMessages([]);
     setExtractedData({});
     setIsReady(false);
+    setIsLoading(false);
     setPendingPredictionId(null);
     setFieldsSchema([]);
     
@@ -493,5 +516,6 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     abandonConversation,
     deleteConversation,
     resetConversation,
+    cancelLoading,
   };
 }

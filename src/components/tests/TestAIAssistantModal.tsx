@@ -41,8 +41,10 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   const [draftId, setDraftId] = useState<string | null>(null);
   const [userInitials, setUserInitials] = useState("U");
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+  const [loadingTime, setLoadingTime] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     conversationId,
@@ -57,6 +59,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     sendMessage,
     deleteConversation,
     resetConversation,
+    cancelLoading,
   } = useTestAIConversation(assistantSlug);
 
   // Reset conversation when modal closes to ensure fresh params on next open
@@ -65,6 +68,27 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
       resetConversation();
     }
   }, [open]);
+
+  // Track loading time for progressive feedback
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingTime(0);
+      loadingTimerRef.current = setInterval(() => {
+        setLoadingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      setLoadingTime(0);
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+      }
+    };
+  }, [isLoading]);
 
   // Load user data
   useEffect(() => {
@@ -231,13 +255,29 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                   </Avatar>
                   <div className="bg-background rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>Pensando</span>
+                      <span>
+                        {loadingTime > 15 
+                          ? "Processando dados extensos..." 
+                          : loadingTime > 5 
+                            ? "Analisando informações..." 
+                            : "Pensando"}
+                      </span>
                       <div className="flex gap-1">
                         <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-1" />
                         <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-2" />
                         <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-3" />
                       </div>
                     </div>
+                    {loadingTime > 10 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-7 text-xs"
+                        onClick={cancelLoading}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
