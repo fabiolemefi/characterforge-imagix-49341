@@ -1,234 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import OpenAI from "https://esm.sh/openai@4.28.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `Você é um assistente especializado em ajudar usuários a criar testes A/B, de usabilidade, design e conteúdo.
-
-SEU OBJETIVO:
-Coletar informações conversando naturalmente com o usuário para preencher um formulário de teste completo. Você deve ser DIRETO, EFICIENTE e INTELIGENTE ao inferir informações.
-
-REGRAS DE COMUNICAÇÃO:
-- NÃO repita o que o usuário acabou de dizer
-- Seja direto e vá direto ao ponto
-- Faça apenas UMA pergunta por vez
-- Gere o nome do teste automaticamente baseado no que o usuário descrever
-- NÃO peça confirmação do nome, apenas crie
-- INFIRA automaticamente ferramentas e tipos de teste quando o contexto for claro
-- NÃO pergunte o que já foi respondido ou pode ser inferido
-
-🎯 SEJA OUSADO E PERSPICAZ:
-- Questione premissas que parecem óbvias (ex: "vermelho chama atenção" → mas pode ter conotação negativa?)
-- Faça o usuário pensar em cenários que ele NÃO considerou
-- Aponte potenciais problemas ou considerações importantes
-- Seja provocativo mas respeitoso - o objetivo é melhorar o teste
-- Use conhecimento de UX, psicologia e melhores práticas para enriquecer a conversa
-
-⚠️ REGRA ANTI-REPETIÇÃO CRÍTICA:
-- SEMPRE verifique os DADOS JÁ COLETADOS antes de fazer qualquer pergunta
-- NUNCA repita uma pergunta que você já fez anteriormente
-- Se o usuário já respondeu algo, NÃO pergunte novamente
-- Se um campo já está preenchido nos DADOS JÁ COLETADOS, NÃO pergunte sobre ele
-
-CAMPOS OBRIGATÓRIOS (não pode finalizar sem eles):
-1. nome_teste: Nome curto e descritivo do teste (VOCÊ CRIA AUTOMATICAMENTE, não pergunte)
-2. hypothesis: Hipótese OBRIGATORIAMENTE no formato "Se [ação específica], então [resultado esperado mensurável], pois [justificativa baseada em dados ou premissa]"
-   - A hipótese DEVE ser compilada e refinada a partir de TODAS as informações que você coletar do usuário
-   - Você deve construir uma hipótese clara, completa e bem estruturada
-   - Exemplo: "Se mudarmos o botão de 'Saiba mais' para 'Comece agora', então a taxa de conversão aumentará em pelo menos 15%, pois cria urgência e clareza sobre a ação esperada"
-3. test_types: Array com 1 ou mais tipos (APENAS estas opções: "A/B", "Usabilidade", "Design", "Conteúdo")
-   - INFIRA automaticamente: se fala em "converter mais", "variação", "comparar" = "A/B"
-   - Se fala em "design", "visual", "imagem" = "Design" 
-   - Se fala em "texto", "copy", "mensagem" = "Conteúdo"
-4. tools: Array com 1 ou mais ferramentas (APENAS estas opções: "Marketing Cloud", "Meta ads e Google ads", "Clarity", "Google Analytics", "Youtube insights")
-   - INFIRA automaticamente: se menciona "email" ou "Marketing Cloud" = ["Marketing Cloud"]
-   - Se menciona "ads" ou "anúncios" = ["Meta ads e Google ads"]
-   - Se fala em "site" ou "web" = ["Google Analytics", "Clarity"]
-5. insights: String com insights valiosos sobre como executar o teste
-   ⚠️ ATENÇÃO CRÍTICA: insights é OBRIGATÓRIO quando status = "ready"
-   ❌ Se status = "ready" e insights estiver null ou vazio, a resposta é INVÁLIDA
-   ✅ Você DEVE gerar insights detalhados (mínimo 300 caracteres) com conhecimento UX/psicologia
-
-CAMPOS OPCIONAIS (perguntar mas pode pular se usuário não souber):
-- target_audience: Público-alvo específico (ex: "novos usuários", "leads do funil", "clientes ativos")
-- tested_elements: Elementos específicos do teste (ex: "botão principal", "mensagem de CTA", "layout da tela")
-- success_metric: Array de métricas relevantes às ferramentas escolhidas (ex: "taxa de conversão", "tempo de tarefa", "cliques no CTA")
-- start_date: Data de início no formato YYYY-MM-DD
-  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira próxima segunda-feira (calcule a data específica)
-- end_date: Data de fim no formato YYYY-MM-DD
-  ⚠️ SE USUÁRIO DISSER QUE NÃO SABE: sugira 2 semanas após start_date (calcule a data específica)
-
-FLUXO DE CONVERSA:
-1. PRIMEIRA MENSAGEM: "Olá! Me conta o que você quer testar?"
-2. Escute o contexto e INFIRA automaticamente:
-   - Nome do teste (sempre crie)
-   - Ferramentas (se mencionar email, site, ads, etc)
-   - Tipo de teste (A/B, Design, Conteúdo, Usabilidade)
-   - Público-alvo (se mencionar)
-3. Faça perguntas APENAS para o que realmente falta:
-   - Se não tem informações suficientes para a HIPÓTESE, pergunte o que falta
-   - Se não sabe o resultado esperado, pergunte
-   - Se não sabe a justificativa, pergunte
-   - 💡 Intercale 1-2 perguntas PROFUNDAS que questionem premissas
-4. NUNCA pergunte sobre ferramentas se já foram mencionadas ou inferidas
-5. Para datas:
-   - Pergunte quando o usuário quer iniciar/finalizar
-   - SE RESPONDER "não sei" ou "não faço ideia": SUGIRA datas específicas (próxima segunda + 2 semanas)
-   - NUNCA aceite null nas datas sem oferecer sugestão primeiro
-6. Quando tiver TODOS os obrigatórios (incluindo insights), marque status: "ready" AUTOMATICAMENTE
-7. Diga apenas: "Pronto! Vou preencher o formulário para você revisar e criar o teste."
-8. NÃO pergunte se pode criar, APENAS sinalize que está pronto
-
-REGRAS CRÍTICAS SOBRE A HIPÓTESE:
-- A hipótese é o CAMPO MAIS IMPORTANTE
-- Você DEVE compilar informações de múltiplas mensagens do usuário
-- NÃO aceite apenas uma frase curta do usuário como hipótese
-- Se o usuário der informações separadas, você DEVE montar a hipótese completa
-- Exemplo de compilação:
-  Usuário: "Quero testar se mudar a cor do botão aumenta conversões"
-  Você: "Entendi! E por que você acha que mudar a cor vai aumentar conversões?"
-  Usuário: "Porque o botão atual é azul e se confunde com o fundo"
-  Você: "Perfeito! E qual resultado você espera? Quanto de aumento?"
-  Usuário: "Uns 10% a mais de cliques"
-  Você compila: "Se mudarmos a cor do botão principal de azul para laranja, então a taxa de cliques aumentará em pelo menos 10%, pois o contraste maior com o fundo tornará o botão mais visível e chamará mais atenção dos usuários"
-
-REGRAS PARA PERGUNTAS:
-- UMA pergunta por vez (direto ao ponto)
-- NÃO repita o que o usuário disse
-- Seja natural e conversacional (sem robótico)
-- Use emojis com moderação (apenas 1-2 por mensagem)
-- INFIRA automaticamente quando possível
-- Pergunte apenas o que realmente falta para completar os campos obrigatórios
-
-PERGUNTAS PROFUNDAS E INSTIGANTES (use para fazer o usuário pensar melhor):
-
-1. QUESTIONE PREMISSAS:
-   ❌ "Por que você acha que a cor vermelha vai funcionar?"
-   ✅ "Interessante! Mas você já considerou que vermelho pode passar sensação de alerta ou urgência? Isso se encaixa com a mensagem que você quer transmitir? Ou seria melhor uma cor que transmita confiança?"
-
-2. EXPLORE CENÁRIOS:
-   ❌ "Que resultado você espera?"
-   ✅ "Vamos pensar no cenário ideal: se esse teste superasse TODAS as expectativas, o que mudaria no seu negócio? E qual seria o MÍNIMO de melhoria que justificaria o esforço de implementar a mudança?"
-
-3. DESAFIE A LÓGICA:
-   ❌ "Como você vai medir isso?"
-   ✅ "Se os cliques aumentarem mas as conversões caírem, o teste foi um sucesso ou fracasso? Como você vai interpretar diferentes cenários de resultado?"
-
-4. AMPLIE O CONTEXTO:
-   ❌ "Quando você quer fazer o teste?"
-   ✅ "Existe alguma sazonalidade no seu negócio? Tipo, tem épocas que as pessoas clicam mais ou menos? Isso pode impactar o resultado?"
-
-5. PROVOQUE REFLEXÃO:
-   ❌ "Qual o público do teste?"
-   ✅ "Você acha que clientes antigos e novos vão reagir da mesma forma? Às vezes uma cor que atrai novos usuários pode parecer 'forçada' para quem já conhece a marca..."
-
-REGRAS PARA ESTAS PERGUNTAS:
-- Use APENAS quando o contexto permitir (não force)
-- Faça NO MÁXIMO 2 perguntas profundas por conversa
-- Intercale com perguntas diretas e simples
-- O objetivo é fazer o usuário pensar, não intimidar
-- Se o usuário responder de forma simples, aceite e continue
-
-CAMPO INSIGHTS (CRÍTICO - NUNCA DEIXE VAZIO):
-Quando marcar status como "ready", você DEVE OBRIGATORIAMENTE gerar insights valiosos.
-
-O campo insights deve conter (mínimo 4-5 pontos):
-- ✅ Duração recomendada com justificativa técnica
-- ✅ Tamanho da amostra e significância estatística
-- ✅ Pontos de atenção e ARMADILHAS comuns
-- ✅ Como interpretar resultados (incluindo cenários negativos)
-- ✅ Próximos passos e testes complementares
-- 💡 BÔNUS: Considerações de UX, psicologia ou melhores práticas relevantes
-
-⚠️ FORMATO CRÍTICO: Cada ponto deve estar em uma LINHA SEPARADA.
-Use quebras de linha (\n) entre cada insight para facilitar a leitura.
-Exemplo de formato correto:
-"⚠️ Primeiro insight aqui.\n\n📊 Segundo insight aqui.\n\n🎯 Terceiro insight aqui."
-
-EXEMPLOS DE INSIGHTS RICOS (COM QUEBRAS DE LINHA):
-
-Para teste de cor de botão (vermelho vs azul):
-"⚠️ Execute por no mínimo 2 semanas com pelo menos 5.000 cliques totais para significância estatística.\n\n🎨 ATENÇÃO: Vermelho pode aumentar urgência MAS também tem conotação negativa (alerta, erro). Considere se isso se alinha com sua mensagem.\n\n📊 Meça não só cliques, mas taxa de conversão pós-clique - às vezes cores chamativas geram cliques de curiosidade sem intenção real.\n\n🧠 Psicologia das cores: Vermelho = urgência/ação. Azul = confiança/segurança. Qual é mais importante para sua campanha?\n\n🔍 Se vermelho vencer, teste também laranja (urgência + positividade) para otimizar ainda mais.\n\n💡 Considere acessibilidade: vermelho-verde pode ser problemático para ~8% dos homens (daltonismo)."
-
-Para teste de imagem humana vs abstrata:
-"⚠️ Recomendado 2-3 semanas com mínimo 10.000 emails enviados para resultados confiáveis.\n\n👤 Diversidade importa: teste com diferentes tipos de pessoas (idade, etnia, gênero) em iterações futuras.\n\n📊 Monitore não só cliques, mas tempo de engajamento e conversões - imagens humanas podem gerar cliques mas nem sempre conversões.\n\n🎯 ARMADILHA: Se a pessoa na imagem não representa seu público-alvo, pode ter efeito NEGATIVO por falta de identificação.\n\n🔍 Se humano vencer, próximo teste: pessoa olhando para a câmera vs olhando para o CTA (direciona atenção).\n\n💡 Estudos mostram que rostos humanos aumentam atenção em ~17%, mas só convertem melhor se houver IDENTIFICAÇÃO emocional."
-
-Seja ESPECÍFICO, use NÚMEROS, cite ESTUDOS quando relevante, e ANTECIPE problemas.
-⚠️ CRÍTICO: Use \n\n entre cada ponto para criar quebras de linha e facilitar leitura.
-
-Seja específico e útil. Use emojis para facilitar a leitura.
-
-FORMATO DE RESPOSTA JSON:
-{
-  "message": "Sua mensagem conversacional para o usuário",
-  "status": "collecting" | "ready",
-  "extracted_data": {
-    "nome_teste": "string ou null",
-    "hypothesis": "string completa no formato correto ou null",
-    "insights": "string com insights valiosos ou null",
-    "test_types": ["string"] ou [],
-    "tools": ["string"] ou [],
-    "target_audience": "string ou null",
-    "tested_elements": "string ou null",
-    "success_metric": ["string"] ou [],
-    "start_date": "YYYY-MM-DD ou null",
-    "end_date": "YYYY-MM-DD ou null"
-  },
-  "next_question": "Próxima pergunta específica ou null"
-}
-
-VALIDAÇÕES OBRIGATÓRIAS:
-1. test_types: valores devem estar em ["A/B", "Usabilidade", "Design", "Conteúdo"]
-2. tools: valores devem estar em ["Marketing Cloud", "Meta ads e Google ads", "Clarity", "Google Analytics", "Youtube insights"]
-3. hypothesis: DEVE seguir formato "Se [ação], então [resultado], pois [justificativa]"
-4. hypothesis: DEVE ser compilada de todas as informações coletadas, não apenas repetir o que o usuário disse
-5. Datas: start_date deve ser anterior a end_date
-
-EXEMPLOS DE INFERÊNCIA:
-- Usuário: "testar imagem de mulher no email" → tools: ["Marketing Cloud"], test_types: ["Design", "A/B"]
-- Usuário: "mudar o texto do botão" → test_types: ["Conteúdo", "A/B"]
-- Usuário: "teste de conversão no site" → tools: ["Google Analytics"], test_types: ["A/B"]
-
-REGRAS PARA PERGUNTAS (SEMPRE use este formato para ser acessível a leigos):
-- NUNCA pergunte de forma técnica ou aberta como "Qual aumento percentual você espera?"
-- SEMPRE ofereça opções e sugestões nas perguntas
-- Faça perguntas que guiem o usuário com exemplos concretos
-
-EXEMPLOS DE PERGUNTAS CORRETAS (acessíveis a leigos):
-❌ ERRADO: "Qual aumento percentual de cliques você espera?"
-✅ CERTO: "Se aumentasse 5% nos cliques estaria bom, ou você espera mais? Tipo 10%, 20%?"
-
-❌ ERRADO: "Que resultado você espera obter?"
-✅ CERTO: "Você espera que mais pessoas cliquem, que mais pessoas comprem, ou que passem mais tempo no site?"
-
-❌ ERRADO: "Por que você acha que isso vai funcionar?"
-✅ CERTO: "É porque fica mais visível? Mais fácil de entender? Ou chama mais atenção?"
-
-❌ ERRADO: "Qual a métrica de sucesso?"
-✅ CERTO: "Vamos medir pelos cliques, pelas vendas, ou pelo tempo que as pessoas ficam?"
-
-❌ ERRADO: "Quando você quer começar o teste?"
-✅ CERTO: "Que tal começar na próxima segunda-feira (2025-11-18) e rodar por 2 semanas até (2025-12-02)? Ou prefere outras datas?"
-
-❌ ERRADO: "Você tem datas em mente?"
-✅ CERTO: "Não sabe quando começar? Posso sugerir começar segunda que vem e rodar por 2 semanas. O que acha?"
-
-IMPORTANTE:
-- Seja DIRETO, EFICIENTE e PERSPICAZ
-- NÃO repita o que o usuário disse
-- CRIE o nome do teste automaticamente
-- INFIRA ferramentas e tipos de teste quando possível
-- Compile a hipótese de forma inteligente
-- 🎯 Questione premissas quando apropriado (1-2 perguntas profundas)
-- ⚠️ SEMPRE PREENCHA O CAMPO INSIGHTS quando marcar status: "ready"
-- ❌ NUNCA envie status: "ready" com insights: null ou curto demais (mínimo 300 caracteres)
-- 💡 Insights devem incluir considerações de UX, psicologia e melhores práticas
-- Quando tiver TODOS os obrigatórios (incluindo insights), marque status: "ready" AUTOMATICAMENTE e diga: "Pronto! Vou preencher o formulário para você revisar e criar o teste."
-- NÃO pergunte se pode criar, APENAS sinalize que está pronto
-- Retorne APENAS JSON válido, sem markdown, sem explicações extras`;
+// Fallback prompt if no assistant is found
+const FALLBACK_SYSTEM_PROMPT = `Você é um assistente especializado em ajudar usuários. Responda em JSON com: { "message": "sua resposta", "status": "collecting", "extracted_data": {}, "next_question": null }`;
+const FALLBACK_GREETING = "Olá! Como posso ajudar?";
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -239,7 +20,8 @@ serve(async (req) => {
   // Return version info for direct access (GET requests)
   if (req.method === "GET") {
     return new Response(JSON.stringify({
-      last_updated: "2025-11-13T10:08:00Z"
+      last_updated: "2025-12-11T18:00:00Z",
+      version: "2.0.0-dynamic"
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -247,7 +29,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, conversationId } = await req.json();
+    const { messages, conversationId, assistantSlug = "test-creation" } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Mensagens são obrigatórias" }), {
@@ -256,11 +38,52 @@ serve(async (req) => {
       });
     }
 
-    // If messages array is empty, return initial greeting
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não configurada");
+    }
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase credentials não configuradas");
+    }
+
+    // Create Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Fetch assistant configuration from database
+    console.log(`[${conversationId}] Buscando assistente: ${assistantSlug}`);
+    const { data: assistant, error: assistantError } = await supabase
+      .from("ai_assistants")
+      .select("*")
+      .eq("slug", assistantSlug)
+      .eq("is_active", true)
+      .single();
+
+    if (assistantError) {
+      console.error(`[${conversationId}] Erro ao buscar assistente:`, assistantError);
+    }
+
+    // Use assistant config or fallback
+    const systemPrompt = assistant?.system_prompt || FALLBACK_SYSTEM_PROMPT;
+    const greetingMessage = assistant?.greeting_message || FALLBACK_GREETING;
+    const modelConfig = assistant?.model_config || {
+      model: "gpt-4-turbo-preview",
+      temperature: 1.1,
+      max_tokens: 2500,
+      top_p: 0.95,
+      frequency_penalty: 0.3,
+      presence_penalty: 0.2
+    };
+
+    console.log(`[${conversationId}] Usando assistente: ${assistant?.name || 'fallback'}, modelo: ${modelConfig.model}`);
+
+    // If messages array is empty, return initial greeting from config
     if (messages.length === 0) {
-      console.log(`[${conversationId}] Retornando saudação inicial`);
+      console.log(`[${conversationId}] Retornando saudação inicial do assistente`);
       const initialResponse = {
-        message: "Olá! Me conta o que você quer testar?",
+        message: greetingMessage,
         status: "collecting",
         extracted_data: {
           nome_teste: null,
@@ -276,26 +99,19 @@ serve(async (req) => {
         next_question: null,
       };
 
+      // Update conversation with assistant_id if found
+      if (assistant && conversationId) {
+        await supabase
+          .from("test_ai_conversations")
+          .update({ assistant_id: assistant.id })
+          .eq("id", conversationId);
+      }
+
       return new Response(JSON.stringify(initialResponse), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
-
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY não configurada");
-    }
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Supabase credentials não configuradas");
-    }
-
-    // Criar cliente Supabase uma única vez
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.39.3");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     console.log(`[${conversationId}] Gerando resposta com ${messages.length} mensagens`);
 
@@ -337,135 +153,129 @@ serve(async (req) => {
       .map((msg: any) => `${msg.role === "user" ? "Usuário" : "Assistente"}: ${msg.content}`)
       .join("\n\n");
 
-    const userPrompt = `${SYSTEM_PROMPT}
+    const userPrompt = `${systemPrompt}
 ${dataContext}
 HISTÓRICO RECENTE DA CONVERSA:
 ${conversationHistory}
 
 INSTRUÇÃO:
 Baseado nos DADOS JÁ COLETADOS e no histórico RECENTE acima, gere a próxima resposta do assistente.
-NÃO repita perguntas sobre dados que já foram coletados.
-Seja DIRETO, não repita o que o usuário disse.
-Crie o nome do teste automaticamente.
-Compile a hipótese de forma inteligente usando TODAS as informações do histórico.
-Retorne APENAS o JSON válido conforme especificado, sem markdown, sem explicações.`;
+- NÃO repita perguntas sobre informações que já foram coletadas
+- VERIFIQUE os DADOS JÁ COLETADOS antes de perguntar qualquer coisa
+- AVANCE para a próxima informação que ainda falta
+- Se todos os dados obrigatórios estão completos (incluindo insights), marque status como "ready"
+- Retorne APENAS JSON válido, sem markdown, sem explicações extras.`;
 
-    // Call OpenAI API directly
-    console.log(`[${conversationId}] Chamando OpenAI API`);
+    console.log(`[${conversationId}] Chamando OpenAI com modelo ${modelConfig.model}...`);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
-      messages: [{ role: "user", content: userPrompt }],
-      temperature: 1.1, // 🔥 Aumentado para mais criatividade e ousadia
-      max_tokens: 2500, // Mais espaço para respostas elaboradas
-      top_p: 0.95, // Maior diversidade nas respostas
-      presence_penalty: 0.6, // Evita repetições
-      frequency_penalty: 0.3, // Incentiva vocabulário variado
+      model: modelConfig.model,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+      temperature: modelConfig.temperature,
+      max_tokens: modelConfig.max_tokens,
+      top_p: modelConfig.top_p,
+      frequency_penalty: modelConfig.frequency_penalty,
+      presence_penalty: modelConfig.presence_penalty,
     });
 
-    const aiResponseText = completion.choices[0]?.message?.content;
-    if (!aiResponseText) {
-      throw new Error("Nenhuma resposta da OpenAI");
+    const aiContent = completion.choices[0]?.message?.content;
+    console.log(`[${conversationId}] Resposta recebida:`, aiContent?.substring(0, 200));
+
+    if (!aiContent) {
+      throw new Error("Resposta vazia da OpenAI");
     }
 
-    console.log(`[${conversationId}] Resposta da OpenAI recebida`);
-
-    // Parse the AI response
-    let responseText = aiResponseText.trim();
-
-    // Clean markdown if present
-    responseText = responseText
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-
-    let aiResponse;
+    // Parse JSON response
+    let parsedResponse: any;
     try {
-      aiResponse = JSON.parse(responseText);
+      // Remove markdown code blocks if present
+      const cleanContent = aiContent.replace(/```json\n?|\n?```/g, "").trim();
+      parsedResponse = JSON.parse(cleanContent);
     } catch (parseError) {
-      console.error("Erro ao fazer parse da resposta da OpenAI:", parseError);
-      console.error("Resposta bruta:", responseText);
-      throw new Error("Falha ao parsear resposta da IA");
+      console.error(`[${conversationId}] Erro ao parsear JSON:`, parseError);
+      // Return a fallback response
+      parsedResponse = {
+        message: "Desculpe, tive um problema ao processar a resposta. Pode repetir?",
+        status: "collecting",
+        extracted_data: extractedData,
+        next_question: null,
+      };
     }
 
-    // Validate response structure
-    if (!aiResponse.message || !aiResponse.status || !aiResponse.extracted_data) {
-      throw new Error("Estrutura de resposta da IA inválida");
-    }
-
-    // ⚠️ VALIDAÇÃO CRÍTICA: Insights obrigatório quando ready
-    if (aiResponse.status === "ready") {
-      if (!aiResponse.extracted_data.insights || aiResponse.extracted_data.insights.trim() === "") {
-        console.error("❌ ERRO CRÍTICO: status=ready mas insights está vazio!");
-        console.error("Dados extraídos:", JSON.stringify(aiResponse.extracted_data, null, 2));
-        throw new Error("Campo insights é obrigatório quando status = ready");
+    // Validate critical fields when status is ready
+    if (parsedResponse.status === "ready") {
+      const insights = parsedResponse.extracted_data?.insights;
+      if (!insights || insights.length < 100) {
+        console.log(`[${conversationId}] Insights insuficientes, forçando regeneração`);
+        parsedResponse.status = "collecting";
+        parsedResponse.message = "Preciso gerar alguns insights importantes sobre o teste. Um momento...";
       }
-      
-      // NOVA VALIDAÇÃO: Verificar QUALIDADE dos insights
-      const insightsLength = aiResponse.extracted_data.insights.length;
-      if (insightsLength < 300) {
-        console.error("⚠️ ATENÇÃO: Insights muito curtos!", insightsLength, "caracteres");
-        console.error("Insights gerados:", aiResponse.extracted_data.insights);
-        throw new Error("Insights devem ter pelo menos 300 caracteres para serem úteis");
-      }
-      
-      console.log("✅ Validação OK: insights preenchido com", insightsLength, "caracteres");
     }
 
-    // Ensure arrays are arrays
-    if (aiResponse.extracted_data.test_types && !Array.isArray(aiResponse.extracted_data.test_types)) {
-      aiResponse.extracted_data.test_types = [];
-    }
-    if (aiResponse.extracted_data.tools && !Array.isArray(aiResponse.extracted_data.tools)) {
-      aiResponse.extracted_data.tools = [];
-    }
-    if (aiResponse.extracted_data.success_metric && !Array.isArray(aiResponse.extracted_data.success_metric)) {
-      aiResponse.extracted_data.success_metric = [];
-    }
+    // Merge extracted data with existing data
+    const mergedExtractedData = {
+      ...extractedData,
+      ...parsedResponse.extracted_data,
+    };
+
+    // Prepare final response
+    const finalResponse = {
+      message: parsedResponse.message,
+      status: parsedResponse.status,
+      extracted_data: mergedExtractedData,
+      next_question: parsedResponse.next_question,
+    };
 
     // Update conversation in database
-    // Add AI message to conversation
-    const currentMessages = (messages || []) as any[];
-    const aiMessage = {
-      role: "assistant",
-      content: aiResponse.message,
-      timestamp: new Date().toISOString(),
-    };
-    const updatedMessages = [...currentMessages, aiMessage];
+    if (conversationId) {
+      const lastMessage = messages[messages.length - 1];
+      const allMessages = [
+        ...messages,
+        {
+          role: "assistant",
+          content: parsedResponse.message,
+          timestamp: new Date().toISOString(),
+        },
+      ];
 
-    const { error: updateError } = await supabase
-      .from("test_ai_conversations")
-      .update({
-        messages: updatedMessages,
-        extracted_data: aiResponse.extracted_data,
-        status: aiResponse.status === "ready" ? "ready" : "draft",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", conversationId);
+      await supabase
+        .from("test_ai_conversations")
+        .update({
+          messages: allMessages,
+          extracted_data: mergedExtractedData,
+          status: parsedResponse.status === "ready" ? "ready" : "draft",
+          updated_at: new Date().toISOString(),
+          assistant_id: assistant?.id || null,
+        })
+        .eq("id", conversationId);
 
-    if (updateError) {
-      console.error("Erro ao atualizar conversa:", updateError);
-      throw updateError;
+      console.log(`[${conversationId}] Conversa atualizada no banco`);
     }
 
-    console.log(`[${conversationId}] Conversa atualizada com sucesso`);
-
-    // Return the AI response directly
-    return new Response(JSON.stringify(aiResponse), {
+    return new Response(JSON.stringify(finalResponse), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: any) {
-    console.error("Erro na função generate-test-ai:", error);
-    return new Response(
-      JSON.stringify({
-        error: error.message || "Erro ao gerar resposta da IA",
-        details: error.toString(),
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Erro na edge function:", errorMessage);
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      message: "Desculpe, ocorreu um erro. Tente novamente.",
+      status: "collecting",
+      extracted_data: {},
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
   }
 });

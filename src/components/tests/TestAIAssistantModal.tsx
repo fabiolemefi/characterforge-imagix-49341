@@ -54,7 +54,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     loadConversation,
     sendMessage,
     deleteConversation,
-  } = useTestAIConversation();
+  } = useTestAIConversation(assistantSlug);
 
   // Load user data
   useEffect(() => {

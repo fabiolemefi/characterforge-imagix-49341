@@ -29,7 +29,7 @@ interface AIResponse {
   next_question?: string;
 }
 
-export function useTestAIConversation() {
+export function useTestAIConversation(assistantSlug: string = "test-creation") {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -262,6 +262,7 @@ export function useTestAIConversation() {
         body: {
           messages: [],
           conversationId: newConversationId,
+          assistantSlug: assistantSlug,
         },
       });
 
@@ -337,6 +338,7 @@ export function useTestAIConversation() {
         body: {
           messages: updatedMessages,
           conversationId: conversationId,
+          assistantSlug: assistantSlug,
         },
       });
 
