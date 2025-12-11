@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -32,6 +32,7 @@ export function Sidebar() {
   const [expandedPlugins, setExpandedPlugins] = useState(false);
   const [expandedTests, setExpandedTests] = useState(false);
   const [expandedCanva, setExpandedCanva] = useState(false);
+  const [expandedBriefings, setExpandedBriefings] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
 
   // Combinar categorias com páginas
@@ -75,6 +76,11 @@ export function Sidebar() {
     // Auto-expand canva if on canva page
     if (currentPath.startsWith('/canva')) {
       setExpandedCanva(true);
+    }
+
+    // Auto-expand briefings if on briefings page
+    if (currentPath.startsWith('/briefings')) {
+      setExpandedBriefings(true);
     }
   }, [location.pathname, categories]);
 
@@ -314,6 +320,49 @@ export function Sidebar() {
                       className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
                       <span>Testes</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
+            </SidebarMenuItem>
+
+            {/* Cadastro de Briefing */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setExpandedBriefings(!expandedBriefings)}
+                isActive={isPathActive("/briefings")}
+                tooltip="Cadastro de Briefing"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <FileEdit className="h-4 w-4" />
+                <span>Cadastro de Briefing</span>
+                {expandedBriefings ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
+              </SidebarMenuButton>
+
+              {expandedBriefings && (
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/briefings");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/briefings")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <span>Dashboard</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/briefings/list");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={location.pathname.startsWith("/briefings/list") || location.pathname.startsWith("/briefings/new") || location.pathname.includes("/briefings/") && location.pathname.includes("/edit")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <span>Briefings</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
