@@ -167,10 +167,20 @@ serve(async (req) => {
       .filter(([_, value]) => value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))
       .map(([key, _]) => key);
     
-    const pendingFields = fieldsSchema
+    // Get pending required and optional fields separately
+    const pendingRequiredFields = fieldsSchema
+      .filter((f: any) => f.required && !filledFields.includes(f.name))
+      .map((f: any) => f.name);
+    
+    const pendingFieldsList = fieldsSchema
       .filter((f: any) => !filledFields.includes(f.name))
-      .map((f: any) => `- ${f.name}: ${f.label || f.name}`)
+      .map((f: any) => `- ${f.name}: ${f.label || f.name}${f.required ? ' (OBRIGATÓRIO)' : ''}`)
       .join("\n");
+
+    const requiredFieldNames = fieldsSchema
+      .filter((f: any) => f.required)
+      .map((f: any) => f.name)
+      .join(", ");
 
     const userPrompt = `${systemPrompt}
 ${dataContext}
@@ -183,7 +193,28 @@ ${fieldsToExtract}
 ## CAMPOS JÁ PREENCHIDOS: ${filledFields.join(", ") || "nenhum ainda"}
 
 ## CAMPOS PENDENTES (foque nestes):
-${pendingFields || "todos preenchidos"}
+${pendingFieldsList || "todos preenchidos"}
+
+## 🚨 PRIORIDADE ABSOLUTA - PERGUNTE SOBRE CAMPOS PENDENTES:
+${pendingRequiredFields.length > 0 
+  ? `AINDA FALTAM CAMPOS OBRIGATÓRIOS: ${pendingRequiredFields.join(", ")}
+Sua PRÓXIMA PERGUNTA DEVE ser sobre UM desses campos específicos.
+NÃO faça perguntas genéricas sobre estratégia enquanto campos obrigatórios estiverem faltando.`
+  : `Todos os campos obrigatórios estão preenchidos. Marque status="ready" e encerre.`}
+
+## MAPA DE PERGUNTAS POR CAMPO PENDENTE (use como referência):
+- motivo_demanda → "O que motivou essa demanda? Por que surgiu essa necessidade agora?"
+- modalidade_conta → "Qual a modalidade da conta: Efí Empresas, Efí Agro, ou Efí Pessoal?"
+- base_manual_ou_automatica → "A base será enviada manualmente pelo time ou gerada automaticamente pelo sistema?"
+- prioridade_urgencia → "Qual a urgência dessa ação: precisa sair imediatamente ou pode esperar?"
+- tipo_usuario → "São clientes PJ, PF, MEI ou outro tipo?"
+- publico → "Qual é o segmento ou perfil desse público?"
+- objetivo_final → "Qual o resultado esperado dessa comunicação?"
+- acao_desejada → "Que ação você quer que o cliente tome?"
+- tela_destino → "Para onde o cliente será direcionado?"
+- conexao_com_estrategia → "Como isso se conecta com a estratégia maior?"
+- metrica_de_negocio → "Como você vai medir o sucesso? Qual métrica?"
+- desafios_comerciais → "Quais são os principais desafios comerciais?"
 
 ## PROCESSO DE ANÁLISE OBRIGATÓRIO (execute para CADA campo pendente):
 1. Leia a última mensagem COMPLETAMENTE
@@ -194,6 +225,9 @@ ${pendingFields || "todos preenchidos"}
 ## REGRAS DE INFERÊNCIA (aplique sempre):
 - "o time enviará a base" → base_manual_ou_automatica = "manual"
 - "o sistema criará automaticamente" → base_manual_ou_automatica = "automatica"
+- "Efí Empresas" / "conta empresarial" → modalidade_conta = "Efí Empresas"
+- "Efí Agro" / "conta agro" → modalidade_conta = "Efí Agro"
+- "Efí Pessoal" / "conta pessoal" → modalidade_conta = "Efí Pessoal"
 - "mostrar passo a passo" / "ensinar" → acao_desejada relacionada
 - "taxa de abertura/clique/conversão" → metrica_de_negocio = essa métrica
 - Menção de PJ/PF/MEI → tipo_usuario
@@ -216,16 +250,17 @@ extracted_data extraído:
 1. EXTRAIA TODOS os dados que puder identificar de uma só vez no extracted_data
 2. NÃO liste campos preenchidos - apenas continue a conversa naturalmente
 3. NÃO diga "extraímos", "coletamos", "preenchemos" ou similar
-4. Após extrair, simplesmente faça a próxima pergunta de forma fluida
+4. Após extrair, simplesmente faça a próxima pergunta sobre o PRÓXIMO campo pendente
 
-## ESTILO DE COMUNICAÇÃO - SEJA UM CONSULTOR ESTRATÉGICO:
-- NUNCA use frases genéricas como "Agora, precisamos saber...", "Poderia me informar..."
-- Faça perguntas PROVOCATIVAS que levem à REFLEXÃO
-- Questione premissas e explore implicações
+## QUANDO MARCAR STATUS = "READY":
+Campos obrigatórios são: ${requiredFieldNames || "nenhum definido"}
+- Se TODOS os campos obrigatórios acima estiverem preenchidos → status = "ready"
+- NÃO continue perguntando indefinidamente sobre campos opcionais
+- Ao marcar ready, faça uma mensagem de encerramento breve
 
 ## REGRAS FINAIS:
 - Retorne APENAS JSON válido, sem markdown
-- Se todos os campos OBRIGATÓRIOS estão completos, marque status="ready"
+- Sua próxima pergunta DEVE ser sobre um campo pendente específico, não genérica
 
 ÚLTIMA MENSAGEM DO USUÁRIO PARA ANÁLISE:
 "${lastUserMessage}"`;
