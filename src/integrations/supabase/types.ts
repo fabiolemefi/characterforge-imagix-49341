@@ -366,6 +366,132 @@ export type Database = {
           },
         ]
       }
+      briefings: {
+        Row: {
+          acao_desejada: string
+          attachments: Json | null
+          base_manual_ou_automatica: string
+          comportamento: string | null
+          condicoes_especiais: string | null
+          conexao_com_estrategia: string
+          conexao_com_outras_acoes: string | null
+          contexto_produto: string | null
+          created_at: string
+          created_by: string
+          dados_relevantes: string | null
+          desafios: string | null
+          desafios_comerciais: string
+          dores: string | null
+          etapa_jornada: string | null
+          id: string
+          is_active: boolean
+          links: Json | null
+          links_figma: string | null
+          metrica_de_negocio: string
+          modalidade_conta: string
+          motivo_demanda: string
+          objetivo_final: string
+          oferta_incentivo: string | null
+          perfil: string | null
+          prioridade_urgencia: string
+          publico: string
+          status: Database["public"]["Enums"]["briefing_status"]
+          tela_destino: string
+          tipo_usuario: string
+          updated_at: string
+          updated_by: string | null
+          validade_datas: string | null
+          volume_estimado: string | null
+        }
+        Insert: {
+          acao_desejada: string
+          attachments?: Json | null
+          base_manual_ou_automatica: string
+          comportamento?: string | null
+          condicoes_especiais?: string | null
+          conexao_com_estrategia: string
+          conexao_com_outras_acoes?: string | null
+          contexto_produto?: string | null
+          created_at?: string
+          created_by: string
+          dados_relevantes?: string | null
+          desafios?: string | null
+          desafios_comerciais: string
+          dores?: string | null
+          etapa_jornada?: string | null
+          id?: string
+          is_active?: boolean
+          links?: Json | null
+          links_figma?: string | null
+          metrica_de_negocio: string
+          modalidade_conta: string
+          motivo_demanda: string
+          objetivo_final: string
+          oferta_incentivo?: string | null
+          perfil?: string | null
+          prioridade_urgencia: string
+          publico: string
+          status?: Database["public"]["Enums"]["briefing_status"]
+          tela_destino: string
+          tipo_usuario: string
+          updated_at?: string
+          updated_by?: string | null
+          validade_datas?: string | null
+          volume_estimado?: string | null
+        }
+        Update: {
+          acao_desejada?: string
+          attachments?: Json | null
+          base_manual_ou_automatica?: string
+          comportamento?: string | null
+          condicoes_especiais?: string | null
+          conexao_com_estrategia?: string
+          conexao_com_outras_acoes?: string | null
+          contexto_produto?: string | null
+          created_at?: string
+          created_by?: string
+          dados_relevantes?: string | null
+          desafios?: string | null
+          desafios_comerciais?: string
+          dores?: string | null
+          etapa_jornada?: string | null
+          id?: string
+          is_active?: boolean
+          links?: Json | null
+          links_figma?: string | null
+          metrica_de_negocio?: string
+          modalidade_conta?: string
+          motivo_demanda?: string
+          objetivo_final?: string
+          oferta_incentivo?: string | null
+          perfil?: string | null
+          prioridade_urgencia?: string
+          publico?: string
+          status?: Database["public"]["Enums"]["briefing_status"]
+          tela_destino?: string
+          tipo_usuario?: string
+          updated_at?: string
+          updated_by?: string | null
+          validade_datas?: string | null
+          volume_estimado?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "briefings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "briefings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       canva_blocks: {
         Row: {
           block_type: string
@@ -1046,6 +1172,7 @@ export type Database = {
         | "video"
         | "embed"
         | "separator"
+      briefing_status: "rascunho" | "em_revisao" | "aprovado" | "concluido"
       test_status: "planejamento" | "execucao" | "analise" | "documentacao"
     }
     CompositeTypes: {
@@ -1186,6 +1313,7 @@ export const Constants = {
         "embed",
         "separator",
       ],
+      briefing_status: ["rascunho", "em_revisao", "aprovado", "concluido"],
       test_status: ["planejamento", "execucao", "analise", "documentacao"],
     },
   },
