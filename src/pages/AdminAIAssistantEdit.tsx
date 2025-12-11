@@ -405,6 +405,7 @@ export default function AdminAIAssistantEdit() {
               onClose={() => setTestModalOpen(false)}
               onFormFill={() => {}}
               checkForDrafts={false}
+              assistantSlug={formData.slug}
             />
           )}
         </main>
