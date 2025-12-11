@@ -54,7 +54,15 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     loadConversation,
     sendMessage,
     deleteConversation,
+    resetConversation,
   } = useTestAIConversation(assistantSlug);
+
+  // Reset conversation when modal closes to ensure fresh params on next open
+  useEffect(() => {
+    if (!open) {
+      resetConversation();
+    }
+  }, [open]);
 
   // Load user data
   useEffect(() => {

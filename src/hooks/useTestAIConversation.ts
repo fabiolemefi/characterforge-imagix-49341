@@ -428,6 +428,32 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     }
   };
 
+  // Reset conversation state
+  const resetConversation = () => {
+    console.log("🔄 Resetting conversation state");
+    setConversationId(null);
+    setMessages([]);
+    setExtractedData({});
+    setIsReady(false);
+    setPendingPredictionId(null);
+    
+    // Cleanup realtime channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    
+    // Clear any polling/timeout
+    if ((window as any).__aiPollingId) {
+      clearInterval((window as any).__aiPollingId);
+      (window as any).__aiPollingId = null;
+    }
+    if ((window as any).__aiTimeoutId) {
+      clearTimeout((window as any).__aiTimeoutId);
+      (window as any).__aiTimeoutId = null;
+    }
+  };
+
   return {
     conversationId,
     messages,
@@ -441,5 +467,6 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     completeConversation,
     abandonConversation,
     deleteConversation,
+    resetConversation,
   };
 }
