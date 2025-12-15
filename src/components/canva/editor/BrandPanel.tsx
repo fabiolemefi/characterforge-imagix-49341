@@ -117,14 +117,31 @@ export function BrandPanel({ onAddObject, onUpdateObject, selectedObject }: Bran
     onAddObject(newObject);
   };
 
-  const handleApplyTypographyToText = (style: TypographyStyle) => {
+  const handleTypographyClick = (style: TypographyStyle, label: string) => {
     if (selectedObject?.type === 'text' && onUpdateObject) {
+      // Apply to existing selected text
       onUpdateObject(selectedObject.id, {
         fontFamily: style.fontFamily,
         fontSize: style.fontSize,
         fontStyle: style.fontWeight === '700' ? 'bold' : 'normal',
         fill: style.color,
       });
+    } else {
+      // Add new text with branding style
+      const newText: CanvaObject = {
+        id: `text-${Date.now()}`,
+        type: 'text',
+        x: 100,
+        y: 100,
+        text: label,
+        fontSize: style.fontSize,
+        fontFamily: style.fontFamily,
+        fontStyle: style.fontWeight === '700' ? 'bold' : 'normal',
+        fill: style.color,
+        width: 400,
+        name: label,
+      };
+      onAddObject(newText);
     }
   };
 
@@ -189,11 +206,12 @@ export function BrandPanel({ onAddObject, onUpdateObject, selectedObject }: Bran
               return (
                 <button
                   key={key}
-                  onClick={() => handleApplyTypographyToText(style)}
+                  onClick={() => handleTypographyClick(style, label)}
                   className="w-full p-3 rounded-lg border border-border hover:border-primary hover:bg-accent/50 transition-all text-left"
-                  disabled={selectedObject?.type !== 'text'}
                 >
-                  <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    {label} {selectedObject?.type !== 'text' && <span className="text-primary">(clique para adicionar)</span>}
+                  </div>
                   <div 
                     style={{ 
                       fontFamily: style.fontFamily, 

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image, Line, Transformer } from 'react-konva';
 import { CanvaObject } from '@/types/canvaEditor';
 import useImage from 'use-image';
@@ -27,23 +27,41 @@ export function KonvaCanvas({
 }: KonvaCanvasProps) {
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Text editing state
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [textareaStyle, setTextareaStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
       const stage = stageRef.current;
       const selectedNode = stage.findOne(`#${selectedId}`);
-      if (selectedNode) {
+      if (selectedNode && editingTextId !== selectedId) {
         transformerRef.current.nodes([selectedNode]);
         transformerRef.current.getLayer().batchDraw();
       } else {
         transformerRef.current.nodes([]);
       }
     }
-  }, [selectedId, objects]);
+  }, [selectedId, objects, editingTextId]);
+
+  // Focus textarea when editing starts
+  useEffect(() => {
+    if (editingTextId && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.select();
+    }
+  }, [editingTextId]);
 
   const handleStageClick = (e: any) => {
     if (e.target === e.target.getStage() || e.target.name() === 'background') {
       onSelect(null);
+      if (editingTextId) {
+        finishTextEdit();
+      }
     }
   };
 
@@ -64,6 +82,74 @@ export function KonvaCanvas({
     });
   };
 
+  const handleTextDblClick = useCallback((obj: CanvaObject, e: any) => {
+    const textNode = e.target;
+    const stage = stageRef.current;
+    const container = containerRef.current;
+    
+    if (!stage || !container) return;
+
+    // Hide transformer during editing
+    if (transformerRef.current) {
+      transformerRef.current.nodes([]);
+    }
+
+    const textPosition = textNode.absolutePosition();
+    const stageBox = stage.container().getBoundingClientRect();
+    
+    // Calculate position relative to container
+    const areaPosition = {
+      x: stageBox.left + textPosition.x * zoom,
+      y: stageBox.top + textPosition.y * zoom,
+    };
+
+    // Get container position
+    const containerBox = container.getBoundingClientRect();
+    
+    setEditingTextId(obj.id);
+    setEditValue(obj.text || '');
+    setTextareaStyle({
+      position: 'absolute',
+      left: `${areaPosition.x - containerBox.left}px`,
+      top: `${areaPosition.y - containerBox.top}px`,
+      width: `${(obj.width || 200) * zoom}px`,
+      minHeight: `${(obj.fontSize || 24) * zoom * 1.5}px`,
+      fontSize: `${(obj.fontSize || 24) * zoom}px`,
+      fontFamily: obj.fontFamily || 'Arial',
+      fontWeight: obj.fontStyle === 'bold' ? 'bold' : 'normal',
+      color: obj.fill || '#000000',
+      border: '2px solid hsl(var(--primary))',
+      padding: '4px',
+      margin: '0',
+      overflow: 'hidden',
+      background: 'white',
+      outline: 'none',
+      resize: 'none',
+      lineHeight: '1.2',
+      transformOrigin: 'left top',
+      zIndex: 1000,
+    });
+  }, [zoom]);
+
+  const finishTextEdit = useCallback(() => {
+    if (editingTextId) {
+      onUpdate(editingTextId, { text: editValue });
+      setEditingTextId(null);
+      setEditValue('');
+    }
+  }, [editingTextId, editValue, onUpdate]);
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      finishTextEdit();
+    }
+    if (e.key === 'Escape') {
+      setEditingTextId(null);
+      setEditValue('');
+    }
+  };
+
   const renderObject = (obj: CanvaObject) => {
     const commonProps = {
       id: obj.id,
@@ -72,7 +158,7 @@ export function KonvaCanvas({
       rotation: obj.rotation || 0,
       opacity: obj.opacity ?? 1,
       visible: obj.visible !== false,
-      draggable: !obj.locked,
+      draggable: !obj.locked && editingTextId !== obj.id,
       onClick: () => onSelect(obj.id),
       onTap: () => onSelect(obj.id),
       onDragEnd: (e: any) => handleDragEnd(obj.id, e),
@@ -117,6 +203,9 @@ export function KonvaCanvas({
             fill={obj.fill || '#000000'}
             align={obj.align || 'left'}
             width={obj.width}
+            visible={obj.visible !== false && editingTextId !== obj.id}
+            onDblClick={(e: any) => handleTextDblClick(obj, e)}
+            onDblTap={(e: any) => handleTextDblClick(obj, e)}
           />
         );
       case 'image':
@@ -144,13 +233,13 @@ export function KonvaCanvas({
     }
   };
 
-  const stageWidth = canvasSettings.width * zoom;
-  const stageHeight = canvasSettings.height * zoom;
-
   return (
-    <div className="flex-1 overflow-auto bg-muted/50 flex items-center justify-center p-8">
+    <div 
+      ref={containerRef}
+      className="flex-1 overflow-auto bg-muted/50 flex items-center justify-center p-8 relative"
+    >
       <div
-        className="shadow-2xl"
+        className="shadow-2xl relative"
         style={{
           transform: `scale(${zoom})`,
           transformOrigin: 'center center',
@@ -189,6 +278,18 @@ export function KonvaCanvas({
           </Layer>
         </Stage>
       </div>
+      
+      {/* Text editing textarea */}
+      {editingTextId && (
+        <textarea
+          ref={textareaRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={finishTextEdit}
+          onKeyDown={handleTextareaKeyDown}
+          style={textareaStyle}
+        />
+      )}
     </div>
   );
 }
