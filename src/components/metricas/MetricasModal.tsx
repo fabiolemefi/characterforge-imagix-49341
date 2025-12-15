@@ -140,6 +140,12 @@ export function MetricasModal({
               </p>
             </div>
           )}
+
+          {data?.message && (
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+              ℹ️ {data.message}
+            </div>
+          )}
         </div>
 
         <div className="mt-6 pt-4 border-t text-sm text-muted-foreground">

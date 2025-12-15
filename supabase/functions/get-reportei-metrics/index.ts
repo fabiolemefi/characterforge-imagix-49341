@@ -16,16 +16,15 @@ serve(async (req) => {
       throw new Error('REPORTEI_API_KEY not configured');
     }
 
-    const { integrationId, startDate, endDate, comparisonStartDate, comparisonEndDate } = await req.json();
+    const { integrationId } = await req.json();
 
     if (!integrationId) {
       throw new Error('integrationId is required');
     }
 
-    console.log(`Fetching metrics for integration ${integrationId}`);
-    console.log(`Period: ${startDate} to ${endDate}`);
+    console.log(`Fetching widgets for integration ${integrationId}`);
 
-    // First, get available widgets for this integration
+    // Get available widgets for this integration
     const widgetsResponse = await fetch(
       `https://app.reportei.com/api/v1/integrations/${integrationId}/widgets`,
       {
@@ -33,6 +32,7 @@ serve(async (req) => {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
       }
     );
@@ -44,79 +44,44 @@ serve(async (req) => {
     }
 
     const widgetsData = await widgetsResponse.json();
-    console.log('Available widgets:', JSON.stringify(widgetsData).substring(0, 500));
-
-    // Extract widget IDs - assuming the response has a widgets array
     const widgets = widgetsData.data || widgetsData.widgets || widgetsData || [];
     
     if (!Array.isArray(widgets) || widgets.length === 0) {
-      console.log('No widgets found for this integration');
       return new Response(JSON.stringify({ metrics: [], widgets: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Get widget IDs for the values request
-    const widgetIds = widgets.map((w: any) => w.id || w.widget_id || w);
-
-    console.log('Widget IDs to fetch:', widgetIds);
-
-    // Now fetch the values for these widgets
-    const valuesResponse = await fetch(
-      `https://app.reportei.com/api/v1/integrations/${integrationId}/widgets/value`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          start: startDate,
-          end: endDate,
-          comparison_start: comparisonStartDate,
-          comparison_end: comparisonEndDate,
-          widgets: widgetIds,
-        }),
-      }
+    // Extract summary widget which typically contains key metrics
+    const summaryWidget = widgets.find((w: any) => 
+      w.container_type === 'summary' || w.reference_key?.includes('summary')
     );
 
-    if (!valuesResponse.ok) {
-      const errorText = await valuesResponse.text();
-      console.error('Values API error:', errorText);
-      throw new Error(`Failed to fetch values: ${valuesResponse.status}`);
-    }
+    // Build metrics from widget metadata (references contain titles)
+    const metrics = widgets.slice(0, 15).map((widget: any) => ({
+      id: widget.id,
+      name: widget.references?.title || widget.name || 'Métrica',
+      description: widget.references?.description,
+      type: widget.component,
+      value: null, // Values would require report generation
+    }));
 
-    const valuesData = await valuesResponse.json();
-    console.log('Metrics values:', JSON.stringify(valuesData).substring(0, 1000));
-
-    // Combine widget metadata with values
-    const metricsWithValues = widgets.map((widget: any) => {
-      const widgetId = widget.id || widget.widget_id;
-      const value = valuesData.data?.[widgetId] || valuesData[widgetId] || null;
-      return {
-        id: widgetId,
-        name: widget.name || widget.label || widgetId,
-        description: widget.description,
-        type: widget.type,
-        value: value,
-      };
-    });
+    console.log(`Found ${metrics.length} widgets`);
 
     return new Response(JSON.stringify({ 
-      metrics: metricsWithValues,
-      widgets: widgets,
-      raw: valuesData 
+      metrics,
+      widgets: widgets.slice(0, 15),
+      message: 'Widget metadata loaded. Full metric values require report generation.',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in get-reportei-metrics:', errorMessage);
+    console.error('Error:', errorMessage);
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
-
