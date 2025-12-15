@@ -14,11 +14,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, BarChart3 } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
-import { TestStatus } from "@/types/test";
+import { TestStatus, Test } from "@/types/test";
 import { TestStatusBadge } from "@/components/tests/TestStatusBadge";
 import { TestFilters } from "@/components/tests/TestFilters";
 import { TestActionsDropdown } from "@/components/tests/TestActionsDropdown";
 import { PDFReportGenerator } from "@/components/tests/PDFReportGenerator";
+import { CollectDataModal } from "@/components/tests/CollectDataModal";
 import { format, differenceInDays, differenceInWeeks, differenceInMonths } from "date-fns";
 
 const formatDuration = (startDate: Date, endDate: Date): string => {
@@ -39,6 +40,7 @@ export default function TestsList() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<TestStatus | undefined>();
   const [createdByFilter, setCreatedByFilter] = useState<string | undefined>();
+  const [collectDataTest, setCollectDataTest] = useState<Test | null>(null);
 
   const { data: tests, isLoading } = useTests({
     status: statusFilter,
@@ -184,12 +186,14 @@ export default function TestsList() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {test.status === "analise" && (
-                        <Button variant="outline" size="sm" disabled>
-                          <BarChart3 className="h-4 w-4 mr-2" />
-                          Coletar dados
-                        </Button>
-                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setCollectDataTest(test)}
+                      >
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Coletar dados
+                      </Button>
                       {test.status === "documentacao" && (
                         <PDFReportGenerator test={test} />
                       )}
@@ -212,6 +216,14 @@ export default function TestsList() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {collectDataTest && (
+        <CollectDataModal
+          open={!!collectDataTest}
+          onOpenChange={(open) => !open && setCollectDataTest(null)}
+          test={collectDataTest}
+        />
       )}
     </div>
   );

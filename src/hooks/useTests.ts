@@ -108,10 +108,11 @@ export const useUpdateTest = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tests"] });
-      queryClient.invalidateQueries({ queryKey: ["test"] });
+      queryClient.invalidateQueries({ queryKey: ["test", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["tests-metrics"] });
+      queryClient.refetchQueries({ queryKey: ["tests"] });
       toast.success("Teste atualizado com sucesso!");
     },
     onError: (error) => {
