@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit, PenTool } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -384,6 +384,19 @@ export function Sidebar() {
 
               {expandedCanva && (
                 <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/canva/editor");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/canva/editor")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <PenTool className="h-3 w-3 mr-2" />
+                      <span>Editor</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
                       onClick={() => {
