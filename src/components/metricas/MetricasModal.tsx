@@ -1,41 +1,44 @@
 import { useState } from "react";
-import { BarChart3, AlertCircle } from "lucide-react";
+import { BarChart3, AlertCircle, CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { MetricCard } from "./MetricCard";
-import { useReporteiMetrics } from "@/hooks/useReporteiMetrics";
+import { useReporteiMetrics, DateRange } from "@/hooks/useReporteiMetrics";
+import { Ad } from "@/hooks/useReporteiAds";
+import { format, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface MetricasModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectName: string;
-  integrationId: string;
-  integrationName: string;
+  ad: Ad | null;
 }
 
 export function MetricasModal({
   open,
   onOpenChange,
-  projectName,
-  integrationId,
-  integrationName,
+  ad,
 }: MetricasModalProps) {
-  const [period, setPeriod] = useState<"7d" | "15d" | "30d">("30d");
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
   
   const { data, isLoading, error } = useReporteiMetrics(
-    open ? integrationId : null,
-    period
+    open && ad ? ad.integrationId : null,
+    dateRange
   );
 
   const getMetricIcon = (name: string) => {
@@ -50,6 +53,19 @@ export function MetricasModal({
     return "📊";
   };
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('pt-BR').format(value);
+  };
+
+  if (!ad) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -59,27 +75,61 @@ export function MetricasModal({
               <BarChart3 className="h-6 w-6 text-primary" />
               <div>
                 <DialogTitle className="text-xl">
-                  Métricas - {projectName}
+                  {ad.name}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {integrationName}
+                  {ad.projectName} • {ad.platform === 'meta' ? 'Meta Ads' : 'Google Ads'}
                 </p>
               </div>
             </div>
-            <Select value={period} onValueChange={(v) => setPeriod(v as typeof period)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Últimos 7 dias</SelectItem>
-                <SelectItem value="15d">Últimos 15 dias</SelectItem>
-                <SelectItem value="30d">Últimos 30 dias</SelectItem>
-              </SelectContent>
-            </Select>
+            
+            {/* Date Range Picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange.from}
+                  selected={{ from: dateRange.from, to: dateRange.to }}
+                  onSelect={(range) => {
+                    if (range?.from && range?.to) {
+                      setDateRange({ from: range.from, to: range.to });
+                    }
+                  }}
+                  numberOfMonths={2}
+                  locale={ptBR}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </DialogHeader>
 
+        {/* Ad Summary Metrics */}
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <MetricCard
+            name="Custo Investido"
+            value={formatCurrency(ad.cost)}
+            icon={<span className="text-lg">💰</span>}
+          />
+          <MetricCard
+            name="Interações"
+            value={formatNumber(ad.interactions)}
+            icon={<span className="text-lg">👆</span>}
+          />
+        </div>
+
         <div className="mt-6">
+          <h3 className="text-sm font-medium text-muted-foreground mb-4">
+            Métricas da Integração
+          </h3>
+
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-destructive" />
@@ -150,9 +200,9 @@ export function MetricasModal({
 
         <div className="mt-6 pt-4 border-t text-sm text-muted-foreground">
           <p>
-            📅 Período: últimos {period === "7d" ? "7" : period === "15d" ? "15" : "30"} dias
+            📅 Período selecionado: {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} a {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
           </p>
-          <p>📊 Comparação: vs. período anterior</p>
+          <p>📊 Comparação: vs. período anterior de mesma duração</p>
         </div>
       </DialogContent>
     </Dialog>

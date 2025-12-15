@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 
 interface MetricValue {
   value: number | string;
@@ -27,30 +27,53 @@ interface ReporteiMetricsResponse {
   message?: string;
 }
 
+export interface DateRange {
+  from: Date;
+  to: Date;
+}
+
 export function useReporteiMetrics(
   integrationId: string | null,
-  period: "7d" | "15d" | "30d" = "30d"
+  dateRange?: DateRange
 ) {
-  const getPeriodDates = () => {
-    const today = new Date();
-    const days = period === "7d" ? 7 : period === "15d" ? 15 : 30;
-    
-    const endDate = format(today, "yyyy-MM-dd");
-    const startDate = format(subDays(today, days), "yyyy-MM-dd");
-    const comparisonEndDate = format(subDays(today, days + 1), "yyyy-MM-dd");
-    const comparisonStartDate = format(subDays(today, days * 2), "yyyy-MM-dd");
+  const getDates = () => {
+    if (!dateRange) {
+      // Default to last 30 days
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return {
+        startDate: format(thirtyDaysAgo, "yyyy-MM-dd"),
+        endDate: format(today, "yyyy-MM-dd"),
+        comparisonStartDate: null,
+        comparisonEndDate: null,
+      };
+    }
 
-    return { startDate, endDate, comparisonStartDate, comparisonEndDate };
+    const startDate = format(dateRange.from, "yyyy-MM-dd");
+    const endDate = format(dateRange.to, "yyyy-MM-dd");
+    
+    // Calculate comparison period (same duration, before the selected period)
+    const duration = dateRange.to.getTime() - dateRange.from.getTime();
+    const comparisonEnd = new Date(dateRange.from.getTime() - 1);
+    const comparisonStart = new Date(comparisonEnd.getTime() - duration);
+
+    return {
+      startDate,
+      endDate,
+      comparisonStartDate: format(comparisonStart, "yyyy-MM-dd"),
+      comparisonEndDate: format(comparisonEnd, "yyyy-MM-dd"),
+    };
   };
 
   return useQuery({
-    queryKey: ["reportei-metrics", integrationId, period],
+    queryKey: ["reportei-metrics", integrationId, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async (): Promise<ReporteiMetricsResponse> => {
       if (!integrationId) {
         throw new Error("Integration ID is required");
       }
 
-      const { startDate, endDate, comparisonStartDate, comparisonEndDate } = getPeriodDates();
+      const { startDate, endDate, comparisonStartDate, comparisonEndDate } = getDates();
 
       const { data, error } = await supabase.functions.invoke("get-reportei-metrics", {
         body: {

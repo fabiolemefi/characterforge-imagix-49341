@@ -10,6 +10,8 @@ export interface Ad {
   integrationId: string;
   projectName: string;
   campaignName?: string;
+  status?: 'active' | 'paused' | 'unknown';
+  createdAt?: string;
 }
 
 export function useReporteiAds(platform: 'all' | 'meta' | 'google' = 'all') {
