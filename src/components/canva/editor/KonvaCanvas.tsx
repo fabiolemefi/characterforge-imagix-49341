@@ -193,16 +193,24 @@ export function KonvaCanvas({
 
   const handleTransformEnd = (id: string, e: any) => {
     const node = e.target;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    
+    // Reset scale on the node to prevent accumulation
+    node.scaleX(1);
+    node.scaleY(1);
+    
     onUpdate(id, {
       x: node.x(),
       y: node.y(),
-      width: Math.max(5, node.width() * node.scaleX()),
-      height: Math.max(5, node.height() * node.scaleY()),
+      width: Math.max(5, node.width() * scaleX),
+      height: Math.max(5, node.height() * scaleY),
       rotation: node.rotation(),
-      scaleX: 1,
-      scaleY: 1,
     });
   };
+
+  // Get selected object for transformer configuration
+  const selectedObject = objects.find(obj => obj.id === selectedId);
 
   const handleTextDblClick = useCallback((obj: CanvaObject, e: any) => {
     const textNode = e.target;
@@ -412,6 +420,12 @@ export function KonvaCanvas({
             {/* Transformer */}
             <Transformer
               ref={transformerRef}
+              keepRatio={selectedObject?.type === 'image'}
+              enabledAnchors={
+                selectedObject?.type === 'image'
+                  ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                  : undefined
+              }
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 5 || newBox.height < 5) {
                   return oldBox;
