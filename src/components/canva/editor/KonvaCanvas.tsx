@@ -1,15 +1,18 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image, Line, Transformer } from 'react-konva';
-import { CanvaObject } from '@/types/canvaEditor';
+import { CanvaObject, CanvasSettings } from '@/types/canvaEditor';
 import useImage from 'use-image';
+import { Trash2, ImageIcon } from 'lucide-react';
 
 interface KonvaCanvasProps {
   objects: CanvaObject[];
   selectedId: string | null;
-  canvasSettings: { width: number; height: number; backgroundColor: string };
+  canvasSettings: CanvasSettings;
   zoom: number;
   onSelect: (id: string | null) => void;
   onUpdate: (id: string, updates: Partial<CanvaObject>) => void;
+  onDeleteObject: (id: string) => void;
+  onSetBackgroundImage: (src: string) => void;
 }
 
 const SNAP_THRESHOLD = 5;
@@ -26,6 +29,8 @@ export function KonvaCanvas({
   zoom,
   onSelect,
   onUpdate,
+  onDeleteObject,
+  onSetBackgroundImage,
 }: KonvaCanvasProps) {
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -42,6 +47,14 @@ export function KonvaCanvas({
     vertical: number[];
     horizontal: number[];
   }>({ vertical: [], horizontal: [] });
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    objectId: string;
+  } | null>(null);
 
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
@@ -178,6 +191,7 @@ export function KonvaCanvas({
   }, [objects, getSnapPoints]);
 
   const handleStageClick = (e: any) => {
+    setContextMenu(null);
     if (e.target === e.target.getStage() || e.target.name() === 'background') {
       onSelect(null);
       if (editingTextId) {
@@ -185,6 +199,49 @@ export function KonvaCanvas({
       }
     }
   };
+
+  const handleContextMenu = (e: any) => {
+    e.evt.preventDefault();
+    
+    const stage = stageRef.current;
+    const pointer = stage.getPointerPosition();
+    const clickedShape = stage.getIntersection(pointer);
+    
+    if (clickedShape && clickedShape.id()) {
+      const objectId = clickedShape.id();
+      const obj = objects.find(o => o.id === objectId);
+      
+      if (obj?.type === 'image') {
+        setContextMenu({
+          visible: true,
+          x: e.evt.clientX,
+          y: e.evt.clientY,
+          objectId: objectId,
+        });
+      }
+    }
+  };
+
+  const handleSetAsBackground = (objectId: string) => {
+    const obj = objects.find(o => o.id === objectId);
+    if (obj?.src) {
+      onSetBackgroundImage(obj.src);
+      onDeleteObject(objectId);
+    }
+    setContextMenu(null);
+  };
+
+  const handleDeleteFromContext = (objectId: string) => {
+    onDeleteObject(objectId);
+    setContextMenu(null);
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const handleGlobalClick = () => setContextMenu(null);
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const handleDragEnd = (id: string, e: any) => {
     setGuidelines({ vertical: [], horizontal: [] });
@@ -393,10 +450,11 @@ export function KonvaCanvas({
           height={canvasSettings.height}
           onClick={handleStageClick}
           onTap={handleStageClick}
+          onContextMenu={handleContextMenu}
           style={{ backgroundColor: canvasSettings.backgroundColor }}
         >
           <Layer>
-            {/* Background */}
+            {/* Background Color */}
             <Rect
               name="background"
               x={0}
@@ -405,6 +463,16 @@ export function KonvaCanvas({
               height={canvasSettings.height}
               fill={canvasSettings.backgroundColor}
             />
+            {/* Background Image */}
+            {canvasSettings.backgroundImage && (
+              <URLImage
+                src={canvasSettings.backgroundImage}
+                x={0}
+                y={0}
+                width={canvasSettings.width}
+                height={canvasSettings.height}
+              />
+            )}
             {/* Objects */}
             {objects.map(renderObject)}
             
@@ -460,6 +528,30 @@ export function KonvaCanvas({
           onKeyDown={handleTextareaKeyDown}
           style={textareaStyle}
         />
+      )}
+
+      {/* Context menu */}
+      {contextMenu?.visible && (
+        <div
+          className="fixed bg-popover border border-border rounded-md shadow-lg py-1 z-[9999]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="flex items-center gap-2 px-3 py-2 w-full text-sm hover:bg-accent rounded-sm"
+            onClick={() => handleSetAsBackground(contextMenu.objectId)}
+          >
+            <ImageIcon className="w-4 h-4" />
+            Tornar imagem de fundo
+          </button>
+          <button 
+            className="flex items-center gap-2 px-3 py-2 w-full text-sm hover:bg-accent rounded-sm text-destructive"
+            onClick={() => handleDeleteFromContext(contextMenu.objectId)}
+          >
+            <Trash2 className="w-4 h-4" />
+            Excluir
+          </button>
+        </div>
       )}
     </div>
   );

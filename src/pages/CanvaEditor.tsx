@@ -150,6 +150,8 @@ export default function CanvaEditor() {
           zoom={state.zoom}
           onSelect={selectObject}
           onUpdate={updateObject}
+          onDeleteObject={deleteObject}
+          onSetBackgroundImage={(src) => setCanvasSettings({ backgroundImage: src })}
         />
       </div>
     </div>
