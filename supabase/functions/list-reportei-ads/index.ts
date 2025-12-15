@@ -15,6 +15,8 @@ interface Ad {
   integrationId: string;
   projectName: string;
   campaignName?: string;
+  status?: 'active' | 'paused' | 'unknown';
+  createdAt?: string;
 }
 
 serve(async (req) => {
@@ -172,6 +174,17 @@ serve(async (req) => {
           ? labels.indexOf('campaign_name')
           : labels.indexOf('campaign.name');
 
+        // Try to find status and created_time columns
+        const statusIndex = isMeta
+          ? labels.indexOf('effective_status')
+          : labels.indexOf('ad_group_ad.status');
+
+        const createdAtIndex = isMeta
+          ? labels.indexOf('created_time')
+          : -1; // Google Ads doesn't typically have this in the same widget
+
+        console.log(`Column indices - name: ${nameIndex}, cost: ${costIndex}, interactions: ${interactionsIndex}, status: ${statusIndex}, createdAt: ${createdAtIndex}`);
+
         // Process each row
         for (let i = 0; i < values.length; i++) {
           const row = values[i]?.data || values[i];
@@ -192,6 +205,31 @@ serve(async (req) => {
             ? (campaignRaw.text || '')
             : (campaignRaw || '');
 
+          // Handle status field
+          let status: 'active' | 'paused' | 'unknown' = 'unknown';
+          if (statusIndex !== -1 && row[statusIndex]) {
+            const rawStatus = typeof row[statusIndex] === 'object' 
+              ? row[statusIndex].text 
+              : row[statusIndex];
+            const statusLower = String(rawStatus).toLowerCase();
+            if (statusLower === 'active' || statusLower === 'enabled' || statusLower === 'ativo') {
+              status = 'active';
+            } else if (statusLower === 'paused' || statusLower === 'pausado' || statusLower === 'disabled') {
+              status = 'paused';
+            }
+          }
+
+          // Handle createdAt field
+          let createdAt: string | undefined;
+          if (createdAtIndex !== -1 && row[createdAtIndex]) {
+            const rawDate = typeof row[createdAtIndex] === 'object'
+              ? row[createdAtIndex].text
+              : row[createdAtIndex];
+            if (rawDate) {
+              createdAt = String(rawDate);
+            }
+          }
+
           // Google returns cost in micros (divide by 1,000,000)
           if (!isMeta && cost > 1000) {
             cost = cost / 1000000;
@@ -206,6 +244,8 @@ serve(async (req) => {
             integrationId: integration.id,
             projectName: client.name,
             campaignName,
+            status,
+            createdAt,
           });
         }
       }
