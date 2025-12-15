@@ -12,6 +12,8 @@ interface KonvaCanvasProps {
   onUpdate: (id: string, updates: Partial<CanvaObject>) => void;
 }
 
+const SNAP_THRESHOLD = 5;
+
 const URLImage = ({ src, ...props }: { src: string } & any) => {
   const [image] = useImage(src, 'anonymous');
   return <Image image={image} {...props} />;
@@ -34,6 +36,12 @@ export function KonvaCanvas({
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [textareaStyle, setTextareaStyle] = useState<React.CSSProperties>({});
+  
+  // Snapping guidelines state
+  const [guidelines, setGuidelines] = useState<{
+    vertical: number[];
+    horizontal: number[];
+  }>({ vertical: [], horizontal: [] });
 
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
@@ -56,6 +64,119 @@ export function KonvaCanvas({
     }
   }, [editingTextId]);
 
+  const getObjectBounds = (obj: CanvaObject) => {
+    const width = obj.width || (obj.type === 'circle' ? (obj.radius || 50) * 2 : 100);
+    const height = obj.height || (obj.type === 'circle' ? (obj.radius || 50) * 2 : 100);
+    const x = obj.type === 'circle' ? obj.x - (obj.radius || 50) : obj.x;
+    const y = obj.type === 'circle' ? obj.y - (obj.radius || 50) : obj.y;
+    
+    return { x, y, width, height };
+  };
+
+  const getSnapPoints = useCallback((currentObjId: string) => {
+    const points = {
+      vertical: [
+        { point: canvasSettings.width / 2, type: 'center' },
+        { point: 0, type: 'edge' },
+        { point: canvasSettings.width, type: 'edge' },
+      ],
+      horizontal: [
+        { point: canvasSettings.height / 2, type: 'center' },
+        { point: 0, type: 'edge' },
+        { point: canvasSettings.height, type: 'edge' },
+      ],
+    };
+
+    objects.forEach(obj => {
+      if (obj.id === currentObjId) return;
+      
+      const bounds = getObjectBounds(obj);
+      
+      // Vertical snap points (X axis)
+      points.vertical.push(
+        { point: bounds.x, type: 'object' },
+        { point: bounds.x + bounds.width / 2, type: 'object' },
+        { point: bounds.x + bounds.width, type: 'object' }
+      );
+      
+      // Horizontal snap points (Y axis)
+      points.horizontal.push(
+        { point: bounds.y, type: 'object' },
+        { point: bounds.y + bounds.height / 2, type: 'object' },
+        { point: bounds.y + bounds.height, type: 'object' }
+      );
+    });
+
+    return points;
+  }, [objects, canvasSettings]);
+
+  const handleDragMove = useCallback((id: string, e: any) => {
+    const node = e.target;
+    const obj = objects.find(o => o.id === id);
+    if (!obj) return;
+
+    const snapPoints = getSnapPoints(id);
+    
+    // Get current node bounds
+    const isCircle = obj.type === 'circle';
+    const nodeWidth = isCircle ? (obj.radius || 50) * 2 : (node.width() || obj.width || 100);
+    const nodeHeight = isCircle ? (obj.radius || 50) * 2 : (node.height() || obj.height || 100);
+    
+    const nodeX = isCircle ? node.x() - (obj.radius || 50) : node.x();
+    const nodeY = isCircle ? node.y() - (obj.radius || 50) : node.y();
+    
+    const nodeRect = {
+      left: nodeX,
+      right: nodeX + nodeWidth,
+      top: nodeY,
+      bottom: nodeY + nodeHeight,
+      centerX: nodeX + nodeWidth / 2,
+      centerY: nodeY + nodeHeight / 2,
+    };
+
+    let newX = node.x();
+    let newY = node.y();
+    const activeGuides: { vertical: number[]; horizontal: number[] } = { vertical: [], horizontal: [] };
+
+    // Check vertical snapping (X axis)
+    for (const { point } of snapPoints.vertical) {
+      if (Math.abs(nodeRect.left - point) < SNAP_THRESHOLD) {
+        newX = isCircle ? point + (obj.radius || 50) : point;
+        activeGuides.vertical.push(point);
+        break;
+      } else if (Math.abs(nodeRect.centerX - point) < SNAP_THRESHOLD) {
+        newX = isCircle ? point : point - nodeWidth / 2;
+        activeGuides.vertical.push(point);
+        break;
+      } else if (Math.abs(nodeRect.right - point) < SNAP_THRESHOLD) {
+        newX = isCircle ? point - (obj.radius || 50) : point - nodeWidth;
+        activeGuides.vertical.push(point);
+        break;
+      }
+    }
+
+    // Check horizontal snapping (Y axis)
+    for (const { point } of snapPoints.horizontal) {
+      if (Math.abs(nodeRect.top - point) < SNAP_THRESHOLD) {
+        newY = isCircle ? point + (obj.radius || 50) : point;
+        activeGuides.horizontal.push(point);
+        break;
+      } else if (Math.abs(nodeRect.centerY - point) < SNAP_THRESHOLD) {
+        newY = isCircle ? point : point - nodeHeight / 2;
+        activeGuides.horizontal.push(point);
+        break;
+      } else if (Math.abs(nodeRect.bottom - point) < SNAP_THRESHOLD) {
+        newY = isCircle ? point - (obj.radius || 50) : point - nodeHeight;
+        activeGuides.horizontal.push(point);
+        break;
+      }
+    }
+
+    node.x(newX);
+    node.y(newY);
+    setGuidelines(activeGuides);
+  }, [objects, getSnapPoints]);
+
   const handleStageClick = (e: any) => {
     if (e.target === e.target.getStage() || e.target.name() === 'background') {
       onSelect(null);
@@ -66,6 +187,7 @@ export function KonvaCanvas({
   };
 
   const handleDragEnd = (id: string, e: any) => {
+    setGuidelines({ vertical: [], horizontal: [] });
     onUpdate(id, { x: e.target.x(), y: e.target.y() });
   };
 
@@ -161,6 +283,7 @@ export function KonvaCanvas({
       draggable: !obj.locked && editingTextId !== obj.id,
       onClick: () => onSelect(obj.id),
       onTap: () => onSelect(obj.id),
+      onDragMove: (e: any) => handleDragMove(obj.id, e),
       onDragEnd: (e: any) => handleDragEnd(obj.id, e),
       onTransformEnd: (e: any) => handleTransformEnd(obj.id, e),
     };
@@ -265,6 +388,27 @@ export function KonvaCanvas({
             />
             {/* Objects */}
             {objects.map(renderObject)}
+            
+            {/* Snap Guidelines */}
+            {guidelines.vertical.map((x, i) => (
+              <Line
+                key={`guide-v-${i}`}
+                points={[x, 0, x, canvasSettings.height]}
+                stroke="#ff00ff"
+                strokeWidth={1}
+                dash={[4, 4]}
+              />
+            ))}
+            {guidelines.horizontal.map((y, i) => (
+              <Line
+                key={`guide-h-${i}`}
+                points={[0, y, canvasSettings.width, y]}
+                stroke="#ff00ff"
+                strokeWidth={1}
+                dash={[4, 4]}
+              />
+            ))}
+            
             {/* Transformer */}
             <Transformer
               ref={transformerRef}
