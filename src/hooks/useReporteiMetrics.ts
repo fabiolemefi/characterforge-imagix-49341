@@ -23,7 +23,8 @@ interface Metric {
 interface ReporteiMetricsResponse {
   metrics: Metric[];
   widgets: any[];
-  raw: any;
+  raw?: any;
+  message?: string;
 }
 
 export function useReporteiMetrics(
