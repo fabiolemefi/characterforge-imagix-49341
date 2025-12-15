@@ -41,6 +41,14 @@ const Index = () => {
                     isNew={true}
                     inDevelopment={false}
                   />
+                  <FeaturedAppCard
+                    id="metricas"
+                    title="Métricas"
+                    subtitle="Campanhas de mídia paga do Google Ads"
+                    imageSrc="/lovable-uploads/d8b5e246-d962-466e-ad7d-61985e448fb9.png"
+                    isNew={true}
+                    inDevelopment={false}
+                  />
                 </div>
               </section>
               
