@@ -129,23 +129,28 @@ serve(async (req) => {
     const valuesData = await valuesResponse.json();
     console.log('Values response:', JSON.stringify(valuesData, null, 2).substring(0, 1000));
 
-    // Process response - extract metrics with values
-    const responseWidgets = valuesData.widgets || valuesData.data || valuesData || [];
+    // API returns { data: { widgetId: { values, comparison } } }
+    const valuesMap = valuesData.data || {};
+    const requestedWidgets = widgetsWithMetrics.slice(0, 15);
     
-    const metrics = responseWidgets.map((widget: any) => ({
-      id: widget.id,
-      name: widget.references?.title || widget.name || 'Métrica',
-      description: widget.references?.description,
-      type: widget.component,
-      value: widget.value || widget.data || null,
-      comparison: widget.comparison || null,
-    }));
+    // Merge widgets with their values
+    const metrics = requestedWidgets.map((widget: any) => {
+      const widgetValue = valuesMap[widget.id];
+      return {
+        id: widget.id,
+        name: widget.references?.title || widget.name || 'Métrica',
+        description: widget.references?.description,
+        type: widget.component,
+        value: widgetValue?.values ?? null,
+        comparison: widgetValue?.comparison || null,
+      };
+    });
 
     console.log(`Returning ${metrics.length} metrics with values`);
 
     return new Response(JSON.stringify({ 
       metrics,
-      widgets: responseWidgets,
+      widgets: requestedWidgets,
       raw: valuesData,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
