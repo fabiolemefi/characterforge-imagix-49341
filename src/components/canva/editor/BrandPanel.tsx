@@ -461,14 +461,14 @@ export function BrandPanel({ onAddObject, onUpdateObject, selectedObject }: Bran
                       <div>
                         <Label>Pasta pai (opcional)</Label>
                         <Select
-                          value={selectedParentFolder || ''}
-                          onValueChange={(v) => setSelectedParentFolder(v || null)}
+                          value={selectedParentFolder || '__root__'}
+                          onValueChange={(v) => setSelectedParentFolder(v === '__root__' ? null : v)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Raiz" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Raiz</SelectItem>
+                            <SelectItem value="__root__">Raiz</SelectItem>
                             {folders.map(f => (
                               <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                             ))}
