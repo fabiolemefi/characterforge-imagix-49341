@@ -1,4 +1,5 @@
-import { BarChart3, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { BarChart3, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,9 +12,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useReporteiProjects } from "@/hooks/useReporteiProjects";
+import { MetricasModal } from "@/components/metricas/MetricasModal";
+
+interface SelectedIntegration {
+  projectName: string;
+  integrationId: string;
+  integrationName: string;
+}
 
 export default function Metricas() {
   const { data: projects, isLoading, error, refetch, isRefetching } = useReporteiProjects();
+  const [selectedIntegration, setSelectedIntegration] = useState<SelectedIntegration | null>(null);
 
   return (
     <div className="space-y-6">
@@ -123,17 +132,16 @@ export default function Metricas() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        onClick={() => {
-                          window.open(
-                            `https://app.reportei.com/clients/${project.slug}`,
-                            '_blank'
-                          );
-                        }}
+                        onClick={() => setSelectedIntegration({
+                          projectName: project.name,
+                          integrationId: integration.id,
+                          integrationName: integration.integration_name,
+                        })}
                       >
-                        <ExternalLink className="h-4 w-4 mr-1" />
-                        Ver no Reportei
+                        <BarChart3 className="h-4 w-4 mr-1" />
+                        Ver métricas
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -163,6 +171,15 @@ export default function Metricas() {
           em {projects.length} projeto(s)
         </div>
       )}
+
+      {/* Metrics Modal */}
+      <MetricasModal
+        open={!!selectedIntegration}
+        onOpenChange={(open) => !open && setSelectedIntegration(null)}
+        projectName={selectedIntegration?.projectName ?? ""}
+        integrationId={selectedIntegration?.integrationId ?? ""}
+        integrationName={selectedIntegration?.integrationName ?? ""}
+      />
     </div>
   );
 }
