@@ -193,6 +193,7 @@ export function KonvaCanvas({
 
   const handleTransformEnd = (id: string, e: any) => {
     const node = e.target;
+    const obj = objects.find(o => o.id === id);
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     
@@ -200,13 +201,23 @@ export function KonvaCanvas({
     node.scaleX(1);
     node.scaleY(1);
     
-    onUpdate(id, {
-      x: node.x(),
-      y: node.y(),
-      width: Math.max(5, node.width() * scaleX),
-      height: Math.max(5, node.height() * scaleY),
-      rotation: node.rotation(),
-    });
+    if (obj?.type === 'text') {
+      // For text, only adjust width (horizontal resize only)
+      onUpdate(id, {
+        x: node.x(),
+        y: node.y(),
+        width: Math.max(50, node.width() * scaleX),
+        rotation: node.rotation(),
+      });
+    } else {
+      onUpdate(id, {
+        x: node.x(),
+        y: node.y(),
+        width: Math.max(5, node.width() * scaleX),
+        height: Math.max(5, node.height() * scaleY),
+        rotation: node.rotation(),
+      });
+    }
   };
 
   // Get selected object for transformer configuration
@@ -424,6 +435,8 @@ export function KonvaCanvas({
               enabledAnchors={
                 selectedObject?.type === 'image'
                   ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                  : selectedObject?.type === 'text'
+                  ? ['middle-left', 'middle-right']
                   : undefined
               }
               boundBoxFunc={(oldBox, newBox) => {

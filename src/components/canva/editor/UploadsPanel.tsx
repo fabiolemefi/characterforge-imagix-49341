@@ -54,17 +54,41 @@ export function UploadsPanel({ onAddObject }: UploadsPanelProps) {
   };
 
   const handleAddImage = (src: string) => {
-    const newImage: CanvaObject = {
-      id: `image-${Date.now()}`,
-      type: 'image',
-      x: 50,
-      y: 50,
-      width: 200,
-      height: 200,
-      src,
-      name: 'Imagem',
+    // Create Image element to detect real dimensions
+    const img = new Image();
+    img.onload = () => {
+      const naturalWidth = img.naturalWidth;
+      const naturalHeight = img.naturalHeight;
+      const aspectRatio = naturalWidth / naturalHeight;
+      
+      // Define maximum initial size
+      const maxSize = 300;
+      let width: number;
+      let height: number;
+      
+      if (aspectRatio > 1) {
+        // Horizontal image
+        width = maxSize;
+        height = maxSize / aspectRatio;
+      } else {
+        // Vertical or square image
+        height = maxSize;
+        width = maxSize * aspectRatio;
+      }
+      
+      const newImage: CanvaObject = {
+        id: `image-${Date.now()}`,
+        type: 'image',
+        x: 50,
+        y: 50,
+        width,
+        height,
+        src,
+        name: 'Imagem',
+      };
+      onAddObject(newImage);
     };
-    onAddObject(newImage);
+    img.src = src;
   };
 
   return (
