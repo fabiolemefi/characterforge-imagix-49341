@@ -31,9 +31,14 @@ serve(async (req) => {
     const { platform = 'all' } = await req.json().catch(() => ({}));
     console.log(`Fetching ads for platform: ${platform}`);
 
+    const REPORTEI_API_URL = 'https://app.reportei.com/api/v1';
+    
     // Fetch all clients
-    const clientsResponse = await fetch('https://app.reportei.com/api/v2/clients', {
-      headers: { 'Authorization': `Bearer ${REPORTEI_API_KEY}` },
+    const clientsResponse = await fetch(`${REPORTEI_API_URL}/clients`, {
+      headers: { 
+        'Authorization': `Bearer ${REPORTEI_API_KEY}`,
+        'Accept': 'application/json',
+      },
     });
     
     if (!clientsResponse.ok) {
@@ -49,8 +54,13 @@ serve(async (req) => {
     // For each client, get integrations and fetch ads
     for (const client of clients) {
       const integrationsResponse = await fetch(
-        `https://app.reportei.com/api/v2/clients/${client.id}/integrations`,
-        { headers: { 'Authorization': `Bearer ${REPORTEI_API_KEY}` } }
+        `${REPORTEI_API_URL}/clients/${client.id}/integrations`,
+        { 
+          headers: { 
+            'Authorization': `Bearer ${REPORTEI_API_KEY}`,
+            'Accept': 'application/json',
+          } 
+        }
       );
 
       if (!integrationsResponse.ok) continue;
@@ -72,10 +82,15 @@ serve(async (req) => {
 
         console.log(`Fetching ads for ${client.name} - ${integration.integration_name}`);
 
-        // Get widgets for this integration
+        // Get widgets for this integration (v2 API)
         const widgetsResponse = await fetch(
           `https://app.reportei.com/api/v2/integrations/${integration.id}/widgets`,
-          { headers: { 'Authorization': `Bearer ${REPORTEI_API_KEY}` } }
+          { 
+            headers: { 
+              'Authorization': `Bearer ${REPORTEI_API_KEY}`,
+              'Accept': 'application/json',
+            } 
+          }
         );
 
         if (!widgetsResponse.ok) continue;
