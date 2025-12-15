@@ -16,15 +16,16 @@ serve(async (req) => {
       throw new Error('REPORTEI_API_KEY not configured');
     }
 
-    const { integrationId } = await req.json();
+    const { integrationId, startDate, endDate, comparisonStartDate, comparisonEndDate } = await req.json();
 
     if (!integrationId) {
       throw new Error('integrationId is required');
     }
 
     console.log(`Fetching widgets for integration ${integrationId}`);
+    console.log(`Period: ${startDate} to ${endDate}`);
 
-    // Get available widgets for this integration
+    // Step 1: Get available widgets for this integration
     const widgetsResponse = await fetch(
       `https://app.reportei.com/api/v1/integrations/${integrationId}/widgets`,
       {
@@ -47,31 +48,83 @@ serve(async (req) => {
     const widgets = widgetsData.data || widgetsData.widgets || widgetsData || [];
     
     if (!Array.isArray(widgets) || widgets.length === 0) {
+      console.log('No widgets found');
       return new Response(JSON.stringify({ metrics: [], widgets: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Extract summary widget which typically contains key metrics
-    const summaryWidget = widgets.find((w: any) => 
-      w.container_type === 'summary' || w.reference_key?.includes('summary')
+    console.log(`Found ${widgets.length} widgets, fetching values...`);
+
+    // Step 2: Request widget values with FULL widget objects
+    const requestBody = {
+      start: startDate,
+      end: endDate,
+      comparison_start: comparisonStartDate || null,
+      comparison_end: comparisonEndDate || null,
+      widgets: widgets.slice(0, 15), // Send full widget objects, not just IDs
+    };
+
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+    const valuesResponse = await fetch(
+      `https://app.reportei.com/api/v1/integrations/${integrationId}/widgets/value`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }
     );
 
-    // Build metrics from widget metadata (references contain titles)
-    const metrics = widgets.slice(0, 15).map((widget: any) => ({
+    const contentType = valuesResponse.headers.get('content-type') || '';
+    
+    if (!valuesResponse.ok || !contentType.includes('application/json')) {
+      const errorText = await valuesResponse.text();
+      console.error('Values API error:', valuesResponse.status, errorText.substring(0, 500));
+      
+      // Fallback: return widget metadata without values
+      const metrics = widgets.slice(0, 15).map((widget: any) => ({
+        id: widget.id,
+        name: widget.references?.title || widget.name || 'Métrica',
+        description: widget.references?.description,
+        type: widget.component,
+        value: null,
+      }));
+
+      return new Response(JSON.stringify({ 
+        metrics,
+        widgets: widgets.slice(0, 15),
+        message: `Não foi possível obter valores: ${valuesResponse.status}`,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const valuesData = await valuesResponse.json();
+    console.log('Values response:', JSON.stringify(valuesData, null, 2).substring(0, 1000));
+
+    // Process response - extract metrics with values
+    const responseWidgets = valuesData.widgets || valuesData.data || valuesData || [];
+    
+    const metrics = responseWidgets.map((widget: any) => ({
       id: widget.id,
       name: widget.references?.title || widget.name || 'Métrica',
       description: widget.references?.description,
       type: widget.component,
-      value: null, // Values would require report generation
+      value: widget.value || widget.data || null,
+      comparison: widget.comparison || null,
     }));
 
-    console.log(`Found ${metrics.length} widgets`);
+    console.log(`Returning ${metrics.length} metrics with values`);
 
     return new Response(JSON.stringify({ 
       metrics,
-      widgets: widgets.slice(0, 15),
-      message: 'Widget metadata loaded. Full metric values require report generation.',
+      widgets: responseWidgets,
+      raw: valuesData,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
