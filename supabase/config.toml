@@ -3,6 +3,9 @@ project_id = "dbxaamdirxjrbolsegwz"
 [functions.get-reportei-metrics]
 verify_jwt = false
 
+[functions.list-reportei-ads]
+verify_jwt = false
+
 [functions.verify-jira-user]
 verify_jwt = false
 
