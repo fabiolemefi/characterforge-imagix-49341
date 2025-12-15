@@ -23,6 +23,8 @@ export const FeaturedAppCard = ({
     if (!inDevelopment) {
       if (id === 'brand-guide') {
         navigate('/brand-guide');
+      } else if (id === 'metricas') {
+        navigate('/metricas');
       } else {
         navigate(`/plugin/${id}`);
       }

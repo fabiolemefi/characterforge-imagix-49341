@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit, PenTool } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit, PenTool, BarChart3 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -280,6 +280,22 @@ export function Sidebar() {
               >
                 <Download className="h-4 w-4" />
                 <span>Área para Download</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Métricas */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  navigate("/metricas");
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                isActive={isActive("/metricas")}
+                tooltip="Métricas"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Métricas</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
 

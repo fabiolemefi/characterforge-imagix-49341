@@ -39,6 +39,7 @@ import BriefingsDashboard from './pages/BriefingsDashboard';
 import BriefingsList from './pages/BriefingsList';
 import BriefingForm from './pages/BriefingForm';
 import NotFound from "./pages/NotFound";
+import Metricas from "./pages/Metricas";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -103,6 +104,7 @@ const App = () => <AuthProvider>
           <Route path="/briefings/list" element={<ProtectedRoute><AppLayout><BriefingsList /></AppLayout></ProtectedRoute>} />
           <Route path="/briefings/new" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
           <Route path="/briefings/:id/edit" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
+          <Route path="/metricas" element={<ProtectedRoute><AppLayout><Metricas /></AppLayout></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
