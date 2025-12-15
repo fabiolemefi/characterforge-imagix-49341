@@ -22,12 +22,15 @@ import {
   AlignCenter,
   AlignRight,
   Copy,
+  Group,
+  Ungroup,
 } from 'lucide-react';
 import { CanvaObject } from '@/types/canvaEditor';
 import { toast } from 'sonner';
 
 interface EditorToolbarProps {
   selectedObject: CanvaObject | null;
+  selectedIds: string[];
   zoom: number;
   canUndo: boolean;
   canRedo: boolean;
@@ -39,6 +42,8 @@ interface EditorToolbarProps {
   onDelete: () => void;
   onUpdate: (updates: Partial<CanvaObject>) => void;
   onDuplicate: () => void;
+  onGroup: () => void;
+  onUngroup: () => void;
 }
 
 const fontFamilies = [
@@ -56,6 +61,7 @@ const fontSizes = [12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96];
 
 export function EditorToolbar({
   selectedObject,
+  selectedIds,
   zoom,
   canUndo,
   canRedo,
@@ -67,6 +73,8 @@ export function EditorToolbar({
   onDelete,
   onUpdate,
   onDuplicate,
+  onGroup,
+  onUngroup,
 }: EditorToolbarProps) {
   const handleExport = () => {
     if (!stageRef.current) return;
@@ -82,6 +90,8 @@ export function EditorToolbar({
 
   const isText = selectedObject?.type === 'text';
   const isShape = selectedObject?.type === 'rect' || selectedObject?.type === 'circle';
+  const isGroup = selectedObject?.type === 'group';
+  const canGroup = selectedIds.length > 1;
 
   return (
     <div className="h-14 border-b border-border bg-card flex items-center px-4 gap-2">
@@ -105,6 +115,19 @@ export function EditorToolbar({
       </Button>
 
       <Separator orientation="vertical" className="h-6" />
+
+      {/* Group/Ungroup */}
+      {canGroup && (
+        <Button variant="ghost" size="icon" onClick={onGroup} title="Agrupar (Ctrl+G)">
+          <Group className="h-4 w-4" />
+        </Button>
+      )}
+      {isGroup && (
+        <Button variant="ghost" size="icon" onClick={onUngroup} title="Desagrupar (Ctrl+Shift+G)">
+          <Ungroup className="h-4 w-4" />
+        </Button>
+      )}
+      {(canGroup || isGroup) && <Separator orientation="vertical" className="h-6" />}
 
       {/* Context-specific controls */}
       {isText && (

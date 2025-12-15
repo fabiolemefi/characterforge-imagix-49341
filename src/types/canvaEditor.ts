@@ -1,4 +1,4 @@
-export type CanvaObjectType = 'text' | 'rect' | 'circle' | 'image' | 'line';
+export type CanvaObjectType = 'text' | 'rect' | 'circle' | 'image' | 'line' | 'group';
 
 export interface CanvaObject {
   id: string;
@@ -26,6 +26,7 @@ export interface CanvaObject {
   locked?: boolean;
   name?: string;
   points?: number[];
+  children?: CanvaObject[]; // For groups
 }
 
 export interface CanvasSettings {
@@ -37,7 +38,7 @@ export interface CanvasSettings {
 
 export interface EditorState {
   objects: CanvaObject[];
-  selectedId: string | null;
+  selectedIds: string[];
   canvasSettings: CanvasSettings;
   history: CanvaObject[][];
   historyIndex: number;
@@ -49,9 +50,13 @@ export type EditorAction =
   | { type: 'UPDATE_OBJECT'; payload: { id: string; updates: Partial<CanvaObject> } }
   | { type: 'DELETE_OBJECT'; payload: string }
   | { type: 'SELECT_OBJECT'; payload: string | null }
+  | { type: 'SELECT_OBJECTS'; payload: string[] }
+  | { type: 'TOGGLE_SELECT_OBJECT'; payload: string }
   | { type: 'REORDER_OBJECTS'; payload: CanvaObject[] }
   | { type: 'SET_CANVAS_SETTINGS'; payload: Partial<CanvasSettings> }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'SET_ZOOM'; payload: number }
-  | { type: 'LOAD_STATE'; payload: { objects: CanvaObject[]; canvasSettings: CanvasSettings } };
+  | { type: 'LOAD_STATE'; payload: { objects: CanvaObject[]; canvasSettings: CanvasSettings } }
+  | { type: 'GROUP_OBJECTS' }
+  | { type: 'UNGROUP_OBJECT'; payload: string };

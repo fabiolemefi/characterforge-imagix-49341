@@ -21,11 +21,14 @@ export default function CanvaEditor() {
     updateObject,
     deleteObject,
     selectObject,
+    toggleSelectObject,
     reorderObjects,
     setCanvasSettings,
     undo,
     redo,
     setZoom,
+    groupObjects,
+    ungroupObject,
   } = useCanvaEditor();
 
   // Keyboard shortcuts
@@ -36,9 +39,7 @@ export default function CanvaEditor() {
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (state.selectedId) {
-          deleteObject(state.selectedId);
-        }
+        state.selectedIds.forEach(id => deleteObject(id));
       }
 
       if (e.ctrlKey || e.metaKey) {
@@ -54,6 +55,20 @@ export default function CanvaEditor() {
           e.preventDefault();
           redo();
         }
+        if (e.key === 'g') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Ungroup
+            if (selectedObject?.type === 'group') {
+              ungroupObject(selectedObject.id);
+            }
+          } else {
+            // Group
+            if (state.selectedIds.length > 1) {
+              groupObjects();
+            }
+          }
+        }
       }
 
       if (e.key === 'Escape') {
@@ -63,7 +78,7 @@ export default function CanvaEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state.selectedId, deleteObject, undo, redo, selectObject]);
+  }, [state.selectedIds, selectedObject, deleteObject, undo, redo, selectObject, groupObjects, ungroupObject]);
 
   const handleZoomIn = () => {
     setZoom(Math.min(state.zoom + 0.1, 2));
@@ -74,15 +89,11 @@ export default function CanvaEditor() {
   };
 
   const handleDelete = () => {
-    if (state.selectedId) {
-      deleteObject(state.selectedId);
-    }
+    state.selectedIds.forEach(id => deleteObject(id));
   };
 
   const handleUpdate = (updates: Partial<CanvaObject>) => {
-    if (state.selectedId) {
-      updateObject(state.selectedId, updates);
-    }
+    state.selectedIds.forEach(id => updateObject(id, updates));
   };
 
   const handleDuplicate = () => {
@@ -95,6 +106,12 @@ export default function CanvaEditor() {
         name: `${selectedObject.name || selectedObject.type} (cópia)`,
       };
       addObject(newObject);
+    }
+  };
+
+  const handleUngroup = () => {
+    if (selectedObject?.type === 'group') {
+      ungroupObject(selectedObject.id);
     }
   };
 
@@ -114,6 +131,7 @@ export default function CanvaEditor() {
       {/* Toolbar */}
       <EditorToolbar
         selectedObject={selectedObject}
+        selectedIds={state.selectedIds}
         zoom={state.zoom}
         canUndo={canUndo}
         canRedo={canRedo}
@@ -125,6 +143,8 @@ export default function CanvaEditor() {
         onDelete={handleDelete}
         onUpdate={handleUpdate}
         onDuplicate={handleDuplicate}
+        onGroup={groupObjects}
+        onUngroup={handleUngroup}
       />
 
       {/* Main content */}
@@ -132,7 +152,7 @@ export default function CanvaEditor() {
         {/* Sidebar */}
         <EditorSidebar
           objects={state.objects}
-          selectedId={state.selectedId}
+          selectedId={state.selectedIds[0] || null}
           canvasSettings={state.canvasSettings}
           onAddObject={addObject}
           onSelectObject={selectObject}
@@ -145,10 +165,11 @@ export default function CanvaEditor() {
         {/* Canvas */}
         <KonvaCanvas
           objects={state.objects}
-          selectedId={state.selectedId}
+          selectedIds={state.selectedIds}
           canvasSettings={state.canvasSettings}
           zoom={state.zoom}
           onSelect={selectObject}
+          onToggleSelect={toggleSelectObject}
           onUpdate={updateObject}
           onDeleteObject={deleteObject}
           onSetBackgroundImage={(src) => setCanvasSettings({ backgroundImage: src })}

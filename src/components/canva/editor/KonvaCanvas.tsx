@@ -1,15 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Rect, Circle, Text, Image, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Text, Image, Line, Transformer, Group } from 'react-konva';
 import { CanvaObject, CanvasSettings } from '@/types/canvaEditor';
 import useImage from 'use-image';
 import { Trash2, ImageIcon } from 'lucide-react';
 
 interface KonvaCanvasProps {
   objects: CanvaObject[];
-  selectedId: string | null;
+  selectedIds: string[];
   canvasSettings: CanvasSettings;
   zoom: number;
   onSelect: (id: string | null) => void;
+  onToggleSelect: (id: string) => void;
   onUpdate: (id: string, updates: Partial<CanvaObject>) => void;
   onDeleteObject: (id: string) => void;
   onSetBackgroundImage: (src: string) => void;
@@ -24,10 +25,11 @@ const URLImage = ({ src, ...props }: { src: string } & any) => {
 
 export function KonvaCanvas({
   objects,
-  selectedId,
+  selectedIds,
   canvasSettings,
   zoom,
   onSelect,
+  onToggleSelect,
   onUpdate,
   onDeleteObject,
   onSetBackgroundImage,
@@ -56,18 +58,19 @@ export function KonvaCanvas({
     objectId: string;
   } | null>(null);
 
+  // Update transformer when selection changes
   useEffect(() => {
     if (transformerRef.current && stageRef.current) {
       const stage = stageRef.current;
-      const selectedNode = stage.findOne(`#${selectedId}`);
-      if (selectedNode && editingTextId !== selectedId) {
-        transformerRef.current.nodes([selectedNode]);
-        transformerRef.current.getLayer().batchDraw();
-      } else {
-        transformerRef.current.nodes([]);
-      }
+      const selectedNodes = selectedIds
+        .filter(id => !editingTextId || id !== editingTextId)
+        .map(id => stage.findOne(`#${id}`))
+        .filter(Boolean);
+      
+      transformerRef.current.nodes(selectedNodes);
+      transformerRef.current.getLayer()?.batchDraw();
     }
-  }, [selectedId, objects, editingTextId]);
+  }, [selectedIds, objects, editingTextId]);
 
   // Focus textarea when editing starts
   useEffect(() => {
@@ -190,6 +193,14 @@ export function KonvaCanvas({
     setGuidelines(activeGuides);
   }, [objects, getSnapPoints]);
 
+  const handleObjectClick = (id: string, e: any) => {
+    if (e.evt.shiftKey) {
+      onToggleSelect(id);
+    } else {
+      onSelect(id);
+    }
+  };
+
   const handleStageClick = (e: any) => {
     setContextMenu(null);
     if (e.target === e.target.getStage() || e.target.name() === 'background') {
@@ -277,9 +288,6 @@ export function KonvaCanvas({
     }
   };
 
-  // Get selected object for transformer configuration
-  const selectedObject = objects.find(obj => obj.id === selectedId);
-
   const handleTextDblClick = useCallback((obj: CanvaObject, e: any) => {
     const textNode = e.target;
     const stage = stageRef.current;
@@ -348,17 +356,20 @@ export function KonvaCanvas({
     }
   };
 
-  const renderObject = (obj: CanvaObject) => {
+  const renderObject = (obj: CanvaObject, parentX = 0, parentY = 0): React.ReactNode => {
+    const absoluteX = obj.x + parentX;
+    const absoluteY = obj.y + parentY;
+
     const commonProps = {
       id: obj.id,
-      x: obj.x,
-      y: obj.y,
+      x: absoluteX,
+      y: absoluteY,
       rotation: obj.rotation || 0,
       opacity: obj.opacity ?? 1,
       visible: obj.visible !== false,
       draggable: !obj.locked && editingTextId !== obj.id,
-      onClick: () => onSelect(obj.id),
-      onTap: () => onSelect(obj.id),
+      onClick: (e: any) => handleObjectClick(obj.id, e),
+      onTap: (e: any) => handleObjectClick(obj.id, e),
       onDragMove: (e: any) => handleDragMove(obj.id, e),
       onDragEnd: (e: any) => handleDragEnd(obj.id, e),
       onTransformEnd: (e: any) => handleTransformEnd(obj.id, e),
@@ -427,6 +438,26 @@ export function KonvaCanvas({
             strokeWidth={obj.strokeWidth || 2}
           />
         );
+      case 'group':
+        return (
+          <Group
+            key={obj.id}
+            id={obj.id}
+            x={absoluteX}
+            y={absoluteY}
+            rotation={obj.rotation || 0}
+            opacity={obj.opacity ?? 1}
+            visible={obj.visible !== false}
+            draggable={!obj.locked}
+            onClick={(e: any) => handleObjectClick(obj.id, e)}
+            onTap={(e: any) => handleObjectClick(obj.id, e)}
+            onDragMove={(e: any) => handleDragMove(obj.id, e)}
+            onDragEnd={(e: any) => handleDragEnd(obj.id, e)}
+            onTransformEnd={(e: any) => handleTransformEnd(obj.id, e)}
+          >
+            {obj.children?.map(child => renderObject(child, -obj.x, -obj.y))}
+          </Group>
+        );
       default:
         return null;
     }
@@ -474,7 +505,7 @@ export function KonvaCanvas({
               />
             )}
             {/* Objects */}
-            {objects.map(renderObject)}
+            {objects.map(obj => renderObject(obj))}
             
             {/* Snap Guidelines */}
             {guidelines.vertical.map((x, i) => (
@@ -499,14 +530,6 @@ export function KonvaCanvas({
             {/* Transformer */}
             <Transformer
               ref={transformerRef}
-              keepRatio={selectedObject?.type === 'image'}
-              enabledAnchors={
-                selectedObject?.type === 'image'
-                  ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-                  : selectedObject?.type === 'text'
-                  ? ['middle-left', 'middle-right']
-                  : undefined
-              }
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < 5 || newBox.height < 5) {
                   return oldBox;
