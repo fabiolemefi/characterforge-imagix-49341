@@ -24,7 +24,7 @@ export function TestActionsDropdown({
   const navigate = useNavigate();
   const createTest = useCreateTest();
   const deactivateTest = useDeactivateTest();
-  const isDisabled = status !== "planejamento";
+  
 
   const handleEdit = () => {
     navigate(`/tests/${testId}/edit`);
@@ -52,15 +52,15 @@ export function TestActionsDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-background z-50">
-        <DropdownMenuItem onClick={handleEdit} disabled={isDisabled}>
+        <DropdownMenuItem onClick={handleEdit}>
           <Pencil className="h-4 w-4 mr-2" />
           Editar
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDuplicate} disabled={isDisabled}>
+        <DropdownMenuItem onClick={handleDuplicate}>
           <Copy className="h-4 w-4 mr-2" />
           Duplicar
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDeactivate} disabled={isDisabled}>
+        <DropdownMenuItem onClick={handleDeactivate}>
           <Ban className="h-4 w-4 mr-2" />
           Desativar
         </DropdownMenuItem>
