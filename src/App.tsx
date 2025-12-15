@@ -34,6 +34,7 @@ import Downloads from './pages/Downloads';
 import ShareDownload from './pages/ShareDownload';
 import EfiSlides from './pages/EfiSlides';
 import CanvaBlocks from './pages/CanvaBlocks';
+import CanvaEditor from './pages/CanvaEditor';
 import BriefingsDashboard from './pages/BriefingsDashboard';
 import BriefingsList from './pages/BriefingsList';
 import BriefingForm from './pages/BriefingForm';
@@ -97,6 +98,7 @@ const App = () => <AuthProvider>
           <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
           <Route path="/share/file" element={<ShareDownload />} />
           <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
+          <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
           <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
           <Route path="/briefings/list" element={<ProtectedRoute><AppLayout><BriefingsList /></AppLayout></ProtectedRoute>} />
           <Route path="/briefings/new" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
