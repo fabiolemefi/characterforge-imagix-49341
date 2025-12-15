@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CanvasSettings } from '@/types/canvaEditor';
+import { X } from 'lucide-react';
 
 interface BackgroundPanelProps {
   canvasSettings: CanvasSettings;
@@ -27,6 +28,29 @@ const presetSizes = [
 export function BackgroundPanel({ canvasSettings, onUpdateSettings }: BackgroundPanelProps) {
   return (
     <div className="space-y-6">
+      {/* Background Image Preview */}
+      {canvasSettings.backgroundImage && (
+        <div>
+          <h3 className="font-medium text-sm text-muted-foreground px-1 mb-3">Imagem de Fundo</h3>
+          <div className="flex items-center gap-3 p-2 bg-muted rounded-md">
+            <img 
+              src={canvasSettings.backgroundImage} 
+              alt="Background" 
+              className="w-16 h-16 object-cover rounded"
+            />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onUpdateSettings({ backgroundImage: undefined })}
+              className="gap-1"
+            >
+              <X className="w-4 h-4" />
+              Remover
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 className="font-medium text-sm text-muted-foreground px-1 mb-3">Cor de Fundo</h3>
         <div className="grid grid-cols-6 gap-2 mb-3">
