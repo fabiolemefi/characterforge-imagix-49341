@@ -366,6 +366,135 @@ export type Database = {
           },
         ]
       }
+      brand_kit: {
+        Row: {
+          color_palette: Json
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          typography: Json
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          color_palette?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          typography?: Json
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          color_palette?: Json
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          typography?: Json
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      brand_kit_assets: {
+        Row: {
+          brand_kit_id: string | null
+          created_at: string | null
+          created_by: string | null
+          file_type: string
+          file_url: string
+          folder_id: string | null
+          id: string
+          name: string
+          thumbnail_url: string | null
+        }
+        Insert: {
+          brand_kit_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          file_type: string
+          file_url: string
+          folder_id?: string | null
+          id?: string
+          name: string
+          thumbnail_url?: string | null
+        }
+        Update: {
+          brand_kit_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          file_type?: string
+          file_url?: string
+          folder_id?: string | null
+          id?: string
+          name?: string
+          thumbnail_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_kit_assets_brand_kit_id_fkey"
+            columns: ["brand_kit_id"]
+            isOneToOne: false
+            referencedRelation: "brand_kit"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_kit_assets_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "brand_kit_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_kit_folders: {
+        Row: {
+          brand_kit_id: string | null
+          created_at: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          position: number | null
+        }
+        Insert: {
+          brand_kit_id?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          position?: number | null
+        }
+        Update: {
+          brand_kit_id?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_kit_folders_brand_kit_id_fkey"
+            columns: ["brand_kit_id"]
+            isOneToOne: false
+            referencedRelation: "brand_kit"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_kit_folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "brand_kit_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       briefings: {
         Row: {
           acao_desejada: string
