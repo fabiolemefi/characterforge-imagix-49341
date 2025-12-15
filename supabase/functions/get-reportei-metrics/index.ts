@@ -45,27 +45,49 @@ serve(async (req) => {
     }
 
     const widgetsData = await widgetsResponse.json();
-    const widgets = widgetsData.data || widgetsData.widgets || widgetsData || [];
+    const allWidgets = widgetsData.data || widgetsData.widgets || widgetsData || [];
     
-    if (!Array.isArray(widgets) || widgets.length === 0) {
+    if (!Array.isArray(allWidgets) || allWidgets.length === 0) {
       console.log('No widgets found');
       return new Response(JSON.stringify({ metrics: [], widgets: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Found ${widgets.length} widgets, fetching values...`);
+    // Filter widgets that have metrics defined (API requires non-empty metrics array)
+    const widgetsWithMetrics = allWidgets.filter((w: any) => 
+      Array.isArray(w.metrics) && w.metrics.length > 0
+    );
 
-    // Step 2: Request widget values with FULL widget objects
+    console.log(`Found ${allWidgets.length} widgets, ${widgetsWithMetrics.length} with metrics`);
+
+    if (widgetsWithMetrics.length === 0) {
+      console.log('No widgets with metrics found');
+      return new Response(JSON.stringify({ 
+        metrics: allWidgets.slice(0, 15).map((w: any) => ({
+          id: w.id,
+          name: w.references?.title || 'Métrica',
+          description: w.references?.description,
+          type: w.component,
+          value: null,
+        })),
+        widgets: allWidgets.slice(0, 15),
+        message: 'Widgets não possuem métricas definidas',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Step 2: Request widget values with widgets that have metrics
     const requestBody = {
       start: startDate,
       end: endDate,
       comparison_start: comparisonStartDate || null,
       comparison_end: comparisonEndDate || null,
-      widgets: widgets.slice(0, 15), // Send full widget objects, not just IDs
+      widgets: widgetsWithMetrics.slice(0, 15),
     };
 
-    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    console.log(`Requesting values for ${widgetsWithMetrics.slice(0, 15).length} widgets`);
 
     const valuesResponse = await fetch(
       `https://app.reportei.com/api/v1/integrations/${integrationId}/widgets/value`,
@@ -87,7 +109,7 @@ serve(async (req) => {
       console.error('Values API error:', valuesResponse.status, errorText.substring(0, 500));
       
       // Fallback: return widget metadata without values
-      const metrics = widgets.slice(0, 15).map((widget: any) => ({
+      const metrics = widgetsWithMetrics.slice(0, 15).map((widget: any) => ({
         id: widget.id,
         name: widget.references?.title || widget.name || 'Métrica',
         description: widget.references?.description,
@@ -97,7 +119,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         metrics,
-        widgets: widgets.slice(0, 15),
+        widgets: widgetsWithMetrics.slice(0, 15),
         message: `Não foi possível obter valores: ${valuesResponse.status}`,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
