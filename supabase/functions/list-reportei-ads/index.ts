@@ -177,10 +177,20 @@ serve(async (req) => {
           const row = values[i]?.data || values[i];
           if (!row || !Array.isArray(row)) continue;
 
-          const adName = row[nameIndex] || `Anúncio ${i + 1}`;
+          // Handle name field - API returns object {id, text, image} for Meta or {text} for Google
+          const adNameRaw = row[nameIndex];
+          const adName = typeof adNameRaw === 'object' && adNameRaw !== null
+            ? (adNameRaw.text || `Anúncio ${i + 1}`)
+            : (adNameRaw || `Anúncio ${i + 1}`);
+          
           let cost = parseFloat(row[costIndex]) || 0;
           const interactions = parseInt(row[interactionsIndex]) || 0;
-          const campaignName = row[campaignIndex] || '';
+          
+          // Handle campaign field - may also be an object
+          const campaignRaw = row[campaignIndex];
+          const campaignName = typeof campaignRaw === 'object' && campaignRaw !== null
+            ? (campaignRaw.text || '')
+            : (campaignRaw || '');
 
           // Google returns cost in micros (divide by 1,000,000)
           if (!isMeta && cost > 1000) {
