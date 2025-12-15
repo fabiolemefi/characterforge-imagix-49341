@@ -70,8 +70,8 @@ serve(async (req) => {
 
       for (const integration of integrations) {
         const integrationName = integration.integration_name?.toLowerCase() || '';
-        const isMeta = integrationName.includes('meta') || integrationName.includes('facebook');
-        const isGoogle = integrationName.includes('google');
+        const isMeta = integrationName.includes('meta ads') || integrationName.includes('facebook ads');
+        const isGoogle = integrationName.includes('google ads') && !integrationName.includes('analytics');
 
         if (!isMeta && !isGoogle) continue;
         if (platform === 'meta' && !isMeta) continue;
@@ -80,11 +80,11 @@ serve(async (req) => {
         const platformType = isMeta ? 'meta' : 'google';
         const widgetReferenceKey = isMeta ? 'fb_ads:ads' : 'gads:ads_summary_table';
 
-        console.log(`Fetching ads for ${client.name} - ${integration.integration_name}`);
+        console.log(`Fetching ads for ${client.name} - ${integration.integration_name} (${platformType})`);
 
-        // Get widgets for this integration (v2 API)
+        // Get widgets for this integration (v1 API)
         const widgetsResponse = await fetch(
-          `https://app.reportei.com/api/v2/integrations/${integration.id}/widgets`,
+          `${REPORTEI_API_URL}/integrations/${integration.id}/widgets`,
           { 
             headers: { 
               'Authorization': `Bearer ${REPORTEI_API_KEY}`,
@@ -93,10 +93,14 @@ serve(async (req) => {
           }
         );
 
-        if (!widgetsResponse.ok) continue;
+        if (!widgetsResponse.ok) {
+          console.log(`Failed to fetch widgets: ${widgetsResponse.status}`);
+          continue;
+        }
 
         const widgetsData = await widgetsResponse.json();
         const widgets = widgetsData.data || [];
+        console.log(`Found ${widgets.length} widgets for integration ${integration.id}`);
 
         // Find the ads datatable widget
         const adsWidget = widgets.find((w: any) => w.reference_key === widgetReferenceKey);
@@ -105,6 +109,8 @@ serve(async (req) => {
           continue;
         }
 
+        console.log(`Found ads widget: ${adsWidget.reference_key} (id: ${adsWidget.id})`);
+
         // Calculate date range (last 30 days)
         const endDate = new Date();
         const startDate = new Date();
@@ -112,19 +118,21 @@ serve(async (req) => {
 
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-        // Fetch values for the ads widget
+        // Fetch values for the ads widget (v1 API with correct format)
         const valuesResponse = await fetch(
-          'https://app.reportei.com/api/v2/widgets/value',
+          `${REPORTEI_API_URL}/integrations/${integration.id}/widgets/value`,
           {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${REPORTEI_API_KEY}`,
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
             body: JSON.stringify({
-              integrationId: integration.id,
-              startDate: formatDate(startDate),
-              endDate: formatDate(endDate),
+              start: formatDate(startDate),
+              end: formatDate(endDate),
+              comparison_start: null,
+              comparison_end: null,
               widgets: [adsWidget],
             }),
           }
