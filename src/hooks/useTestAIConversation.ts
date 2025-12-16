@@ -193,16 +193,31 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     };
   }, [conversationId]);
 
-  // Check for existing draft conversation
+  // Check for existing draft conversation for THIS assistant only
   const checkForDraft = async (): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
+      // First, get the assistant ID by slug
+      const { data: assistantData } = await supabase
+        .from("ai_assistants")
+        .select("id")
+        .eq("slug", assistantSlug)
+        .eq("is_active", true)
+        .single();
+
+      if (!assistantData?.id) {
+        console.log("Assistant not found for slug:", assistantSlug);
+        return null;
+      }
+
+      // Now fetch draft ONLY for this assistant
       const { data, error } = await supabase
         .from("test_ai_conversations")
         .select("*")
         .eq("user_id", user.id)
+        .eq("assistant_id", assistantData.id)
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -253,16 +268,20 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Fetch the assistant's fields_schema and avatar_url
+      // Fetch the assistant's id, fields_schema and avatar_url
       const { data: assistantData, error: assistantError } = await supabase
         .from("ai_assistants")
-        .select("fields_schema, avatar_url")
+        .select("id, fields_schema, avatar_url")
         .eq("slug", assistantSlug)
+        .eq("is_active", true)
         .single();
 
       if (assistantError) {
         console.error("Erro ao buscar assistente:", assistantError);
-      } else if (assistantData) {
+        throw new Error("Assistente não encontrado");
+      }
+      
+      if (assistantData) {
         if (assistantData.fields_schema) {
           console.log("📋 Fields schema loaded:", assistantData.fields_schema);
           setFieldsSchema(assistantData.fields_schema as unknown as FieldSchema[]);
@@ -273,11 +292,12 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         }
       }
 
-      // Create initial conversation in database
+      // Create initial conversation in database WITH assistant_id
       const { data, error } = await supabase
         .from("test_ai_conversations")
         .insert({
           user_id: user.id,
+          assistant_id: assistantData.id,
           messages: [],
           extracted_data: {},
           status: "draft",
