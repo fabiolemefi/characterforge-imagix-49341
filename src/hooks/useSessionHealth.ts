@@ -1,10 +1,7 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 
 export function useSessionHealth() {
-  const queryClient = useQueryClient();
-
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
@@ -24,9 +21,6 @@ export function useSessionHealth() {
           if (expiresAt - now < tenMinutes) {
             await supabase.auth.refreshSession();
           }
-          
-          // Invalidate stale queries to refresh data
-          queryClient.invalidateQueries();
         } catch (error) {
           console.error("Error checking session health:", error);
         }
@@ -35,5 +29,5 @@ export function useSessionHealth() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [queryClient]);
+  }, []);
 }
