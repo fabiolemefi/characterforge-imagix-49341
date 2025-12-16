@@ -383,14 +383,31 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
         updatedMessages = [...updatedMessages, userMessage];
         setMessages(updatedMessages);
 
-        // Save user message to database immediately
-        await supabase
+        // Save user message to database with timeout to prevent hanging
+        const updatePromise = supabase
           .from("test_ai_conversations")
           .update({
             messages: updatedMessages as unknown as any,
             updated_at: new Date().toISOString(),
           })
           .eq("id", conversationId);
+
+        const updateTimeout = new Promise<{ error: Error }>((resolve) => {
+          setTimeout(() => resolve({ error: new Error("Timeout ao salvar mensagem") }), 10000);
+        });
+
+        try {
+          const result = await Promise.race([updatePromise, updateTimeout]);
+          if (result.error) {
+            console.warn("⚠️ Erro ao salvar mensagem do usuário:", result.error);
+            // Continue even if save fails - message is already in local state
+          } else {
+            console.log("✅ Mensagem do usuário salva no banco");
+          }
+        } catch (saveError) {
+          console.warn("⚠️ Falha ao salvar mensagem:", saveError);
+          // Continue anyway
+        }
       }
 
       console.log("📡 [sendMessage] Chamando Edge Function...", { 

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Send, CheckCircle, Loader, Trash2 } from "lucide-react";
+import { Sparkles, Send, Loader, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
@@ -42,6 +42,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   const [userInitials, setUserInitials] = useState("U");
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [loadingTime, setLoadingTime] = useState(0);
+  const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -166,13 +167,15 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     console.log("📤 [TestModal] handleSend chamado:", { 
       input: input.trim().substring(0, 50), 
       isLoading,
+      isSending,
       conversationId 
     });
     
-    if (!input.trim() || isLoading) {
+    if (!input.trim() || isLoading || isSending) {
       console.warn("⚠️ [TestModal] Send bloqueado:", { 
         emptyInput: !input.trim(), 
-        isLoading 
+        isLoading,
+        isSending
       });
       return;
     }
@@ -182,7 +185,10 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
+    
+    setIsSending(true);
     await sendMessage(message);
+    setIsSending(false);
   };
 
   // Enter creates new line, no need for keyboard handling
@@ -281,7 +287,37 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                 </div>
               ))}
 
-              {isLoading && (
+              {/* Link bubble when ready */}
+              {messages.length > 0 &&
+               messages[messages.length - 1].role === "assistant" && 
+               isReady && 
+               !isLoading && 
+               !isSending && (
+                <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <Avatar className="h-10 w-10 shrink-0">
+                    {assistantAvatarUrl && (
+                      <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                    )}
+                    <AvatarFallback className="bg-primary/10">
+                      <Sparkles className="h-5 w-5 text-primary" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="bg-[#dae6ef] rounded-2xl px-4 py-3 border border-border/50 max-w-[80%]">
+                    <p className="text-base leading-relaxed">
+                      Ou{" "}
+                      <button
+                        onClick={handleFillForm}
+                        className="text-primary hover:text-primary/80 underline cursor-pointer font-semibold"
+                      >
+                        clique aqui
+                      </button>
+                      {" "}para preencher o formulário com os dados que coletamos até aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {(isSending || isLoading) && (
                 <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Avatar className="h-10 w-10 shrink-0">
                     {assistantAvatarUrl && (
@@ -294,11 +330,13 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                   <div className="bg-[#dae6ef] rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>
-                        {loadingTime > 15 
-                          ? "Processando dados extensos..." 
-                          : loadingTime > 5 
-                            ? "Analisando informações..." 
-                            : "Pensando"}
+                        {isSending && !isLoading
+                          ? "Recebendo..."
+                          : loadingTime > 15 
+                            ? "Processando dados extensos..." 
+                            : loadingTime > 5 
+                              ? "Analisando informações..." 
+                              : "Pensando..."}
                       </span>
                       <div className="flex gap-1">
                         <div className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-typing-dot-1" />
@@ -331,14 +369,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
           </ScrollArea>
 
           {/* Input area */}
-          <div className="px-6 py-4 border-t bg-background space-y-3">
-            {isReady && (
-              <Button onClick={handleFillForm} className="w-full shadow-sm" size="lg">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Preencher Formulário
-              </Button>
-            )}
-
+          <div className="px-6 py-4 border-t bg-background">
             <div className="flex gap-2">
               <Textarea
                 ref={textareaRef}
@@ -351,15 +382,15 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                 
                 className="min-h-[40px] max-h-[120px] resize-none py-2"
                 rows={1}
-                disabled={isLoading || isReady}
+                disabled={isLoading || isSending || isReady}
               />
               <Button
                 onClick={handleSend}
-                disabled={isLoading || !input.trim() || isReady}
+                disabled={isLoading || isSending || !input.trim() || isReady}
                 size="icon"
-                className={cn("shrink-0 h-[60px] w-[60px]", isLoading && "opacity-50")}
+                className={cn("shrink-0 h-[60px] w-[60px]", (isLoading || isSending) && "opacity-50")}
               >
-                {isLoading ? <Loader className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                {(isLoading || isSending) ? <Loader className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             </div>
           </div>
