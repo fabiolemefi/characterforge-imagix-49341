@@ -46,12 +46,13 @@ import { AuthProvider } from "./contexts/AuthContext";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,
-      gcTime: 30 * 60 * 1000,
-      retry: 2,
+      staleTime: 10 * 60 * 1000,  // 10 minutos
+      gcTime: 60 * 60 * 1000,     // 1 hora
+      retry: 3,
       refetchOnWindowFocus: true,
       refetchOnMount: 'always',
       refetchOnReconnect: true,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     }
   }
 });
