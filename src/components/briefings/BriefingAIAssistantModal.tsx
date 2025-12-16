@@ -248,27 +248,37 @@ export function BriefingAIAssistantModal({
                     </Avatar>
                   )}
                 </div>
-                {/* Show inline link after last assistant message when all required fields are filled */}
-                {message.role === "assistant" && 
-                 index === messages.length - 1 && 
-                 allRequiredFieldsFilled && 
-                 !isLoading && 
-                 !isSending && (
-                  <div className="ml-11 mt-2">
-                    <p className="text-sm text-muted-foreground">
-                      Ou{" "}
-                      <button
-                        onClick={handleConfirmData}
-                        className="text-blue-600 hover:text-blue-700 underline cursor-pointer"
-                      >
-                        clique aqui
-                      </button>
-                      {" "}para preencher o briefing com os dados que coletamos até aqui.
-                    </p>
-                  </div>
-                )}
               </div>
             ))}
+            {/* Show link bubble after last assistant message when all required fields are filled */}
+            {messages.length > 0 &&
+             messages[messages.length - 1].role === "assistant" && 
+             allRequiredFieldsFilled && 
+             !isLoading && 
+             !isSending && (
+              <div className="flex gap-3">
+                <Avatar className="h-8 w-8">
+                  {assistantAvatarUrl && (
+                    <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                  )}
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    <Bot className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="max-w-[80%] rounded-lg px-4 py-2 bg-[#dae6ef]">
+                  <p className="text-sm">
+                    Ou{" "}
+                    <button
+                      onClick={handleConfirmData}
+                      className="text-primary hover:text-primary/80 underline cursor-pointer font-semibold"
+                    >
+                      clique aqui
+                    </button>
+                    {" "}para preencher o briefing com os dados que coletamos até aqui.
+                  </p>
+                </div>
+              </div>
+            )}
             {(isSending || isLoading) && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8">
