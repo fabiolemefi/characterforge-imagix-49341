@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionHealth } from '@/hooks/useSessionHealth';
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +11,11 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function SessionHealthMonitor() {
+  useSessionHealth();
+  return null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         console.log('🔐 [AuthContext] Iniciando verificação de autenticação...');
         
-        // Configurar listener PRIMEIRO (antes de verificar sessão)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           (event, newSession) => {
             if (!mounted) return;
@@ -32,14 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(newSession);
             setUser(newSession?.user ?? null);
             
-            // Quando a sessão é estabelecida, remover o loading
             if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
               setLoading(false);
             }
           }
         );
 
-        // DEPOIS verificar sessão atual
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -79,7 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && <SessionHealthMonitor />}
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
