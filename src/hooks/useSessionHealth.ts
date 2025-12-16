@@ -6,23 +6,17 @@ export function useSessionHealth() {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          // Apenas tenta renovar a sessão proativamente
+          // NÃO redirecionar - deixar isso para o ProtectedRoute
+          const { error } = await supabase.auth.refreshSession();
           
-          if (!session) {
-            window.location.href = '/login';
-            return;
-          }
-          
-          // Check if token is close to expiring (10 minutes)
-          const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
-          const now = Date.now();
-          const tenMinutes = 10 * 60 * 1000;
-          
-          if (expiresAt - now < tenMinutes) {
-            await supabase.auth.refreshSession();
+          if (error) {
+            console.warn("⚠️ [SessionHealth] Não foi possível renovar sessão:", error.message);
+          } else {
+            console.log("✅ [SessionHealth] Sessão renovada ao voltar para aba");
           }
         } catch (error) {
-          console.error("Error checking session health:", error);
+          console.error("❌ [SessionHealth] Erro ao verificar sessão:", error);
         }
       }
     };
