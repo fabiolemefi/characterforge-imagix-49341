@@ -137,6 +137,13 @@ export default function BriefingForm() {
     }
   }, [briefing, form]);
 
+  // Abrir modal automaticamente para novos briefings
+  useEffect(() => {
+    if (!isEditing) {
+      setAIModalOpen(true);
+    }
+  }, [isEditing]);
+
   const handleAIFormFill = (data: ExtractedTestData) => {
     // Map extracted data to form fields
     const fieldMapping: Record<string, string> = {

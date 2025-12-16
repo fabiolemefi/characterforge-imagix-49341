@@ -122,6 +122,13 @@ export default function TestForm() {
     }
   }, [test, form]);
 
+  // Abrir modal automaticamente para novos testes
+  useEffect(() => {
+    if (!isEditing) {
+      setAIModalOpen(true);
+    }
+  }, [isEditing]);
+
   const currentStatus = form.watch("status");
   const selectedTools = form.watch("tools");
   const availableMetrics = getAvailableMetrics(selectedTools);
