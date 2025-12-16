@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Send, Bot, User, Check } from "lucide-react";
+import { Loader2, Send, Bot, Check } from "lucide-react";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
 import { CollectionProgress } from "@/components/ai-assistant/CollectionProgress";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BriefingAIAssistantModalProps {
   open: boolean;
@@ -30,6 +31,8 @@ export function BriefingAIAssistantModal({
 }: BriefingAIAssistantModalProps) {
   const [inputValue, setInputValue] = useState("");
   const [loadingTime, setLoadingTime] = useState(0);
+  const [userInitials, setUserInitials] = useState("U");
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -88,6 +91,36 @@ export function BriefingAIAssistantModal({
       }
     };
   }, [isLoading, cancelLoading]);
+
+  // Load user data
+  useEffect(() => {
+    const loadUserData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        setUserAvatarUrl(profile?.avatar_url || null);
+
+        if (user.user_metadata?.full_name) {
+          const names = user.user_metadata.full_name.split(" ");
+          const initials = names.length >= 2
+            ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+            : names[0][0].toUpperCase();
+          setUserInitials(initials);
+        } else if (user.email) {
+          setUserInitials(user.email[0].toUpperCase());
+        }
+      }
+    };
+
+    if (open) {
+      loadUserData();
+    }
+  }, [open]);
 
   // Start or resume conversation when modal opens
   useEffect(() => {
@@ -171,15 +204,16 @@ export function BriefingAIAssistantModal({
                   className={`max-w-[80%] rounded-lg px-4 py-2 ${
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                      : "bg-[#dae6ef]"
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 </div>
                 {message.role === "user" && (
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>
-                      <User className="h-4 w-4" />
+                    <AvatarImage src={userAvatarUrl || undefined} alt="User avatar" />
+                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                      {userInitials}
                     </AvatarFallback>
                   </Avatar>
                 )}
@@ -195,7 +229,7 @@ export function BriefingAIAssistantModal({
                     <Bot className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="bg-muted rounded-lg px-4 py-2 space-y-2">
+                <div className="bg-[#dae6ef] rounded-lg px-4 py-2 space-y-2">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm text-muted-foreground">

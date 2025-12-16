@@ -242,7 +242,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                       "rounded-2xl px-4 py-3 max-w-[80%] shadow-sm",
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-gray-200 text-foreground border border-border/50"
+                        : "bg-[#dae6ef] text-foreground border border-border/50"
                     )}
                   >
                     <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -272,7 +272,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                       <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="bg-background rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
+                  <div className="bg-[#dae6ef] rounded-2xl px-4 py-3 border border-border/50 max-w-[70%]">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>
                         {loadingTime > 15 
