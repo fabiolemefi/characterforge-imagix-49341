@@ -143,7 +143,15 @@ export default function TestForm() {
 
     // Fill optional fields
     if (data.target_audience) form.setValue("target_audience", data.target_audience);
-    if (data.tested_elements) form.setValue("tested_elements", data.tested_elements);
+    
+    // Handle tested_elements - convert array to string if needed
+    if (data.tested_elements) {
+      const testedElementsValue = Array.isArray(data.tested_elements) 
+        ? data.tested_elements.join(", ") 
+        : data.tested_elements;
+      form.setValue("tested_elements", testedElementsValue);
+    }
+    
     if (data.success_metric && data.success_metric.length > 0) {
       form.setValue("success_metric", data.success_metric);
     }
@@ -281,12 +289,15 @@ export default function TestForm() {
                   Insights e Recomendações
                 </FormLabel>
                 <FormControl>
-                  <Textarea
-                    placeholder="Insights sobre execução, acompanhamento e análise do teste..."
-                    className="min-h-[150px] resize-none bg-yellow-50/50 border-yellow-200 focus:border-yellow-400 whitespace-pre-wrap"
-                    {...field}
-                    disabled={isReadOnly}
-                  />
+                  {field.value ? (
+                    <div className="min-h-[150px] p-4 rounded-md border border-yellow-200 bg-yellow-50/50 whitespace-pre-wrap text-sm leading-relaxed">
+                      {field.value}
+                    </div>
+                  ) : (
+                    <div className="min-h-[100px] p-4 rounded-md border border-dashed border-yellow-300 bg-yellow-50/30 flex items-center justify-center text-muted-foreground text-sm">
+                      Os insights serão gerados automaticamente pelo assistente de IA
+                    </div>
+                  )}
                 </FormControl>
                 <FormMessage />
               </FormItem>
