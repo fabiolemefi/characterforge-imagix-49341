@@ -289,8 +289,10 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
 
               {/* Link bubble when ready - usando verificação local também */}
               {(() => {
-                // Verificação local de campos obrigatórios preenchidos
-                const requiredFields = fieldsSchema.filter(f => f.required).map(f => f.name);
+                // Verificação local de campos obrigatórios preenchidos (excluindo auto_generate)
+                const requiredFields = fieldsSchema
+                  .filter(f => f.required && !f.auto_generate)
+                  .map(f => f.name);
                 const allRequiredFieldsFilled = requiredFields.length > 0 && requiredFields.every(fieldName => {
                   const value = extractedData[fieldName];
                   if (Array.isArray(value)) return value.length > 0;

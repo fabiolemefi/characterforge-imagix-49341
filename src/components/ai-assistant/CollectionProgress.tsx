@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 export interface FieldSchema {
   name: string;
   type: string;
-  description: string;
+  description?: string;
   required: boolean;
+  auto_generate?: boolean;
 }
 
 interface CollectionProgressProps {
@@ -33,8 +34,10 @@ const isFieldCollected = (value: any): boolean => {
 export function CollectionProgress({ extractedData, fieldsSchema, className }: CollectionProgressProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const requiredFields = fieldsSchema.filter((f) => f.required);
-  const optionalFields = fieldsSchema.filter((f) => !f.required);
+  // Exclude auto_generate fields from progress (user doesn't provide them)
+  const userProvidedFields = fieldsSchema.filter((f) => !f.auto_generate);
+  const requiredFields = userProvidedFields.filter((f) => f.required);
+  const optionalFields = userProvidedFields.filter((f) => !f.required);
   
   const collectedRequired = requiredFields.filter((f) => isFieldCollected(extractedData?.[f.name]));
   const collectedOptional = optionalFields.filter((f) => isFieldCollected(extractedData?.[f.name]));
