@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Send, Bot, Check } from "lucide-react";
+import { Loader2, Send, Bot } from "lucide-react";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
 import { CollectionProgress } from "@/components/ai-assistant/CollectionProgress";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,7 @@ export function BriefingAIAssistantModal({
   const [loadingTime, setLoadingTime] = useState(0);
   const [userInitials, setUserInitials] = useState("U");
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -160,26 +161,17 @@ export function BriefingAIAssistantModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log("📤 [BriefingModal] handleSubmit chamado:", { 
-      inputValue: inputValue.trim().substring(0, 50), 
-      isLoading,
-      conversationId 
-    });
-    
-    if (!inputValue.trim() || isLoading) {
-      console.warn("⚠️ [BriefingModal] Submit bloqueado:", { 
-        emptyInput: !inputValue.trim(), 
-        isLoading 
-      });
-      return;
-    }
+    if (!inputValue.trim() || isLoading || isSending) return;
 
     const message = inputValue.trim();
     setInputValue("");
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
+    
+    setIsSending(true);
     await sendMessage(message);
+    setIsSending(false);
   };
 
   // Check if all required fields are filled
@@ -256,24 +248,28 @@ export function BriefingAIAssistantModal({
                     </Avatar>
                   )}
                 </div>
-                {/* Show "Preencher briefing" button after last assistant message when all required fields are filled */}
+                {/* Show inline link after last assistant message when all required fields are filled */}
                 {message.role === "assistant" && 
                  index === messages.length - 1 && 
                  allRequiredFieldsFilled && 
-                 !isLoading && (
-                  <div className="ml-11 mt-3">
-                    <Button
-                      onClick={handleConfirmData}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      Preencher briefing
-                    </Button>
+                 !isLoading && 
+                 !isSending && (
+                  <div className="ml-11 mt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Ou{" "}
+                      <button
+                        onClick={handleConfirmData}
+                        className="text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                      >
+                        clique aqui
+                      </button>
+                      {" "}para preencher o briefing com os dados que coletamos até aqui.
+                    </p>
                   </div>
                 )}
               </div>
             ))}
-            {isLoading && (
+            {(isSending || isLoading) && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8">
                   {assistantAvatarUrl && (
@@ -287,14 +283,16 @@ export function BriefingAIAssistantModal({
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm text-muted-foreground">
-                      {loadingTime > 15 
-                        ? "Processando dados extensos..." 
-                        : loadingTime > 5 
-                          ? "Analisando informações..." 
-                          : "Pensando..."}
+                      {isSending && !isLoading
+                        ? "Recebendo..."
+                        : loadingTime > 15 
+                          ? "Processando dados extensos..." 
+                          : loadingTime > 5 
+                            ? "Analisando informações..." 
+                            : "Pensando..."}
                     </span>
                   </div>
-                  {loadingTime > 10 && (
+                  {isLoading && loadingTime > 10 && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -323,17 +321,17 @@ export function BriefingAIAssistantModal({
               }}
               onKeyDown={() => {}}
               placeholder="Digite sua mensagem..."
-              disabled={isLoading}
+              disabled={isLoading || isSending}
               className="flex-1 min-h-[40px] max-h-[120px] resize-none py-2"
               rows={1}
             />
             <Button 
               type="submit" 
               size="icon" 
-              disabled={isLoading || !inputValue.trim()}
-              className={isLoading ? "opacity-50" : ""}
+              disabled={isLoading || isSending || !inputValue.trim()}
+              className={(isLoading || isSending) ? "opacity-50" : ""}
             >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {(isLoading || isSending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </form>
         </div>
