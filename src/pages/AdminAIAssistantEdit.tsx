@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Bot, ArrowLeft, Save, Play } from "lucide-react";
+import { Bot, ArrowLeft, Save, Play, Upload, X } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAIAssistant, useCreateAIAssistant, useUpdateAIAssistant, AIAssistant } from "@/hooks/useAIAssistants";
 import { TestAIAssistantModal } from "@/components/tests/TestAIAssistantModal";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const DEFAULT_MODEL_CONFIG = {
   model: "gpt-4-turbo-preview",
@@ -43,6 +46,7 @@ export default function AdminAIAssistantEdit() {
   const updateAssistant = useUpdateAIAssistant();
   
   const [testModalOpen, setTestModalOpen] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [formData, setFormData] = useState<Partial<AIAssistant>>({
     name: "",
     slug: "",
@@ -53,6 +57,7 @@ export default function AdminAIAssistantEdit() {
     model_config: DEFAULT_MODEL_CONFIG,
     fields_schema: [],
     is_active: true,
+    avatar_url: null,
   });
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export default function AdminAIAssistantEdit() {
         model_config: assistant.model_config || DEFAULT_MODEL_CONFIG,
         fields_schema: assistant.fields_schema || [],
         is_active: assistant.is_active,
+        avatar_url: assistant.avatar_url,
       });
     }
   }, [assistant]);
@@ -83,6 +89,7 @@ export default function AdminAIAssistantEdit() {
         model_config: formData.model_config,
         fields_schema: formData.fields_schema,
         is_active: formData.is_active,
+        avatar_url: formData.avatar_url,
       });
       navigate("/admin/ai-assistants");
     } else {
@@ -91,6 +98,51 @@ export default function AdminAIAssistantEdit() {
         ...formData,
       });
     }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione uma imagem");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("A imagem deve ter no máximo 2MB");
+      return;
+    }
+
+    try {
+      setAvatarUploading(true);
+      
+      const fileExt = file.name.split(".").pop();
+      const fileName = `assistant-${Date.now()}.${fileExt}`;
+      const filePath = `assistants/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, avatar_url: publicUrl });
+      toast.success("Avatar carregado com sucesso!");
+    } catch (error: any) {
+      console.error("Error uploading avatar:", error);
+      toast.error("Erro ao carregar avatar");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setFormData({ ...formData, avatar_url: null });
   };
 
   const updateModelConfig = (key: string, value: number | string) => {
@@ -208,6 +260,61 @@ export default function AdminAIAssistantEdit() {
                       onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                     />
                     <Label htmlFor="is_active">Assistente Ativo</Label>
+                  </div>
+
+                  <div className="space-y-2 pt-4 border-t">
+                    <Label>Avatar do Assistente</Label>
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-20 w-20">
+                        {formData.avatar_url ? (
+                          <AvatarImage src={formData.avatar_url} alt="Avatar do assistente" />
+                        ) : null}
+                        <AvatarFallback className="bg-primary/10">
+                          <Bot className="h-10 w-10 text-primary" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={avatarUploading}
+                            onClick={() => document.getElementById("avatar-upload")?.click()}
+                          >
+                            {avatarUploading ? (
+                              "Carregando..."
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4 mr-2" />
+                                Carregar
+                              </>
+                            )}
+                          </Button>
+                          {formData.avatar_url && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveAvatar}
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Remover
+                            </Button>
+                          )}
+                        </div>
+                        <input
+                          id="avatar-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarUpload}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          PNG ou JPG, máximo 2MB
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

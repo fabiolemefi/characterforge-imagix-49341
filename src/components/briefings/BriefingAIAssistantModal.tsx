@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Send, Bot, User, Check } from "lucide-react";
 import { useTestAIConversation, ExtractedTestData } from "@/hooks/useTestAIConversation";
 import { CollectionProgress } from "@/components/ai-assistant/CollectionProgress";
@@ -41,6 +41,7 @@ export function BriefingAIAssistantModal({
     extractedData,
     isReady,
     fieldsSchema,
+    assistantAvatarUrl,
     startConversation,
     sendMessage,
     checkForDraft,
@@ -158,6 +159,9 @@ export function BriefingAIAssistantModal({
               >
                 {message.role === "assistant" && (
                   <Avatar className="h-8 w-8">
+                    {assistantAvatarUrl && (
+                      <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                    )}
                     <AvatarFallback className="bg-primary text-primary-foreground">
                       <Bot className="h-4 w-4" />
                     </AvatarFallback>
@@ -184,6 +188,9 @@ export function BriefingAIAssistantModal({
             {isLoading && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8">
+                  {assistantAvatarUrl && (
+                    <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                  )}
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     <Bot className="h-4 w-4" />
                   </AvatarFallback>

@@ -45,6 +45,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
   const [isReady, setIsReady] = useState(false);
   const [pendingPredictionId, setPendingPredictionId] = useState<string | null>(null);
   const [fieldsSchema, setFieldsSchema] = useState<FieldSchema[]>([]);
+  const [assistantAvatarUrl, setAssistantAvatarUrl] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Clear loading when message arrives and prediction is complete
@@ -239,18 +240,24 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Fetch the assistant's fields_schema
+      // Fetch the assistant's fields_schema and avatar_url
       const { data: assistantData, error: assistantError } = await supabase
         .from("ai_assistants")
-        .select("fields_schema")
+        .select("fields_schema, avatar_url")
         .eq("slug", assistantSlug)
         .single();
 
       if (assistantError) {
         console.error("Erro ao buscar assistente:", assistantError);
-      } else if (assistantData?.fields_schema) {
-        console.log("📋 Fields schema loaded:", assistantData.fields_schema);
-        setFieldsSchema(assistantData.fields_schema as unknown as FieldSchema[]);
+      } else if (assistantData) {
+        if (assistantData.fields_schema) {
+          console.log("📋 Fields schema loaded:", assistantData.fields_schema);
+          setFieldsSchema(assistantData.fields_schema as unknown as FieldSchema[]);
+        }
+        if (assistantData.avatar_url) {
+          console.log("🖼️ Assistant avatar loaded:", assistantData.avatar_url);
+          setAssistantAvatarUrl(assistantData.avatar_url);
+        }
       }
 
       // Create initial conversation in database
@@ -497,6 +504,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     setIsLoading(false);
     setPendingPredictionId(null);
     setFieldsSchema([]);
+    setAssistantAvatarUrl(null);
     
     // Cleanup realtime channel
     if (channelRef.current) {
@@ -522,6 +530,7 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     extractedData,
     isReady,
     fieldsSchema,
+    assistantAvatarUrl,
     checkForDraft,
     startConversation,
     loadConversation,

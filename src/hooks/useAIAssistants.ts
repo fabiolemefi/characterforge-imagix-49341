@@ -35,6 +35,7 @@ export interface AIAssistant {
   fields_schema: AIAssistantFieldSchema[];
   validations: Record<string, unknown>;
   is_active: boolean;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -52,6 +53,7 @@ export interface AIAssistantInsert {
   fields_schema?: AIAssistantFieldSchema[];
   validations?: Record<string, unknown>;
   is_active?: boolean;
+  avatar_url?: string | null;
 }
 
 export interface AIAssistantUpdate extends Partial<AIAssistantInsert> {
@@ -72,6 +74,7 @@ function toAIAssistant(data: Record<string, unknown>): AIAssistant {
     fields_schema: (data.fields_schema || []) as AIAssistantFieldSchema[],
     validations: (data.validations || {}) as Record<string, unknown>,
     is_active: data.is_active as boolean,
+    avatar_url: data.avatar_url as string | null,
     created_at: data.created_at as string,
     updated_at: data.updated_at as string,
     created_by: data.created_by as string | null,
@@ -150,6 +153,7 @@ export function useCreateAIAssistant() {
           fields_schema: assistant.fields_schema as unknown as Json,
           validations: assistant.validations as unknown as Json,
           is_active: assistant.is_active,
+          avatar_url: assistant.avatar_url,
           created_by: user.user?.id,
         })
         .select()
@@ -189,6 +193,7 @@ export function useUpdateAIAssistant() {
       if (updates.fields_schema !== undefined) updatePayload.fields_schema = updates.fields_schema as unknown as Json;
       if (updates.validations !== undefined) updatePayload.validations = updates.validations as unknown as Json;
       if (updates.is_active !== undefined) updatePayload.is_active = updates.is_active;
+      if (updates.avatar_url !== undefined) updatePayload.avatar_url = updates.avatar_url;
 
       const { data, error } = await supabase
         .from("ai_assistants")
