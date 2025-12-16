@@ -194,7 +194,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   // Enter creates new line, no need for keyboard handling
 
   const handleFillForm = () => {
-    if (!isReady || !extractedData) return;
+    if (!extractedData) return;
 
     onFormFill(extractedData);
     toast.success("Dados coletados com sucesso! ✨", {
@@ -287,35 +287,47 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                 </div>
               ))}
 
-              {/* Link bubble when ready */}
-              {messages.length > 0 &&
-               messages[messages.length - 1].role === "assistant" && 
-               isReady && 
-               !isLoading && 
-               !isSending && (
-                <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    {assistantAvatarUrl && (
-                      <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
-                    )}
-                    <AvatarFallback className="bg-primary/10">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-[#dae6ef] rounded-2xl px-4 py-3 border border-border/50 max-w-[80%]">
-                    <p className="text-base leading-relaxed">
-                      Ou{" "}
-                      <button
-                        onClick={handleFillForm}
-                        className="text-primary hover:text-primary/80 underline cursor-pointer font-semibold"
-                      >
-                        clique aqui
-                      </button>
-                      {" "}para preencher o formulário com os dados que coletamos até aqui.
-                    </p>
+              {/* Link bubble when ready - usando verificação local também */}
+              {(() => {
+                // Verificação local de campos obrigatórios preenchidos
+                const requiredFields = fieldsSchema.filter(f => f.required).map(f => f.name);
+                const allRequiredFieldsFilled = requiredFields.length > 0 && requiredFields.every(fieldName => {
+                  const value = extractedData[fieldName];
+                  if (Array.isArray(value)) return value.length > 0;
+                  return value !== null && value !== undefined && value !== '';
+                });
+                
+                const shouldShowLink = messages.length > 0 &&
+                  messages[messages.length - 1].role === "assistant" && 
+                  (isReady || allRequiredFieldsFilled) && 
+                  !isLoading && 
+                  !isSending;
+                
+                return shouldShowLink ? (
+                  <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      {assistantAvatarUrl && (
+                        <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                      )}
+                      <AvatarFallback className="bg-primary/10">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="bg-[#dae6ef] rounded-2xl px-4 py-3 border border-border/50 max-w-[80%]">
+                      <p className="text-base leading-relaxed">
+                        Ou{" "}
+                        <button
+                          onClick={handleFillForm}
+                          className="text-primary hover:text-primary/80 underline cursor-pointer font-semibold"
+                        >
+                          clique aqui
+                        </button>
+                        {" "}para preencher o formulário com os dados que coletamos até aqui.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
 
               {(isSending || isLoading) && (
                 <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">

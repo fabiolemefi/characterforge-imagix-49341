@@ -310,21 +310,35 @@ Campos obrigatórios são: ${requiredFieldNames || "nenhum definido"}
       };
     }
 
-    // Validate critical fields when status is ready
+    // Validate critical fields when status is ready (apenas log, não forçar regressão)
     if (parsedResponse.status === "ready") {
       const insights = parsedResponse.extracted_data?.insights;
       if (!insights || insights.length < 100) {
-        console.log(`[${conversationId}] Insights insuficientes, forçando regeneração`);
-        parsedResponse.status = "collecting";
-        parsedResponse.message = "Preciso gerar alguns insights importantes sobre o teste. Um momento...";
+        console.log(`[${conversationId}] Insights curtos ou ausentes, mas permitindo status ready`);
       }
     }
 
-    // Merge extracted data with existing data
-    const mergedExtractedData = {
-      ...extractedData,
-      ...parsedResponse.extracted_data,
-    };
+    // Merge extracted data - preservar valores existentes não-nulos
+    const mergedExtractedData = { ...extractedData };
+    
+    // Só atualiza campos que tenham valor real (não null/undefined/vazio)
+    for (const [key, value] of Object.entries(parsedResponse.extracted_data || {})) {
+      const isValidValue = value !== null && 
+                           value !== undefined && 
+                           value !== '' && 
+                           !(Array.isArray(value) && value.length === 0);
+      
+      if (isValidValue) {
+        mergedExtractedData[key] = value;
+      }
+    }
+    
+    console.log(`[${conversationId}] Merge resultado - campos preenchidos:`, 
+      Object.keys(mergedExtractedData).filter(k => {
+        const v = mergedExtractedData[k];
+        return v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0);
+      })
+    );
 
     // Prepare final response
     const finalResponse = {
