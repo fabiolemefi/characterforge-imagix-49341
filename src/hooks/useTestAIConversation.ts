@@ -26,8 +26,9 @@ export interface ExtractedTestData {
 export interface FieldSchema {
   name: string;
   type: string;
-  description: string;
+  description?: string;
   required: boolean;
+  auto_generate?: boolean;
 }
 
 interface AIResponse {

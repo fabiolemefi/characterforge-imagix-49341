@@ -158,29 +158,44 @@ serve(async (req) => {
 
     // Build dynamic fields list from assistant configuration
     const fieldsSchema = assistant?.fields_schema || [];
-    const fieldsToExtract = fieldsSchema.length > 0
-      ? fieldsSchema.map((f: any) => `- ${f.name}: ${f.label || f.name}${f.required ? ' (OBRIGATÓRIO)' : ''}`).join("\n")
+    
+    // Separate auto-generated fields from user-provided fields
+    const autoGenerateFields = fieldsSchema.filter((f: any) => f.auto_generate).map((f: any) => f.name);
+    const userProvidedFields = fieldsSchema.filter((f: any) => !f.auto_generate);
+    
+    const fieldsToExtract = userProvidedFields.length > 0
+      ? userProvidedFields.map((f: any) => `- ${f.name}: ${f.label || f.name}${f.required ? ' (OBRIGATÓRIO)' : ''}`).join("\n")
       : "- Extraia campos relevantes da mensagem";
 
-    // Identify already filled fields
+    // Identify already filled fields (excluding auto-generate fields)
     const filledFields = Object.entries(extractedData || {})
-      .filter(([_, value]) => value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))
+      .filter(([key, value]) => !autoGenerateFields.includes(key) && value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0))
       .map(([key, _]) => key);
     
-    // Get pending required and optional fields separately
-    const pendingRequiredFields = fieldsSchema
+    // Get pending required and optional fields separately (excluding auto-generate)
+    const pendingRequiredFields = userProvidedFields
       .filter((f: any) => f.required && !filledFields.includes(f.name))
       .map((f: any) => f.name);
     
-    const pendingFieldsList = fieldsSchema
+    const pendingFieldsList = userProvidedFields
       .filter((f: any) => !filledFields.includes(f.name))
       .map((f: any) => `- ${f.name}: ${f.label || f.name}${f.required ? ' (OBRIGATÓRIO)' : ''}`)
       .join("\n");
 
-    const requiredFieldNames = fieldsSchema
+    // Required fields for user to provide (excluding auto-generate)
+    const requiredFieldNames = userProvidedFields
       .filter((f: any) => f.required)
       .map((f: any) => f.name)
       .join(", ");
+    
+    // Auto-generate fields instruction
+    const autoGenerateInstruction = autoGenerateFields.length > 0
+      ? `\n## CAMPOS AUTO-GERADOS (VOCÊ GERA, NÃO PERGUNTE AO USUÁRIO):
+Os seguintes campos são gerados por VOCÊ automaticamente quando status="ready": ${autoGenerateFields.join(", ")}
+- NÃO pergunte ao usuário sobre esses campos
+- Quando marcar status="ready", GERE conteúdo rico e detalhado para esses campos
+- Para "insights": gere recomendações estratégicas, riscos potenciais, sugestões de otimização (mínimo 300 caracteres)`
+      : '';
 
     const userPrompt = `${systemPrompt}
 ${dataContext}
@@ -194,13 +209,14 @@ ${fieldsToExtract}
 
 ## CAMPOS PENDENTES (foque nestes):
 ${pendingFieldsList || "todos preenchidos"}
+${autoGenerateInstruction}
 
 ## 🚨 PRIORIDADE ABSOLUTA - PERGUNTE SOBRE CAMPOS PENDENTES:
 ${pendingRequiredFields.length > 0 
   ? `AINDA FALTAM CAMPOS OBRIGATÓRIOS: ${pendingRequiredFields.join(", ")}
 Sua PRÓXIMA PERGUNTA DEVE ser sobre UM desses campos específicos.
 NÃO faça perguntas genéricas sobre estratégia enquanto campos obrigatórios estiverem faltando.`
-  : `Todos os campos obrigatórios estão preenchidos. Marque status="ready" e encerre.`}
+  : `Todos os campos obrigatórios (do usuário) estão preenchidos. Marque status="ready", GERE os campos auto-gerados (${autoGenerateFields.join(", ")}) e encerre.`}
 
 ## MAPA DE PERGUNTAS POR CAMPO PENDENTE (use como referência):
 - motivo_demanda → "O que motivou essa demanda? Por que surgiu essa necessidade agora?"
@@ -253,8 +269,11 @@ extracted_data extraído:
 4. Após extrair, simplesmente faça a próxima pergunta sobre o PRÓXIMO campo pendente
 
 ## QUANDO MARCAR STATUS = "READY":
-Campos obrigatórios são: ${requiredFieldNames || "nenhum definido"}
-- Se TODOS os campos obrigatórios acima estiverem preenchidos → status = "ready"
+Campos obrigatórios do USUÁRIO são: ${requiredFieldNames || "nenhum definido"}
+Campos AUTO-GERADOS por VOCÊ: ${autoGenerateFields.join(", ") || "nenhum"}
+- Se TODOS os campos obrigatórios do usuário estiverem preenchidos → status = "ready"
+- Ao marcar status="ready", VOCÊ DEVE GERAR os campos auto-gerados:
+  - insights: Gere recomendações estratégicas detalhadas (mínimo 300 caracteres) baseadas no contexto do teste coletado
 - NÃO continue perguntando indefinidamente sobre campos opcionais
 - Ao marcar ready, faça uma mensagem de encerramento breve
 
