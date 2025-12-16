@@ -7,6 +7,12 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
   return useQuery({
     queryKey: ["tests", filters],
     queryFn: async () => {
+      // Verify session before fetching
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Sessão expirada');
+      }
+
       let query = supabase
         .from("tests")
         .select(`

@@ -47,13 +47,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
-      // 5 minutos - dados permanecem "frescos"
-      gcTime: 10 * 60 * 1000,
-      // 10 minutos - dados permanecem em cache
+      gcTime: 30 * 60 * 1000,
       retry: 2,
-      refetchOnWindowFocus: false,
-      // Não recarregar ao voltar para a aba
-      refetchOnMount: false // Não recarregar se dados estão em cache
+      refetchOnWindowFocus: true,
+      refetchOnMount: 'always',
+      refetchOnReconnect: true,
     }
   }
 });
