@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Send, Bot, Check } from "lucide-react";
@@ -34,7 +34,7 @@ export function BriefingAIAssistantModal({
   const [userInitials, setUserInitials] = useState("U");
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
@@ -149,6 +149,14 @@ export function BriefingAIAssistantModal({
     }
   }, [open, isLoading]);
 
+  const handleAutoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    const maxHeight = 120; // ~5 lines
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -168,6 +176,9 @@ export function BriefingAIAssistantModal({
 
     const message = inputValue.trim();
     setInputValue("");
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     await sendMessage(message);
   };
 
@@ -302,14 +313,24 @@ export function BriefingAIAssistantModal({
 
         <div className="p-6 pt-0 space-y-4">
 
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+            <Textarea
               ref={inputRef}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                handleAutoResize(e);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
               placeholder="Digite sua mensagem..."
               disabled={isLoading}
-              className="flex-1"
+              className="flex-1 min-h-[40px] max-h-[120px] resize-none py-2"
+              rows={1}
             />
             <Button 
               type="submit" 

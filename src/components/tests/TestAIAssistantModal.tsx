@@ -45,6 +45,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     conversationId,
@@ -153,6 +154,14 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     }
   }, [messages, isLoading, open]);
 
+  const handleAutoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    const maxHeight = 120; // ~5 lines
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  };
+
   const handleSend = async () => {
     console.log("📤 [TestModal] handleSend chamado:", { 
       input: input.trim().substring(0, 50), 
@@ -170,6 +179,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
 
     const message = input.trim();
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     await sendMessage(message);
   };
 
@@ -334,11 +346,16 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
 
             <div className="flex gap-2">
               <Textarea
+                ref={textareaRef}
                 placeholder="Digite sua mensagem..."
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  handleAutoResize(e);
+                }}
                 onKeyDown={handleKeyDown}
-                className="min-h-[60px] max-h-[120px] resize-none"
+                className="min-h-[40px] max-h-[120px] resize-none py-2"
+                rows={1}
                 disabled={isLoading || isReady}
               />
               <Button
