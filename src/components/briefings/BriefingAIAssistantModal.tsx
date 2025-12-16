@@ -151,7 +151,20 @@ export function BriefingAIAssistantModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+    
+    console.log("📤 [BriefingModal] handleSubmit chamado:", { 
+      inputValue: inputValue.trim().substring(0, 50), 
+      isLoading,
+      conversationId 
+    });
+    
+    if (!inputValue.trim() || isLoading) {
+      console.warn("⚠️ [BriefingModal] Submit bloqueado:", { 
+        emptyInput: !inputValue.trim(), 
+        isLoading 
+      });
+      return;
+    }
 
     const message = inputValue.trim();
     setInputValue("");
@@ -278,8 +291,13 @@ export function BriefingAIAssistantModal({
               disabled={isLoading}
               className="flex-1"
             />
-            <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim()}>
-              <Send className="h-4 w-4" />
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={isLoading || !inputValue.trim()}
+              className={isLoading ? "opacity-50" : ""}
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </form>
         </div>

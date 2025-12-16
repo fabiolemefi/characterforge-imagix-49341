@@ -61,6 +61,19 @@ export function useTestAIConversation(assistantSlug: string = "test-creation") {
     }
   }, [messages, pendingPredictionId, isLoading]);
 
+  // Safety net: reset loading if stuck for more than 120 seconds
+  useEffect(() => {
+    if (isLoading) {
+      const safetyTimer = setTimeout(() => {
+        console.warn("🚨 [SafetyNet] Loading preso por 120s no hook, forçando reset");
+        setIsLoading(false);
+        setPendingPredictionId(null);
+      }, 120000);
+      
+      return () => clearTimeout(safetyTimer);
+    }
+  }, [isLoading]);
+
   // Setup realtime listener when conversation is loaded
   useEffect(() => {
     if (!conversationId) return;

@@ -154,7 +154,19 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
   }, [messages, isLoading, open]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    console.log("📤 [TestModal] handleSend chamado:", { 
+      input: input.trim().substring(0, 50), 
+      isLoading,
+      conversationId 
+    });
+    
+    if (!input.trim() || isLoading) {
+      console.warn("⚠️ [TestModal] Send bloqueado:", { 
+        emptyInput: !input.trim(), 
+        isLoading 
+      });
+      return;
+    }
 
     const message = input.trim();
     setInput("");
@@ -333,9 +345,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                 onClick={handleSend}
                 disabled={isLoading || !input.trim() || isReady}
                 size="icon"
-                className="shrink-0 h-[60px] w-[60px]"
+                className={cn("shrink-0 h-[60px] w-[60px]", isLoading && "opacity-50")}
               >
-                <Send className="h-5 w-5" />
+                {isLoading ? <Loader className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             </div>
           </div>
