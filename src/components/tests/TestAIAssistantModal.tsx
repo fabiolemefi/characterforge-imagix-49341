@@ -185,12 +185,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     await sendMessage(message);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  // Enter creates new line, no need for keyboard handling
 
   const handleFillForm = () => {
     if (!isReady || !extractedData) return;
@@ -353,7 +348,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                   setInput(e.target.value);
                   handleAutoResize(e);
                 }}
-                onKeyDown={handleKeyDown}
+                
                 className="min-h-[40px] max-h-[120px] resize-none py-2"
                 rows={1}
                 disabled={isLoading || isReady}

@@ -321,12 +321,7 @@ export function BriefingAIAssistantModal({
                 setInputValue(e.target.value);
                 handleAutoResize(e);
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
+              onKeyDown={() => {}}
               placeholder="Digite sua mensagem..."
               disabled={isLoading}
               className="flex-1 min-h-[40px] max-h-[120px] resize-none py-2"

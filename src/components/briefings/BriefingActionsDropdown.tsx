@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, LayoutGrid } from "lucide-react";
 import { useDeactivateBriefing } from "@/hooks/useBriefings";
 
 interface BriefingActionsDropdownProps {
@@ -43,6 +43,10 @@ export function BriefingActionsDropdown({ briefingId }: BriefingActionsDropdownP
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem className="text-blue-600 focus:text-blue-600">
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Criar card
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate(`/briefings/${briefingId}/edit`)}>
             <Pencil className="h-4 w-4 mr-2" />
             Editar
