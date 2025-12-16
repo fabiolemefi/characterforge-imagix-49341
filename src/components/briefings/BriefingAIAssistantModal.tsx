@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -171,6 +171,20 @@ export function BriefingAIAssistantModal({
     await sendMessage(message);
   };
 
+  // Check if all required fields are filled
+  const allRequiredFieldsFilled = useMemo(() => {
+    if (!fieldsSchema.length || !extractedData) return false;
+    
+    const requiredFields = fieldsSchema.filter(f => f.required);
+    return requiredFields.every(field => {
+      const value = extractedData[field.name];
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      return true;
+    });
+  }, [fieldsSchema, extractedData]);
+
   const handleConfirmData = () => {
     if (extractedData) {
       onFormFill(extractedData);
@@ -197,38 +211,54 @@ export function BriefingAIAssistantModal({
         <ScrollArea className="flex-1 px-6">
           <div className="space-y-4 py-4">
             {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex gap-3 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                {message.role === "assistant" && (
-                  <Avatar className="h-8 w-8">
-                    {assistantAvatarUrl && (
-                      <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
-                    )}
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      <Bot className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+              <div key={index}>
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-[#dae6ef]"
+                  className={`flex gap-3 ${
+                    message.role === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  {message.role === "assistant" && (
+                    <Avatar className="h-8 w-8">
+                      {assistantAvatarUrl && (
+                        <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                      )}
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        <Bot className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-[#dae6ef]"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                  {message.role === "user" && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={userAvatarUrl || undefined} alt="User avatar" />
+                      <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                        {userInitials}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
-                {message.role === "user" && (
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={userAvatarUrl || undefined} alt="User avatar" />
-                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                      {userInitials}
-                    </AvatarFallback>
-                  </Avatar>
+                {/* Show "Preencher briefing" button after last assistant message when all required fields are filled */}
+                {message.role === "assistant" && 
+                 index === messages.length - 1 && 
+                 allRequiredFieldsFilled && 
+                 !isLoading && (
+                  <div className="ml-11 mt-3">
+                    <Button
+                      onClick={handleConfirmData}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Preencher briefing
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -271,16 +301,6 @@ export function BriefingAIAssistantModal({
         </ScrollArea>
 
         <div className="p-6 pt-0 space-y-4">
-          {isReady && extractedData && (
-            <Button
-              onClick={handleConfirmData}
-              className="w-full"
-              variant="default"
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Usar dados no formulário
-            </Button>
-          )}
 
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
