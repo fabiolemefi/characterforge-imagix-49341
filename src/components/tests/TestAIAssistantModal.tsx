@@ -53,6 +53,7 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
     extractedData,
     isReady,
     fieldsSchema,
+    assistantAvatarUrl,
     checkForDraft,
     startConversation,
     loadConversation,
@@ -227,6 +228,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
                 >
                   {msg.role === "assistant" && (
                     <Avatar className="h-10 w-10 shrink-0">
+                      {assistantAvatarUrl && (
+                        <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                      )}
                       <AvatarFallback className="bg-primary/10">
                         <Sparkles className="h-5 w-5 text-primary" />
                       </AvatarFallback>
@@ -261,6 +265,9 @@ export function TestAIAssistantModal({ open, onClose, onFormFill, checkForDrafts
               {isLoading && (
                 <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <Avatar className="h-10 w-10 shrink-0">
+                    {assistantAvatarUrl && (
+                      <AvatarImage src={assistantAvatarUrl} alt="Assistant avatar" />
+                    )}
                     <AvatarFallback className="bg-primary/10">
                       <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                     </AvatarFallback>

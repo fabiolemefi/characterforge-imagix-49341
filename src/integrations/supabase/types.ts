@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       ai_assistants: {
         Row: {
+          avatar_url: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -33,6 +34,7 @@ export type Database = {
           validations: Json | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -50,6 +52,7 @@ export type Database = {
           validations?: Json | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
