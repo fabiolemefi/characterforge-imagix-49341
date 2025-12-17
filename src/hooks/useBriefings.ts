@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BriefingStatus, Briefing } from "@/types/briefing";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { queryWithAuth } from "@/lib/queryWithAuth";
 
 interface BriefingsFilter {
   status?: BriefingStatus;
@@ -12,7 +13,7 @@ interface BriefingsFilter {
 export const useBriefings = (filters?: BriefingsFilter) => {
   return useQuery({
     queryKey: ["briefings", filters],
-    queryFn: async () => {
+    queryFn: () => queryWithAuth(async () => {
       let query = supabase
         .from("briefings")
         .select("*, profiles!briefings_created_by_fkey(full_name, email, avatar_url)")
@@ -29,14 +30,15 @@ export const useBriefings = (filters?: BriefingsFilter) => {
       const { data, error } = await query;
       if (error) throw error;
       return data as unknown as Briefing[];
-    },
+    }),
+    staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
   });
 };
 
 export const useBriefing = (id?: string) => {
   return useQuery({
     queryKey: ["briefing", id],
-    queryFn: async () => {
+    queryFn: () => queryWithAuth(async () => {
       if (!id) return null;
       const { data, error } = await supabase
         .from("briefings")
@@ -46,8 +48,9 @@ export const useBriefing = (id?: string) => {
 
       if (error) throw error;
       return data as unknown as Briefing | null;
-    },
+    }),
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 };
 

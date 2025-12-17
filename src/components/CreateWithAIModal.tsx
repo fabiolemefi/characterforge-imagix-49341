@@ -28,12 +28,16 @@ interface AIResponse {
   blocks: AIBlock[];
 }
 
-const PROGRESS_MESSAGES = [
-  "Analisando seu conteúdo...",
-  "Estruturando os blocos do email...",
-  "Gerando textos e formatações...",
-  "Finalizando a estrutura...",
-];
+// Mensagens de progresso baseadas no tempo real
+const getProgressMessage = (seconds: number): string => {
+  if (seconds < 5) return "Conectando com a IA...";
+  if (seconds < 15) return "Aguardando resposta da OpenAI...";
+  if (seconds < 30) return "Processando conteúdo (pode levar até 1 minuto)...";
+  if (seconds < 45) return "Gerando estrutura do email...";
+  return "Finalizando... por favor aguarde...";
+};
+
+const TIMEOUT_MS = 60000; // 60 segundos
 
 const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
@@ -111,41 +115,34 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
   const [generating, setGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState("");
   const [elapsedTime, setElapsedTime] = useState(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [cancelled, setCancelled] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const progressRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Progress message rotation
+  // Elapsed time counter and progress message based on time
   useEffect(() => {
     if (generating) {
-      let messageIndex = 0;
-      setProgressMessage(PROGRESS_MESSAGES[0]);
+      setProgressMessage(getProgressMessage(0));
       
-      progressRef.current = setInterval(() => {
-        messageIndex = (messageIndex + 1) % PROGRESS_MESSAGES.length;
-        setProgressMessage(PROGRESS_MESSAGES[messageIndex]);
-      }, 3000);
-
-      // Elapsed time counter
       timerRef.current = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
+        setElapsedTime((prev) => {
+          const newTime = prev + 1;
+          setProgressMessage(getProgressMessage(newTime));
+          return newTime;
+        });
       }, 1000);
     } else {
-      if (progressRef.current) clearInterval(progressRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
       setElapsedTime(0);
+      setProgressMessage("");
     }
 
     return () => {
-      if (progressRef.current) clearInterval(progressRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [generating]);
 
   const handleCancel = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    setCancelled(true);
     setGenerating(false);
     toast({
       title: "Geração cancelada",
@@ -164,23 +161,27 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     }
 
     setGenerating(true);
-    abortControllerRef.current = new AbortController();
-
-    // Timeout de 60 segundos
-    const timeoutId = setTimeout(() => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    }, 60000);
+    setCancelled(false);
 
     try {
       console.log("Chamando edge function com descrição:", description.substring(0, 100) + "...");
 
-      const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-email-ai", {
-        body: { description },
+      // Promise de timeout real
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("TIMEOUT"));
+        }, TIMEOUT_MS);
       });
 
-      clearTimeout(timeoutId);
+      // Race entre a chamada e o timeout
+      const result = await Promise.race([
+        supabase.functions.invoke("generate-email-ai", {
+          body: { description },
+        }),
+        timeoutPromise,
+      ]);
+
+      const { data: aiData, error: aiError } = result as { data: any; error: any };
 
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
@@ -268,12 +269,12 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       navigate(`/email-builder/${template.id}`);
       onClose();
     } catch (error: any) {
-      clearTimeout(timeoutId);
+      if (cancelled) return;
       
-      if (error.name === "AbortError" || error.message?.includes("aborted")) {
+      if (error.message === "TIMEOUT") {
         toast({
           variant: "destructive",
-          title: "Tempo esgotado",
+          title: "Tempo esgotado (60s)",
           description: "A geração demorou mais que o esperado. Tente novamente com uma descrição mais curta.",
         });
       } else {
@@ -285,8 +286,9 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
         });
       }
     } finally {
-      setGenerating(false);
-      abortControllerRef.current = null;
+      if (!cancelled) {
+        setGenerating(false);
+      }
     }
   };
 
