@@ -49,7 +49,7 @@ export default function BriefingsList() {
       />
 
       {isLoading ? (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -78,7 +78,7 @@ export default function BriefingsList() {
           </Table>
         </div>
       ) : (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
