@@ -1,50 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from '@/components/ui/resizable';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ArrowLeft, Save, Download, Loader, Palette, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Download, Loader, Palette } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
-import { EmailBlockItem } from '@/components/EmailBlockItem';
 import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
+
 interface SelectedBlock extends EmailBlock {
   instanceId: string;
   customHtml?: string;
@@ -56,7 +25,7 @@ const EmailBuilder = () => {
   const location = useLocation();
   const { toast } = useToast();
   const modelId = location?.state?.modelId;
-  const { blocks, loading: blocksLoading } = useEmailBlocks();
+  const { blocks } = useEmailBlocks();
   const { templates, updateTemplate, saveTemplate } = useEmailTemplates();
   
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
@@ -75,7 +44,6 @@ const EmailBuilder = () => {
       setSubject(template.subject || '');
       setPreviewText(template.preview_text || '');
       
-      // Load blocks data if exists
       if (template.blocks_data && Array.isArray(template.blocks_data)) {
         const loadedBlocks = template.blocks_data.map((blockData: any) => ({
           ...blockData,
@@ -91,7 +59,6 @@ const EmailBuilder = () => {
         setSubject(template.subject || '');
         setPreviewText(template.preview_text || '');
         
-        // Load blocks data if exists
         if (template.blocks_data && Array.isArray(template.blocks_data)) {
           const loadedBlocks = template.blocks_data.map((blockData: any) => ({
             ...blockData,
@@ -102,13 +69,6 @@ const EmailBuilder = () => {
       }
     }
   }, [id, modelId, templates]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   const handleAddBlock = (block: EmailBlock) => {
     const newBlock: SelectedBlock = {
@@ -126,26 +86,12 @@ const EmailBuilder = () => {
     setSelectedBlocks(selectedBlocks.filter(b => b.instanceId !== instanceId));
   };
 
-
-
   const handleUpdateBlock = (instanceId: string, html: string) => {
     setSelectedBlocks(selectedBlocks.map(b =>
       b.instanceId === instanceId
         ? { ...b, customHtml: html }
         : b
     ));
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      setSelectedBlocks((items) => {
-        const oldIndex = items.findIndex(item => item.instanceId === active.id);
-        const newIndex = items.findIndex(item => item.instanceId === over.id);
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    }
   };
 
   const generateHtmlContent = () => {
@@ -285,66 +231,24 @@ const EmailBuilder = () => {
         </div>
       </div>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={60} minSize={40}>
-          <EmailPreview
-            blocks={selectedBlocks.map(block => ({
-              instanceId: block.instanceId,
-              html: block.customHtml || block.html_template
-            }))}
-            onReorderBlocks={(newBlocks) => {
-              const reorderedBlocks = newBlocks.map(nb =>
-                selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
-              );
-              setSelectedBlocks(reorderedBlocks);
-            }}
-            onUpdateBlock={handleUpdateBlock}
-            onDeleteBlock={handleRemoveBlock}
-            onAddBlock={() => setShowAddBlockModal(true)}
-            className="h-full"
-          />
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        <ResizablePanel defaultSize={40} minSize={30}>
-          <div className="h-full flex flex-col border-l">
-            
-            <ScrollArea className="flex-1">
-              <div className="p-4">
-                {selectedBlocks.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Plus className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm font-medium">Nenhum bloco adicionado</p>
-                    <p className="text-xs mt-1">Clique em "Adicionar Bloco" para começar</p>
-                  </div>
-                ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={selectedBlocks.map(b => b.instanceId)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {selectedBlocks.map((block) => (
-                        <EmailBlockItem
-                          key={block.instanceId}
-                          id={block.instanceId}
-                          name={block.name}
-                          category={block.category}
-                          onRemove={() => handleRemoveBlock(block.instanceId)}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      <div className="flex-1">
+        <EmailPreview
+          blocks={selectedBlocks.map(block => ({
+            instanceId: block.instanceId,
+            html: block.customHtml || block.html_template
+          }))}
+          onReorderBlocks={(newBlocks) => {
+            const reorderedBlocks = newBlocks.map(nb =>
+              selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
+            );
+            setSelectedBlocks(reorderedBlocks);
+          }}
+          onUpdateBlock={handleUpdateBlock}
+          onDeleteBlock={handleRemoveBlock}
+          onAddBlock={() => setShowAddBlockModal(true)}
+          className="h-full"
+        />
+      </div>
 
       <AddBlockModal
         open={showAddBlockModal}
