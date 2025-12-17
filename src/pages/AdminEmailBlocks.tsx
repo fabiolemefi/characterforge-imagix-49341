@@ -52,6 +52,7 @@ const AdminEmailBlocks = () => {
     category: 'content',
     html_template: '',
     thumbnail_url: '',
+    ai_instructions: '',
   });
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
@@ -65,6 +66,7 @@ const AdminEmailBlocks = () => {
         category: block.category,
         html_template: block.html_template,
         thumbnail_url: block.thumbnail_url || '',
+        ai_instructions: block.ai_instructions || '',
       });
       setThumbnailPreview(block.thumbnail_url || '');
       setThumbnailFile(null);
@@ -76,6 +78,7 @@ const AdminEmailBlocks = () => {
         category: 'content',
         html_template: '',
         thumbnail_url: '',
+        ai_instructions: '',
       });
       setThumbnailPreview('');
       setThumbnailFile(null);
@@ -139,6 +142,7 @@ const AdminEmailBlocks = () => {
           description: formData.description,
           category: formData.category,
           html_template: formData.html_template,
+          ai_instructions: formData.ai_instructions || null,
         };
 
         if (thumbnailUrl) {
@@ -475,6 +479,20 @@ const AdminEmailBlocks = () => {
                   />
                 </div>
               )}
+            </div>
+            <div>
+              <Label htmlFor="ai_instructions">Instruções para IA</Label>
+              <Textarea
+                id="ai_instructions"
+                value={formData.ai_instructions}
+                onChange={(e) => setFormData({ ...formData, ai_instructions: e.target.value })}
+                placeholder="Ex: Use este bloco para parágrafos de texto rico. Campos esperados no content: text (HTML com formatações). Exemplo: {'text': 'Texto aqui com <strong>negrito</strong>'}"
+                className="text-sm"
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Descreva quando usar este bloco e quais campos o content deve ter
+              </p>
             </div>
             <div>
               <Label htmlFor="html">HTML Template *</Label>

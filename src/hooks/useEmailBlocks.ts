@@ -9,6 +9,7 @@ export interface EmailBlock {
   category: string;
   html_template: string;
   thumbnail_url: string | null;
+  ai_instructions: string | null;
   is_active: boolean;
   created_at: string;
 }

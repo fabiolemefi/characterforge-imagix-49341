@@ -700,6 +700,7 @@ export type Database = {
       }
       email_blocks: {
         Row: {
+          ai_instructions: string | null
           category: string
           created_at: string
           created_by: string | null
@@ -712,6 +713,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_instructions?: string | null
           category: string
           created_at?: string
           created_by?: string | null
@@ -724,6 +726,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_instructions?: string | null
           category?: string
           created_at?: string
           created_by?: string | null
