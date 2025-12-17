@@ -67,7 +67,7 @@ export default function TestsList() {
       />
 
       {isLoading ? (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -116,7 +116,7 @@ export default function TestsList() {
           </Table>
         </div>
       ) : (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
