@@ -15,8 +15,9 @@ interface CreateWithAIModalProps {
 }
 
 interface AIBlock {
-  name: string;
-  category: string;
+  name?: string;
+  type?: string; // fallback if AI uses "type" instead of "name"
+  category?: string;
   content?: any;
 }
 
@@ -204,16 +205,39 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       // Map AI blocks to real database blocks
       const selectedBlocks = emailStructure.blocks
         .map((aiBlock, index) => {
-          let matchingBlock = allBlocks.find((dbBlock: EmailBlock) => dbBlock.name === aiBlock.name);
+          // Use "name" if present, fallback to "type"
+          const aiBlockName = aiBlock.name || aiBlock.type;
+          
+          // Try exact name match first
+          let matchingBlock = allBlocks.find(
+            (dbBlock: EmailBlock) => dbBlock.name === aiBlockName
+          );
 
-          if (!matchingBlock) {
+          // Try case-insensitive name match
+          if (!matchingBlock && aiBlockName) {
             matchingBlock = allBlocks.find(
-              (dbBlock: EmailBlock) => dbBlock.category.toLowerCase() === aiBlock.category.toLowerCase(),
+              (dbBlock: EmailBlock) => dbBlock.name.toLowerCase() === aiBlockName.toLowerCase()
+            );
+          }
+
+          // Try category match (with null safety)
+          if (!matchingBlock && aiBlock.category) {
+            matchingBlock = allBlocks.find(
+              (dbBlock: EmailBlock) => dbBlock.category?.toLowerCase() === aiBlock.category?.toLowerCase()
+            );
+          }
+
+          // Try partial name match as last resort
+          if (!matchingBlock && aiBlockName) {
+            matchingBlock = allBlocks.find(
+              (dbBlock: EmailBlock) => 
+                dbBlock.name.toLowerCase().includes(aiBlockName.toLowerCase()) ||
+                aiBlockName.toLowerCase().includes(dbBlock.name.toLowerCase())
             );
           }
 
           if (!matchingBlock) {
-            console.warn(`Nenhum bloco encontrado para: ${aiBlock.name} (${aiBlock.category})`);
+            console.warn(`Nenhum bloco encontrado para: ${aiBlockName} (${aiBlock.category || 'sem categoria'})`);
             return null;
           }
 
