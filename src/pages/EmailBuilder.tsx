@@ -26,7 +26,7 @@ const EmailBuilder = () => {
   const { toast } = useToast();
   const modelId = location?.state?.modelId;
   const { blocks } = useEmailBlocks();
-  const { templates, updateTemplate, saveTemplate } = useEmailTemplates();
+  const { updateTemplate, saveTemplate, loadTemplateById } = useEmailTemplates();
   
   const [selectedBlocks, setSelectedBlocks] = useState<SelectedBlock[]>([]);
   const [templateName, setTemplateName] = useState('');
@@ -35,26 +35,19 @@ const EmailBuilder = () => {
   const [previewText, setPreviewText] = useState('');
   const [showAddBlockModal, setShowAddBlockModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   useEffect(() => {
-    const template = templates.find(t => t.id === id);
-    if (template) {
-      setTemplateName(template.name);
-      setTemplateDescription(template.description || '');
-      setSubject(template.subject || '');
-      setPreviewText(template.preview_text || '');
-      
-      if (template.blocks_data && Array.isArray(template.blocks_data)) {
-        const loadedBlocks = template.blocks_data.map((blockData: any) => ({
-          ...blockData,
-          instanceId: blockData.instanceId || `${blockData.id}-${Date.now()}-${Math.random()}`,
-        }));
-        setSelectedBlocks(loadedBlocks);
-      }
-    } else if (!id && modelId) {
-      const template = templates.find(t => t.id === modelId);
+    const loadTemplate = async () => {
+      const templateId = id || modelId;
+      if (!templateId) return;
+
+      setLoadingTemplate(true);
+      const template = await loadTemplateById(templateId);
+      setLoadingTemplate(false);
+
       if (template) {
-        setTemplateName(`Cópia de ${template.name}`);
+        setTemplateName(modelId ? `Cópia de ${template.name}` : template.name);
         setTemplateDescription(template.description || '');
         setSubject(template.subject || '');
         setPreviewText(template.preview_text || '');
@@ -62,13 +55,15 @@ const EmailBuilder = () => {
         if (template.blocks_data && Array.isArray(template.blocks_data)) {
           const loadedBlocks = template.blocks_data.map((blockData: any) => ({
             ...blockData,
-            instanceId: `${blockData.id}-${Date.now()}-${Math.random()}`,
+            instanceId: blockData.instanceId || `${blockData.id}-${Date.now()}-${Math.random()}`,
           }));
           setSelectedBlocks(loadedBlocks);
         }
       }
-    }
-  }, [id, modelId, templates]);
+    };
+
+    loadTemplate();
+  }, [id, modelId]);
 
   const handleAddBlock = (block: EmailBlock) => {
     const newBlock: SelectedBlock = {
@@ -179,6 +174,14 @@ const EmailBuilder = () => {
       description: 'Seu template HTML foi baixado com sucesso',
     });
   };
+
+  if (loadingTemplate) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-120px)]">
+        <Loader className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-background">
