@@ -32,27 +32,40 @@ export async function queryWithAuth<T>(queryFn: () => Promise<T>): Promise<T> {
   try {
     return await queryFn();
   } catch (error: any) {
-    console.warn("Query error:", error);
+    console.warn("⚠️ [queryWithAuth] Query error:", {
+      error,
+      code: error?.code,
+      message: error?.message,
+      isAuthError: isAuthError(error),
+      timestamp: new Date().toISOString()
+    });
     
     if (isAuthError(error)) {
-      console.log("Auth error detected, attempting session refresh...");
+      console.log("🔄 [queryWithAuth] Auth error detected, attempting session refresh...");
       
       try {
         const { data, error: refreshError } = await supabase.auth.refreshSession();
         
         if (refreshError || !data.session) {
-          console.error("Session refresh failed:", refreshError);
+          console.error("❌ [queryWithAuth] Session refresh FAILED:", {
+            refreshError,
+            hasSession: !!data?.session,
+            timestamp: new Date().toISOString()
+          });
           // Force logout and redirect
           await supabase.auth.signOut();
           window.location.href = '/login';
           throw new Error("Sessão expirada. Por favor, faça login novamente.");
         }
         
-        console.log("Session refreshed successfully, retrying query...");
+        console.log("✅ [queryWithAuth] Session refreshed successfully, retrying query...");
         // Retry the query after successful refresh
         return await queryFn();
       } catch (refreshError) {
-        console.error("Error during session refresh:", refreshError);
+        console.error("❌ [queryWithAuth] Error during session refresh:", {
+          refreshError,
+          timestamp: new Date().toISOString()
+        });
         await supabase.auth.signOut();
         window.location.href = '/login';
         throw new Error("Sessão expirada. Por favor, faça login novamente.");

@@ -28,7 +28,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     let mounted = true;
 
     const checkUserStatus = async () => {
+      console.log("🔐 [ProtectedRoute] Verificando status do usuário...", {
+        hasUser: !!user,
+        userId: user?.id,
+        authLoading,
+        timestamp: new Date().toISOString()
+      });
+      
       if (!user) {
+        console.log("⚠️ [ProtectedRoute] Sem usuário autenticado");
         setLoading(false);
         return;
       }
@@ -43,6 +51,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         if (!mounted) return;
 
         if (error) {
+          console.error("❌ [ProtectedRoute] Erro ao buscar profile:", {
+            error,
+            code: error.code,
+            message: error.message,
+            timestamp: new Date().toISOString()
+          });
           await supabase.auth.signOut();
           toast({
             title: "Erro de autenticação",
@@ -55,12 +69,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         }
 
         if (!profile) {
+          console.log("⚠️ [ProtectedRoute] Profile não encontrado, permitindo acesso");
           setIsActive(true);
           setLoading(false);
           return;
         }
 
         if (!profile.is_active) {
+          console.warn("🚫 [ProtectedRoute] Usuário desativado:", { userId: user.id });
           await supabase.auth.signOut();
           toast({
             title: "Acesso bloqueado",
@@ -70,11 +86,18 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           setIsActive(false);
           setLoading(false);
         } else {
+          console.log("✅ [ProtectedRoute] Usuário autenticado e ativo:", {
+            userId: user.id,
+            timestamp: new Date().toISOString()
+          });
           setIsActive(true);
           setLoading(false);
         }
       } catch (error) {
-        console.error("[ProtectedRoute] Error:", error);
+        console.error("❌ [ProtectedRoute] Erro inesperado:", {
+          error,
+          timestamp: new Date().toISOString()
+        });
         if (mounted) {
           await supabase.auth.signOut();
           setIsActive(false);
