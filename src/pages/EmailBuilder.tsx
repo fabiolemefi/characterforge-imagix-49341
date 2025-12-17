@@ -45,10 +45,6 @@ import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
-import { Sidebar } from '@/components/Sidebar';
-import Header from '@/components/Header';
-import { PromoBar } from '@/components/PromoBar';
-
 interface SelectedBlock extends EmailBlock {
   instanceId: string;
   customHtml?: string;
@@ -239,136 +235,125 @@ const EmailBuilder = () => {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <Sidebar />
-      
-      <div className="flex-1 flex flex-col">
-        <PromoBar />
-        <Header />
-        
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full flex flex-col">
-            <div className="border-b p-4 bg-background">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate('/email-templates')}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Voltar
-                  </Button>
-                  <div>
-                    <h1 className="text-2xl font-bold">{templateName || 'Email Builder'}</h1>
-                    <p className="text-sm text-muted-foreground">
-                      {subject || 'Crie emails profissionais com nosso editor visual'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar HTML
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button disabled={saving}>
-                        {saving ? (
-                          <Loader className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Save className="h-4 w-4 mr-2" />
-                        )}
-                        {saving ? 'Salvando...' : 'Salvar'}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleSave}>
-                        Salvar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleSaveAsModel}>
-                        <Palette className="h-4 w-4 mr-2" />
-                        Salvar como Modelo
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+    <div className="flex flex-col h-[calc(100vh-120px)] bg-background">
+      <div className="border-b p-4 bg-background">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/email-templates')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{templateName || 'Email Builder'}</h1>
+              <p className="text-sm text-muted-foreground">
+                {subject || 'Crie emails profissionais com nosso editor visual'}
+              </p>
             </div>
+          </div>
 
-            <ResizablePanelGroup direction="horizontal" className="flex-1">
-              <ResizablePanel defaultSize={60} minSize={40}>
-                <EmailPreview
-                  blocks={selectedBlocks.map(block => ({
-                    instanceId: block.instanceId,
-                    html: block.customHtml || block.html_template
-                  }))}
-                  onReorderBlocks={(newBlocks) => {
-                    const reorderedBlocks = newBlocks.map(nb =>
-                      selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
-                    );
-                    setSelectedBlocks(reorderedBlocks);
-                  }}
-                  onUpdateBlock={handleUpdateBlock}
-                  onDeleteBlock={handleRemoveBlock}
-                  className="h-full"
-                />
-              </ResizablePanel>
-
-              <ResizableHandle withHandle />
-
-              <ResizablePanel defaultSize={40} minSize={30}>
-                <div className="h-full flex flex-col border-l">
-                  <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
-                    <h3 className="font-semibold">Blocos do Email</h3>
-                    <Button
-                      size="sm"
-                      onClick={() => setShowAddBlockModal(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar Bloco
-                    </Button>
-                  </div>
-                  
-                  <ScrollArea className="flex-1">
-                    <div className="p-4">
-                      {selectedBlocks.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <Plus className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                          <p className="text-sm font-medium">Nenhum bloco adicionado</p>
-                          <p className="text-xs mt-1">Clique em "Adicionar Bloco" para começar</p>
-                        </div>
-                      ) : (
-                        <DndContext
-                          sensors={sensors}
-                          collisionDetection={closestCenter}
-                          onDragEnd={handleDragEnd}
-                        >
-                          <SortableContext
-                            items={selectedBlocks.map(b => b.instanceId)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            {selectedBlocks.map((block) => (
-                              <EmailBlockItem
-                                key={block.instanceId}
-                                id={block.instanceId}
-                                name={block.name}
-                                category={block.category}
-                                onRemove={() => handleRemoveBlock(block.instanceId)}
-                              />
-                            ))}
-                          </SortableContext>
-                        </DndContext>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleDownload}>
+              <Download className="h-4 w-4 mr-2" />
+              Baixar HTML
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button disabled={saving}>
+                  {saving ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  {saving ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleSave}>
+                  Salvar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSaveAsModel}>
+                  <Palette className="h-4 w-4 mr-2" />
+                  Salvar como Modelo
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
+
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={60} minSize={40}>
+          <EmailPreview
+            blocks={selectedBlocks.map(block => ({
+              instanceId: block.instanceId,
+              html: block.customHtml || block.html_template
+            }))}
+            onReorderBlocks={(newBlocks) => {
+              const reorderedBlocks = newBlocks.map(nb =>
+                selectedBlocks.find(sb => sb.instanceId === nb.instanceId)!
+              );
+              setSelectedBlocks(reorderedBlocks);
+            }}
+            onUpdateBlock={handleUpdateBlock}
+            onDeleteBlock={handleRemoveBlock}
+            className="h-full"
+          />
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel defaultSize={40} minSize={30}>
+          <div className="h-full flex flex-col border-l">
+            <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
+              <h3 className="font-semibold">Blocos do Email</h3>
+              <Button
+                size="sm"
+                onClick={() => setShowAddBlockModal(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Bloco
+              </Button>
+            </div>
+            
+            <ScrollArea className="flex-1">
+              <div className="p-4">
+                {selectedBlocks.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Plus className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm font-medium">Nenhum bloco adicionado</p>
+                    <p className="text-xs mt-1">Clique em "Adicionar Bloco" para começar</p>
+                  </div>
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={selectedBlocks.map(b => b.instanceId)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {selectedBlocks.map((block) => (
+                        <EmailBlockItem
+                          key={block.instanceId}
+                          id={block.instanceId}
+                          name={block.name}
+                          category={block.category}
+                          onRemove={() => handleRemoveBlock(block.instanceId)}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <AddBlockModal
         open={showAddBlockModal}
