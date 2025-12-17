@@ -38,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Save, Download, Eye, Plus, Loader, Palette } from 'lucide-react';
+import { ArrowLeft, Save, Download, Loader, Palette, Plus } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
 import { EmailBlockItem } from '@/components/EmailBlockItem';
 import { AddBlockModal } from '@/components/AddBlockModal';
@@ -300,6 +300,7 @@ const EmailBuilder = () => {
             }}
             onUpdateBlock={handleUpdateBlock}
             onDeleteBlock={handleRemoveBlock}
+            onAddBlock={() => setShowAddBlockModal(true)}
             className="h-full"
           />
         </ResizablePanel>
@@ -308,16 +309,6 @@ const EmailBuilder = () => {
 
         <ResizablePanel defaultSize={40} minSize={30}>
           <div className="h-full flex flex-col border-l">
-            <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
-              <h3 className="font-semibold">Blocos do Email</h3>
-              <Button
-                size="sm"
-                onClick={() => setShowAddBlockModal(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Bloco
-              </Button>
-            </div>
             
             <ScrollArea className="flex-1">
               <div className="p-4">
