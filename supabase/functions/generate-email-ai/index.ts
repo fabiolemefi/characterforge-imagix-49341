@@ -1,5 +1,5 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import Replicate from "https://esm.sh/replicate@0.25.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,53 +100,57 @@ serve(async (req) => {
       });
     }
 
-    const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
-    if (!REPLICATE_API_KEY) {
-      throw new Error("REPLICATE_API_KEY não configurada");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não configurada");
     }
 
-    console.log("Gerando email com IA para:", description);
+    console.log("Gerando email com IA (OpenAI) para:", description.substring(0, 100) + "...");
 
-    const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
-    });
-
-    const output = await replicate.run("meta/meta-llama-3.1-405b-instruct", {
-      input: {
-        prompt: `${SYSTEM_PROMPT}
-
-DESCRIÇÃO DO EMAIL:
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { 
+            role: "user", 
+            content: `DESCRIÇÃO DO EMAIL:
 ${description}
 
 Lembre-se de usar exatamente os nomes dos blocos listados: Header, Welcome, Title, Paragrafo, button, Divisor, Signature.
 Sempre começar com Header e terminar com Signature.
-Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`,
+Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.` 
+          }
+        ],
         temperature: 0.7,
         max_tokens: 3000,
-        top_p: 0.9,
-      },
+      }),
     });
 
-    console.log("Resposta da IA:", output);
-
-    // Parse the output - it comes as an array of strings
-    let responseText = "";
-    if (Array.isArray(output)) {
-      responseText = output.join("");
-    } else if (typeof output === "string") {
-      responseText = output;
-    } else {
-      responseText = JSON.stringify(output);
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Erro na API OpenAI:", errorData);
+      throw new Error(`Erro na API OpenAI: ${response.status}`);
     }
 
-    // Remove markdown code blocks if present
-    responseText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-    responseText = responseText.trim();
+    const data = await response.json();
+    console.log("Resposta OpenAI recebida");
 
-    console.log("Texto processado:", responseText);
+    const responseText = data.choices[0]?.message?.content || "";
+    
+    // Remove markdown code blocks if present
+    let cleanedText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    cleanedText = cleanedText.trim();
+
+    console.log("Texto processado:", cleanedText.substring(0, 200) + "...");
 
     // Parse JSON
-    const emailStructure = JSON.parse(responseText);
+    const emailStructure = JSON.parse(cleanedText);
 
     // Validate structure
     if (!emailStructure.name || !emailStructure.subject || !emailStructure.preview_text || !emailStructure.blocks || !Array.isArray(emailStructure.blocks)) {
@@ -174,7 +178,7 @@ Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`,
       console.log("Adicionada Signature no final");
     }
 
-    console.log("Estrutura final:", JSON.stringify(emailStructure));
+    console.log("Estrutura final gerada com", emailStructure.blocks.length, "blocos");
 
     return new Response(JSON.stringify(emailStructure), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
