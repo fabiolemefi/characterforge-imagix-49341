@@ -14,6 +14,8 @@ export const useBriefings = (filters?: BriefingsFilter) => {
   return useQuery({
     queryKey: ["briefings", filters],
     queryFn: () => queryWithAuth(async () => {
+      console.log("📡 [useBriefings] Iniciando fetch de briefings...", { filters, timestamp: new Date().toISOString() });
+      
       let query = supabase
         .from("briefings")
         .select("*, profiles!briefings_created_by_fkey(full_name, email, avatar_url)")
@@ -28,10 +30,25 @@ export const useBriefings = (filters?: BriefingsFilter) => {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      
+      if (error) {
+        console.error("❌ [useBriefings] FALHA ao carregar briefings:", {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
+      }
+      
+      console.log("✅ [useBriefings] SUCESSO - Briefings carregados:", {
+        count: data?.length || 0,
+        timestamp: new Date().toISOString()
+      });
       return data as unknown as Briefing[];
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
+    staleTime: 2 * 60 * 1000,
   });
 };
 
@@ -39,6 +56,8 @@ export const useBriefing = (id?: string) => {
   return useQuery({
     queryKey: ["briefing", id],
     queryFn: () => queryWithAuth(async () => {
+      console.log("📡 [useBriefing] Iniciando fetch de briefing:", { id, timestamp: new Date().toISOString() });
+      
       if (!id) return null;
       const { data, error } = await supabase
         .from("briefings")
@@ -46,7 +65,18 @@ export const useBriefing = (id?: string) => {
         .eq("id", id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ [useBriefing] FALHA ao carregar briefing:", {
+          id,
+          error,
+          code: error.code,
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
+      }
+      
+      console.log("✅ [useBriefing] SUCESSO - Briefing carregado:", { id, timestamp: new Date().toISOString() });
       return data as unknown as Briefing | null;
     }),
     enabled: !!id,

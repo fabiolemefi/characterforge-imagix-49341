@@ -8,6 +8,8 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
   return useQuery({
     queryKey: ["tests", filters],
     queryFn: () => queryWithAuth(async () => {
+      console.log("📡 [useTests] Iniciando fetch de tests...", { filters, timestamp: new Date().toISOString() });
+      
       let query = supabase
         .from("tests")
         .select(`
@@ -28,14 +30,24 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
       const { data, error } = await query;
 
       if (error) {
-        console.error("Error fetching tests:", error);
+        console.error("❌ [useTests] FALHA ao carregar tests:", {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          timestamp: new Date().toISOString()
+        });
         throw error;
       }
       
-      console.log("Tests fetched:", data);
+      console.log("✅ [useTests] SUCESSO - Tests carregados:", {
+        count: data?.length || 0,
+        timestamp: new Date().toISOString()
+      });
       return data as unknown as Test[];
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
+    staleTime: 2 * 60 * 1000,
   });
 };
 
@@ -43,6 +55,8 @@ export const useTest = (id?: string) => {
   return useQuery({
     queryKey: ["test", id],
     queryFn: () => queryWithAuth(async () => {
+      console.log("📡 [useTest] Iniciando fetch de test:", { id, timestamp: new Date().toISOString() });
+      
       if (!id) return null;
 
       const { data, error } = await supabase
@@ -51,7 +65,18 @@ export const useTest = (id?: string) => {
         .eq("id", id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ [useTest] FALHA ao carregar test:", {
+          id,
+          error,
+          code: error.code,
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
+      }
+      
+      console.log("✅ [useTest] SUCESSO - Test carregado:", { id, timestamp: new Date().toISOString() });
       return data as unknown as Test;
     }),
     enabled: !!id,
