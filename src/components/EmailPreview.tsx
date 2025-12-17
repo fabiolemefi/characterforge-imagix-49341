@@ -244,8 +244,8 @@ export const EmailPreview = ({
 
   if (localBlocks.length === 0) {
     return (
-      <div className={`bg-muted rounded-lg overflow-hidden ${className}`}>
-        <div className="bg-background border-b p-3 flex items-center justify-between">
+      <div className={`bg-muted rounded-lg overflow-hidden flex flex-col h-full ${className}`}>
+        <div className="bg-background border-b p-3 flex items-center justify-between flex-shrink-0">
           <span className="text-sm font-medium">Preview do Email</span>
           <div className="flex gap-1">
             <Button
@@ -271,7 +271,7 @@ export const EmailPreview = ({
             </Button>
           </div>
         </div>
-        <div className="flex items-center justify-center min-h-[600px] text-muted-foreground">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <p>Adicione blocos para visualizar seu email</p>
         </div>
       </div>
@@ -279,8 +279,8 @@ export const EmailPreview = ({
   }
 
   return (
-    <div className={`bg-muted rounded-lg overflow-hidden ${className}`}>
-      <div className="bg-background border-b p-3 flex items-center justify-between">
+    <div className={`bg-muted rounded-lg overflow-hidden flex flex-col h-full ${className}`}>
+      <div className="bg-background border-b p-3 flex items-center justify-between flex-shrink-0">
         <span className="text-sm font-medium">Preview do Email</span>
         <div className="flex gap-1">
           <Button
@@ -306,7 +306,7 @@ export const EmailPreview = ({
           </Button>
         </div>
       </div>
-      <div className="overflow-auto" style={{ minHeight: '600px' }}>
+      <div className="overflow-y-auto flex-1">
         <div className="bg-[#f5f5f5] p-5">
           <div className="mx-auto bg-white transition-all duration-300 relative" style={{ maxWidth: getPreviewWidth() }}>
             {!localBlocks.length ? (
