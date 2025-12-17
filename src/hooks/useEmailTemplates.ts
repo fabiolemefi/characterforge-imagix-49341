@@ -28,16 +28,54 @@ export const useEmailTemplates = () => {
   const { toast } = useToast();
 
   const loadTemplates = async () => {
-    // Timeout to prevent indefinite loading
-    const timeout = setTimeout(() => {
-      setLoading(false);
+    try {
+      // Only fetch columns needed for listing (exclude heavy html_content and blocks_data)
+      const { data, error } = await supabase
+        .from('email_templates')
+        .select(`
+          id,
+          name,
+          description,
+          subject,
+          preview_text,
+          is_published,
+          is_model,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at,
+          profiles!email_templates_created_by_fkey (
+            full_name,
+            email
+          )
+        `)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform and rename profiles to creator
+      const transformedData = (data || []).map((template: any) => ({
+        ...template,
+        html_content: '', // Placeholder - will be loaded when needed
+        blocks_data: [],  // Placeholder - will be loaded when needed
+        is_model: template.is_model || false,
+        creator: template.profiles || null,
+        profiles: undefined,
+      }));
+
+      setTemplates(transformedData);
+    } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Timeout',
-        description: 'Tempo limite excedido ao carregar templates',
+        title: 'Erro ao carregar templates',
+        description: error.message,
       });
-    }, 10000); // 10 seconds
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const loadTemplateById = async (id: string): Promise<EmailTemplate | null> => {
     try {
       const { data, error } = await supabase
         .from('email_templates')
@@ -48,30 +86,24 @@ export const useEmailTemplates = () => {
             email
           )
         `)
-        .order('updated_at', { ascending: false });
+        .eq('id', id)
+        .single();
 
       if (error) throw error;
-      clearTimeout(timeout);
 
-      // Transform blocks_data from Json to any[] and rename profiles to creator
-      const transformedData = (data || []).map((template: any) => ({
-        ...template,
-        blocks_data: Array.isArray(template.blocks_data) ? template.blocks_data : [],
-        is_model: template.is_model || false,
-        creator: template.profiles || null,
-        profiles: undefined, // Remove the profiles property
-      }));
-
-      setTemplates(transformedData);
+      return {
+        ...data,
+        blocks_data: Array.isArray(data.blocks_data) ? data.blocks_data : [],
+        is_model: data.is_model || false,
+        creator: data.profiles || null,
+      } as EmailTemplate;
     } catch (error: any) {
-      clearTimeout(timeout);
       toast({
         variant: 'destructive',
-        title: 'Erro ao carregar templates',
+        title: 'Erro ao carregar template',
         description: error.message,
       });
-    } finally {
-      setLoading(false);
+      return null;
     }
   };
 
@@ -181,5 +213,6 @@ export const useEmailTemplates = () => {
     updateTemplate,
     deleteTemplate,
     reloadTemplates: loadTemplates,
+    loadTemplateById,
   };
 };
