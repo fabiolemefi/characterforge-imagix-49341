@@ -414,7 +414,7 @@ const AdminEmailBlocks = () => {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingBlock ? 'Editar Bloco' : 'Criar Novo Bloco'}
@@ -423,95 +423,133 @@ const AdminEmailBlocks = () => {
               Configure o bloco de email que será usado no builder
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Nome do Bloco *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: Header Principal"
-              />
+          
+          <div className="grid grid-cols-2 gap-6">
+            {/* Coluna esquerda: Formulário */}
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Nome do Bloco *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: Header Principal"
+                />
+              </div>
+              <div>
+                <Label htmlFor="category">Categoria *</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {getCategoryLabel(cat)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descrição do bloco..."
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label htmlFor="thumbnail">Thumbnail (Preview)</Label>
+                <Input
+                  id="thumbnail"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailChange}
+                  className="cursor-pointer"
+                />
+                {thumbnailPreview && (
+                  <div className="mt-2">
+                    <img 
+                      src={thumbnailPreview} 
+                      alt="Preview" 
+                      className="w-full h-24 object-cover rounded border"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="ai_instructions">Instruções para IA</Label>
+                <Textarea
+                  id="ai_instructions"
+                  value={formData.ai_instructions}
+                  onChange={(e) => setFormData({ ...formData, ai_instructions: e.target.value })}
+                  placeholder="Ex: Use este bloco para parágrafos de texto rico..."
+                  className="text-sm"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="html">HTML Template *</Label>
+                <Textarea
+                  id="html"
+                  value={formData.html_template}
+                  onChange={(e) => setFormData({ ...formData, html_template: e.target.value })}
+                  placeholder="Cole o HTML do bloco aqui..."
+                  className="font-mono text-sm"
+                  rows={10}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave}>
+                  {editingBlock ? 'Atualizar' : 'Criar'}
+                </Button>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="category">Categoria *</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {getCategoryLabel(cat)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Descrição do bloco..."
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label htmlFor="thumbnail">Thumbnail (Preview)</Label>
-              <Input
-                id="thumbnail"
-                type="file"
-                accept="image/*"
-                onChange={handleThumbnailChange}
-                className="cursor-pointer"
-              />
-              {thumbnailPreview && (
-                <div className="mt-2">
-                  <img 
-                    src={thumbnailPreview} 
-                    alt="Preview" 
-                    className="w-full h-32 object-cover rounded border"
-                  />
+
+            {/* Coluna direita: Preview Visual */}
+            <div className="space-y-2">
+              <Label>Preview Visual</Label>
+              <div className="bg-muted rounded-lg p-4 h-[600px] overflow-auto">
+                <div className="bg-white mx-auto shadow-sm" style={{ maxWidth: '600px' }}>
+                  {formData.html_template ? (
+                    <iframe
+                      srcDoc={`
+                        <!DOCTYPE html>
+                        <html>
+                          <head>
+                            <meta charset="utf-8">
+                            <style>
+                              body { 
+                                margin: 0; 
+                                padding: 0; 
+                                font-family: Arial, sans-serif;
+                              }
+                            </style>
+                          </head>
+                          <body>${formData.html_template}</body>
+                        </html>
+                      `}
+                      className="w-full border-0"
+                      style={{ minHeight: '400px', height: 'auto' }}
+                      title="Preview do Bloco"
+                      sandbox="allow-same-origin"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-muted-foreground">
+                      <p className="text-sm">Digite o HTML para ver o preview</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="ai_instructions">Instruções para IA</Label>
-              <Textarea
-                id="ai_instructions"
-                value={formData.ai_instructions}
-                onChange={(e) => setFormData({ ...formData, ai_instructions: e.target.value })}
-                placeholder="Ex: Use este bloco para parágrafos de texto rico. Campos esperados no content: text (HTML com formatações). Exemplo: {'text': 'Texto aqui com <strong>negrito</strong>'}"
-                className="text-sm"
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Descreva quando usar este bloco e quais campos o content deve ter
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="html">HTML Template *</Label>
-              <Textarea
-                id="html"
-                value={formData.html_template}
-                onChange={(e) => setFormData({ ...formData, html_template: e.target.value })}
-                placeholder="Cole o HTML do bloco aqui..."
-                className="font-mono text-sm"
-                rows={12}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>
-                {editingBlock ? 'Atualizar' : 'Criar'}
-              </Button>
+              </div>
             </div>
           </div>
         </DialogContent>
