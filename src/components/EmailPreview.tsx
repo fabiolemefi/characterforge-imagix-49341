@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GripVertical, Monitor, Tablet, Smartphone, Trash2, Upload, Loader } from 'lucide-react';
+import { GripVertical, Monitor, Tablet, Smartphone, Trash2, Upload, Loader, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DndContext,
@@ -28,6 +28,7 @@ interface EmailPreviewProps {
   onReorderBlocks?: (blocks: BlockData[]) => void;
   onUpdateBlock?: (instanceId: string, html: string) => void;
   onDeleteBlock?: (instanceId: string) => void;
+  onAddBlock?: () => void;
 }
 
 interface SortableBlockProps {
@@ -204,6 +205,7 @@ export const EmailPreview = ({
   onReorderBlocks,
   onUpdateBlock,
   onDeleteBlock,
+  onAddBlock,
 }: EmailPreviewProps) => {
   const [localBlocks, setLocalBlocks] = useState<BlockData[]>(blocks);
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -247,6 +249,50 @@ export const EmailPreview = ({
       <div className={`bg-muted rounded-lg overflow-hidden flex flex-col h-full ${className}`}>
         <div className="bg-background border-b p-3 flex items-center justify-between flex-shrink-0">
           <span className="text-sm font-medium">Preview do Email</span>
+          <div className="flex gap-2">
+            <div className="flex gap-1">
+              <Button
+                variant={viewMode === 'mobile' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('mobile')}
+              >
+                <Smartphone className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'tablet' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('tablet')}
+              >
+                <Tablet className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'desktop' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('desktop')}
+              >
+                <Monitor className="h-4 w-4" />
+              </Button>
+            </div>
+            {onAddBlock && (
+              <Button size="sm" onClick={onAddBlock}>
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Bloco
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <p>Adicione blocos para visualizar seu email</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-muted rounded-lg overflow-hidden flex flex-col h-full ${className}`}>
+      <div className="bg-background border-b p-3 flex items-center justify-between flex-shrink-0">
+        <span className="text-sm font-medium">Preview do Email</span>
+        <div className="flex gap-2">
           <div className="flex gap-1">
             <Button
               variant={viewMode === 'mobile' ? 'default' : 'outline'}
@@ -270,40 +316,12 @@ export const EmailPreview = ({
               <Monitor className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <p>Adicione blocos para visualizar seu email</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`bg-muted rounded-lg overflow-hidden flex flex-col h-full ${className}`}>
-      <div className="bg-background border-b p-3 flex items-center justify-between flex-shrink-0">
-        <span className="text-sm font-medium">Preview do Email</span>
-        <div className="flex gap-1">
-          <Button
-            variant={viewMode === 'mobile' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('mobile')}
-          >
-            <Smartphone className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'tablet' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('tablet')}
-          >
-            <Tablet className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'desktop' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('desktop')}
-          >
-            <Monitor className="h-4 w-4" />
-          </Button>
+          {onAddBlock && (
+            <Button size="sm" onClick={onAddBlock}>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Bloco
+            </Button>
+          )}
         </div>
       </div>
       <div className="overflow-y-auto flex-1">
