@@ -5,21 +5,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Copy, Ban } from "lucide-react";
+import { MoreHorizontal, Pencil, Copy, Ban, BarChart3, FileText } from "lucide-react";
 import { TestStatus } from "@/types/test";
 import { useNavigate } from "react-router-dom";
 import { useCreateTest, useDeactivateTest } from "@/hooks/useTests";
 
-interface TestActionsDropdownProps {
+export interface TestActionsDropdownProps {
   testId: string;
   status: TestStatus;
   test: any;
+  onCollectData?: () => void;
 }
 
 export function TestActionsDropdown({
   testId,
   status,
   test,
+  onCollectData,
 }: TestActionsDropdownProps) {
   const navigate = useNavigate();
   const createTest = useCreateTest();
@@ -52,6 +54,12 @@ export function TestActionsDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-background z-50">
+        {onCollectData && (
+          <DropdownMenuItem onClick={onCollectData}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Coletar dados
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleEdit}>
           <Pencil className="h-4 w-4 mr-2" />
           Editar
