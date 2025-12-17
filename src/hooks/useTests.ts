@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Test, TestStatus } from "@/types/test";
 import { toast } from "sonner";
+import { queryWithAuth } from "@/lib/queryWithAuth";
 
 export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) => {
   return useQuery({
     queryKey: ["tests", filters],
-    queryFn: async () => {
+    queryFn: () => queryWithAuth(async () => {
       let query = supabase
         .from("tests")
         .select(`
@@ -33,14 +34,15 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
       
       console.log("Tests fetched:", data);
       return data as unknown as Test[];
-    },
+    }),
+    staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
   });
 };
 
 export const useTest = (id?: string) => {
   return useQuery({
     queryKey: ["test", id],
-    queryFn: async () => {
+    queryFn: () => queryWithAuth(async () => {
       if (!id) return null;
 
       const { data, error } = await supabase
@@ -51,8 +53,9 @@ export const useTest = (id?: string) => {
 
       if (error) throw error;
       return data as unknown as Test;
-    },
+    }),
     enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 };
 
