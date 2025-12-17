@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader, Sparkles } from "lucide-react";
+import { Loader, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EmailBlock } from "@/hooks/useEmailBlocks";
@@ -28,6 +28,13 @@ interface AIResponse {
   blocks: AIBlock[];
 }
 
+const PROGRESS_MESSAGES = [
+  "Analisando seu conteúdo...",
+  "Estruturando os blocos do email...",
+  "Gerando textos e formatações...",
+  "Finalizando a estrutura...",
+];
+
 const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
 
@@ -36,19 +43,15 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
   // Special handling for Welcome block - has both greeting (hi) and title
   if (blockName === "Welcome") {
     if (content.hi) {
-      // Replace "Olá, Pedro." with the greeting
       html = html.replace(/Olá, Pedro\./gi, content.hi);
     }
     if (content.title) {
-      // Replace {{texto}} placeholder with the main title
       html = html.replace(/\{\{texto\}\}/gi, content.title);
       html = html.replace(/\{\{text\}\}/gi, content.title);
     }
   }
-  // Special handling for Signature block - replace the full signature text
+  // Special handling for Signature block
   else if (blockName === "Signature" && content.text) {
-    // Replace the entire signature content (both "Abraços," and "Equipe Efí Bank")
-    // Find and replace the two paragraphs
     html = html.replace(
       /(<p style="Margin:0;mso-line-height-alt:20px;">)<span[^>]*>Abraços,<\/span>(<\/p>)/gi,
       `$1<span style="font-size:14px;font-family:'Arial',sans-serif;font-weight:400;color:#586476;line-height:143%;mso-line-height-alt:20px;">${content.text.split('<br>')[0]}</span>$2`
@@ -58,7 +61,7 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
       `$1<span style="font-size:14px;font-family:'Arial',sans-serif;font-weight:700;color:#f37021;line-height:143%;mso-line-height-alt:20px;">${content.text.split('<br>')[1] || ''}</span>$2`
     );
   }
-  // Regular title placeholders (for Title blocks)
+  // Regular title placeholders
   else if (content.title) {
     html = html.replace(/\{\{titulo\}\}/gi, content.title);
     html = html.replace(/\{\{title\}\}/gi, content.title);
@@ -66,7 +69,7 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
     html = html.replace(/\{\{text\}\}/gi, content.title);
   }
 
-  // Replace text content (for Paragrafo blocks)
+  // Replace text content
   if (content.text) {
     html = html.replace(/\{\{texto\}\}/gi, content.text);
     html = html.replace(/\{\{text\}\}/gi, content.text);
@@ -74,20 +77,18 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
     html = html.replace(/\{\{content\}\}/gi, content.text);
   }
 
-  // Replace category (for Header blocks)
+  // Replace category
   if (content.category) {
     html = html.replace(/\{\{texto\}\}/gi, content.category);
     html = html.replace(/\{\{text\}\}/gi, content.category);
     html = html.replace(/\{\{category\}\}/gi, content.category);
   }
 
-  // Replace button text and URL (ONLY for button blocks)
+  // Replace button text and URL
   if (content.button_text) {
     html = html.replace(/\{\{botao\}\}/gi, content.button_text);
     html = html.replace(/\{\{button_text\}\}/gi, content.button_text);
     html = html.replace(/\{\{button\}\}/gi, content.button_text);
-
-    // Replace text inside <a> tags (for buttons)
     html = html.replace(/(<a[^>]*href[^>]*>)[^<]*(<\/a>)/gi, (match, open, close) => {
       return `${open}${content.button_text}${close}`;
     });
@@ -108,6 +109,49 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
   const { toast } = useToast();
   const [description, setDescription] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Progress message rotation
+  useEffect(() => {
+    if (generating) {
+      let messageIndex = 0;
+      setProgressMessage(PROGRESS_MESSAGES[0]);
+      
+      progressRef.current = setInterval(() => {
+        messageIndex = (messageIndex + 1) % PROGRESS_MESSAGES.length;
+        setProgressMessage(PROGRESS_MESSAGES[messageIndex]);
+      }, 3000);
+
+      // Elapsed time counter
+      timerRef.current = setInterval(() => {
+        setElapsedTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (progressRef.current) clearInterval(progressRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+      setElapsedTime(0);
+    }
+
+    return () => {
+      if (progressRef.current) clearInterval(progressRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [generating]);
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setGenerating(false);
+    toast({
+      title: "Geração cancelada",
+      description: "A geração do email foi interrompida.",
+    });
+  };
 
   const handleGenerate = async () => {
     if (!description.trim()) {
@@ -120,14 +164,23 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     }
 
     setGenerating(true);
+    abortControllerRef.current = new AbortController();
+
+    // Timeout de 60 segundos
+    const timeoutId = setTimeout(() => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    }, 60000);
 
     try {
-      // 1. Call edge function to generate structure
-      console.log("Chamando edge function com descrição:", description);
+      console.log("Chamando edge function com descrição:", description.substring(0, 100) + "...");
 
       const { data: aiData, error: aiError } = await supabase.functions.invoke("generate-email-ai", {
         body: { description },
       });
+
+      clearTimeout(timeoutId);
 
       if (aiError) throw aiError;
       if (!aiData) throw new Error("Nenhuma resposta da IA");
@@ -136,7 +189,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
 
       const emailStructure: AIResponse = aiData;
 
-      // 2. Fetch all available blocks from database
+      // Fetch all available blocks
       const { data: allBlocks, error: blocksError } = await supabase
         .from("email_blocks")
         .select("*")
@@ -147,17 +200,11 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
         throw new Error("Nenhum bloco disponível no banco de dados");
       }
 
-      console.log("Blocos disponíveis:", allBlocks.length);
-
-      // 3. Map AI blocks to real database blocks and add category to Header
+      // Map AI blocks to real database blocks
       const selectedBlocks = emailStructure.blocks
         .map((aiBlock, index) => {
-          console.log(`Mapeando bloco ${index}:`, aiBlock.name, aiBlock.category);
-
-          // Find a matching block by exact name first, then by category
           let matchingBlock = allBlocks.find((dbBlock: EmailBlock) => dbBlock.name === aiBlock.name);
 
-          // Fallback: try to find by category if name doesn't match
           if (!matchingBlock) {
             matchingBlock = allBlocks.find(
               (dbBlock: EmailBlock) => dbBlock.category.toLowerCase() === aiBlock.category.toLowerCase(),
@@ -169,19 +216,12 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
             return null;
           }
 
-          console.log(`Bloco encontrado: ${matchingBlock.name}, aplicando conteúdo:`, aiBlock.content);
-
-          // Special handling for Header: add category from email structure
           let contentToApply = aiBlock.content;
           if (matchingBlock.name === "Header" && emailStructure.category) {
             contentToApply = { category: emailStructure.category };
-            console.log(`Aplicando categoria ao Header:`, emailStructure.category);
           }
 
-          // Apply content to the HTML template
           const customHtml = applyContentToHtml(matchingBlock.html_template, contentToApply, matchingBlock.name);
-
-          console.log(`HTML customizado (primeiros 200 chars):`, customHtml.substring(0, 200));
 
           return {
             ...matchingBlock,
@@ -189,18 +229,16 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
             customHtml,
           };
         })
-        .filter(Boolean); // Remove nulls
-
-      console.log("Blocos selecionados:", selectedBlocks.length);
+        .filter(Boolean);
 
       if (selectedBlocks.length === 0) {
         throw new Error("Não foi possível mapear os blocos gerados");
       }
 
-      // 4. Generate HTML content
+      // Generate HTML content
       const htmlContent = selectedBlocks.map((block) => block.customHtml || block.html_template).join("\n");
 
-      // 5. Create the template
+      // Create the template
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("Usuário não autenticado");
 
@@ -222,25 +260,33 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       if (saveError) throw saveError;
       if (!template) throw new Error("Erro ao criar template");
 
-      console.log("Template criado:", template.id);
-
       toast({
         title: "Email gerado com sucesso! ✨",
         description: "Seu email foi criado com IA. Agora você pode editá-lo.",
       });
 
-      // 6. Navigate to the email builder
       navigate(`/email-builder/${template.id}`);
       onClose();
     } catch (error: any) {
-      console.error("Erro ao gerar email com IA:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao gerar email",
-        description: error.message || "Não foi possível gerar o email com IA",
-      });
+      clearTimeout(timeoutId);
+      
+      if (error.name === "AbortError" || error.message?.includes("aborted")) {
+        toast({
+          variant: "destructive",
+          title: "Tempo esgotado",
+          description: "A geração demorou mais que o esperado. Tente novamente com uma descrição mais curta.",
+        });
+      } else {
+        console.error("Erro ao gerar email com IA:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao gerar email",
+          description: error.message || "Não foi possível gerar o email com IA",
+        });
+      }
     } finally {
       setGenerating(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -274,25 +320,37 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
               disabled={generating}
             />
           </div>
+
+          {generating && (
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader className="h-4 w-4 animate-spin" />
+                <span>{progressMessage}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Tempo: {elapsedTime}s
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleClose} disabled={generating}>
-            Cancelar
-          </Button>
-          <Button onClick={handleGenerate} disabled={generating || !description.trim()}>
-            {generating ? (
-              <>
-                <Loader className="h-4 w-4 mr-2 animate-spin" />
-                Gerando...
-              </>
-            ) : (
-              <>
+          {generating ? (
+            <Button variant="destructive" onClick={handleCancel}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleClose}>
+                Fechar
+              </Button>
+              <Button onClick={handleGenerate} disabled={!description.trim()}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Gerar Email
-              </>
-            )}
-          </Button>
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
