@@ -24,7 +24,18 @@ CAMPOS OBRIGATÓRIOS NO JSON DE RESPOSTA:
 - subject: Assunto breve e atrativo (40-60 chars ideal, máx 78 chars)
 - preview_text: Texto preheader complementar (40-130 chars) que continua/complementa o assunto
 - category: Categoria do email (ex: "Páscoa", "Black Friday", "Newsletter")
-- blocks: Array de blocos conforme descrito acima
+- blocks: Array de blocos conforme descrito abaixo
+
+FORMATO OBRIGATÓRIO DE CADA BLOCO (CRÍTICO!):
+Cada bloco DEVE ter EXATAMENTE esta estrutura JSON:
+{
+  "name": "NomeExato do bloco conforme listado acima (case-sensitive)",
+  "category": "categoria do bloco conforme listado acima",
+  "content": { campos específicos do bloco } ou null
+}
+
+NUNCA use "type" no lugar de "name". Use SEMPRE "name" para identificar o bloco.
+SEMPRE inclua o campo "category" em cada bloco.
 
 BOAS PRÁTICAS DE SUBJECT E PREVIEW_TEXT:
 - Subject: Breve, direto, cria urgência/curiosidade, usa emojis se apropriado, foca no benefício principal
@@ -39,7 +50,7 @@ IMPORTANTE SOBRE FORMATAÇÕES:
 - Listas <ul> e <ol> com <li> devem ser convertidas em parágrafos ou preservadas conforme o contexto
 - Títulos <h1> e <h2> devem ser usados em blocos de título apropriadamente
 
-IMPORTANTE: Use o campo "name" exatamente como listado nos blocos disponíveis (case-sensitive)! Retorne APENAS o JSON válido, sem markdown, sem explicações.`;
+IMPORTANTE: Retorne APENAS o JSON válido, sem markdown, sem explicações.`;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -145,6 +156,29 @@ Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`
     if (!emailStructure.name || !emailStructure.subject || !emailStructure.preview_text || !emailStructure.blocks || !Array.isArray(emailStructure.blocks)) {
       throw new Error("Estrutura de resposta inválida da IA - campos obrigatórios: name, subject, preview_text, blocks");
     }
+
+    // Normalize blocks: convert "type" to "name" and infer missing category
+    emailStructure.blocks = emailStructure.blocks.map((block: any) => {
+      // Use "name" if present, otherwise fallback to "type"
+      const blockName = block.name || block.type;
+      
+      // Find category from DB if not specified
+      let blockCategory = block.category;
+      if (!blockCategory && blockName) {
+        const matchingDbBlock = blocks?.find(b => 
+          b.name.toLowerCase() === blockName.toLowerCase()
+        );
+        blockCategory = matchingDbBlock?.category || "content";
+      }
+      
+      return {
+        name: blockName,
+        category: blockCategory || "content",
+        content: block.content || null
+      };
+    });
+
+    console.log("Blocos normalizados:", emailStructure.blocks.map((b: any) => `${b.name}(${b.category})`).join(", "));
 
     // Find header and signature blocks from DB to ensure correct naming
     const headerBlock = blocks?.find(b => b.category === "header");
