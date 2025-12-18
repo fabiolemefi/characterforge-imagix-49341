@@ -64,7 +64,7 @@ export function Sidebar() {
     }
     
     // Auto-expand plugins if on plugin page
-    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates' || currentPath === '/efi-slides') {
+    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates' || currentPath === '/efi-slides' || currentPath === '/email-magico') {
       setExpandedPlugins(true);
     }
     
@@ -97,6 +97,7 @@ export function Sidebar() {
     if (plugin.name === 'Efimagem') return '/efimagem';
     if (plugin.name === 'Email Builder') return '/email-templates';
     if (plugin.name === 'Efi Slides') return '/efi-slides';
+    if (plugin.name === 'Email mágico') return '/email-magico';
     return `/plugin/${plugin.id}`;
   };
 

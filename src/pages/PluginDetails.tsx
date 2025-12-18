@@ -69,6 +69,12 @@ export default function PluginDetails() {
       return;
     }
 
+    // Redirecionar para página específica do Email mágico
+    if (data.name === "Email mágico") {
+      navigate("/email-magico");
+      return;
+    }
+
     setPlugin(data);
     setLoading(false);
   };
