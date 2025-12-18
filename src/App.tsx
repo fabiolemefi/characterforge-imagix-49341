@@ -17,6 +17,8 @@ import Efimail from "./pages/Efimail";
 import Efimagem from "./pages/Efimagem";
 import EmailBuilder from './pages/EmailBuilder';
 import EmailTemplates from './pages/EmailTemplates';
+import EmailMagico from './pages/EmailMagico';
+import AdminEmailMagico from './pages/AdminEmailMagico';
 import AdminEmailBlocks from './pages/AdminEmailBlocks';
 import TestsDashboard from './pages/TestsDashboard';
 import TestsList from './pages/TestsList';
@@ -69,10 +71,12 @@ const App = () => <AuthProvider>
           <Route path="/efimail" element={<ProtectedRoute><AppLayout><Efimail /></AppLayout></ProtectedRoute>} />
           <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
           <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
+          <Route path="/email-magico" element={<ProtectedRoute><AppLayout><EmailMagico /></AppLayout></ProtectedRoute>} />
           <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
+          <Route path="/admin/email-magico" element={<ProtectedRoute><AdminEmailMagico /></ProtectedRoute>} />
           <Route path="/brand-guide" element={<ProtectedRoute><AppLayout><BrandGuideHome /></AppLayout></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
           <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />

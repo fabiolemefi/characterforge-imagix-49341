@@ -740,6 +740,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_magic_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          max_output_tokens: number | null
+          reference_images: string[] | null
+          system_instruction: string
+          temperature: number | null
+          thinking_level: string | null
+          top_p: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          max_output_tokens?: number | null
+          reference_images?: string[] | null
+          system_instruction?: string
+          temperature?: number | null
+          thinking_level?: string | null
+          top_p?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          max_output_tokens?: number | null
+          reference_images?: string[] | null
+          system_instruction?: string
+          temperature?: number | null
+          thinking_level?: string | null
+          top_p?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       email_template_blocks: {
         Row: {
           block_id: string
