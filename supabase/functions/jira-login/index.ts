@@ -150,6 +150,18 @@ serve(async (req) => {
     } else {
       console.log(`User already exists: ${email}`);
       
+      // Update password to ensure it matches derived password
+      const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingProfile.id,
+        { password: derivedPassword }
+      );
+      
+      if (passwordError) {
+        console.error('Error updating password:', passwordError);
+      } else {
+        console.log('Password updated to derived password');
+      }
+      
       // Update profile with latest Jira data
       await supabaseAdmin
         .from('profiles')
