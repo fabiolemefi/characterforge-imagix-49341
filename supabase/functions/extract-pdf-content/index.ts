@@ -115,7 +115,7 @@ RETORNE APENAS o conteúdo limpo, sem explicações ou comentários adicionais.`
 
     console.log("[extract-pdf-content] Cleaning markdown with Gemini 3 Pro...");
 
-    const geminiOutput = await replicate.run("google/gemini-3-pro-preview", {
+    const geminiOutput = await replicate.run("google/gemini-3-pro", {
       input: {
         prompt: rawMarkdown,
         system_instruction: systemInstruction,
