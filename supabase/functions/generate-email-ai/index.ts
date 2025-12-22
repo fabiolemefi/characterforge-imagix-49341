@@ -11,13 +11,21 @@ const BASE_SYSTEM_PROMPT = `Você é um especialista em criação de emails mark
 
 REGRAS OBRIGATÓRIAS DE COMPOSIÇÃO E ESTRUTURAL:
 1. SEMPRE COMEÇAR com bloco tipo "header" (geralmente chamado "Header") com content: null
-2. SEMPRE adicionar bloco de imagem logo após Header como banner/hero com content: null
+2. SEMPRE adicionar bloco de imagem logo após Header como banner/hero
 3. USAR "Title" + "Paragrafo" SEMPRE: Cada título deve ser seguido por parágrafo rico explicativo
 4. Para parágrafos: DESENVOLVER conteúdo substancial com pelo menos 2-3 frases interessantes, usando <strong>, <em>, <br> para formatação HTML
 5. Usar bloco de imagem (ilustrativa) antes de seções importantes para quebrar texto
 6. Usar botão APENAS quando existir ação específica e URL conhecida
 7. Usar divisor entre tópicos DIFERENTES (não overuse)
 8. SEMPRE TERMINAR com bloco de assinatura/signature
+
+REGRA ESPECIAL PARA IMAGEM HERO (BANNER):
+- O bloco de imagem que vem IMEDIATAMENTE APÓS o Header é a "hero image" (banner principal)
+- Este bloco DEVE ter no campo content:
+  - "isHeroImage": true
+  - "heroPrompt": uma descrição em português da CENA/AÇÃO desejada para a imagem (NÃO descrever o personagem, apenas a ação/cenário)
+- Exemplo de heroPrompt: "celebrando o Dia dos Namorados com um buquê de flores, ambiente romântico com luz suave"
+- O heroPrompt deve ser contextual ao tema do email
 
 CAMPOS OBRIGATÓRIOS NO JSON DE RESPOSTA:
 - name: Nome curto e objetivo do email (máx 60 chars)
@@ -216,6 +224,28 @@ Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`;
       console.log("Adicionado Header no início");
     }
 
+    // Mark hero image blocks (image blocks right after header)
+    emailStructure.blocks = emailStructure.blocks.map((block: any, index: number) => {
+      const prevBlock = emailStructure.blocks[index - 1];
+      const isAfterHeader = prevBlock?.category === "header";
+      const isImageBlock = block.name?.toLowerCase() === "image" || 
+                           block.name?.toLowerCase().includes("image") ||
+                           block.name?.toLowerCase() === "imagem";
+      
+      if (isAfterHeader && isImageBlock) {
+        console.log("Marcando bloco de hero image:", block.name);
+        return {
+          ...block,
+          content: {
+            ...(block.content || {}),
+            isHeroImage: true,
+            heroPrompt: block.content?.heroPrompt || `ilustrando o tema: ${emailStructure.category || emailStructure.name}`
+          }
+        };
+      }
+      return block;
+    });
+
     // Ensure last block is signature type
     const lastBlock = emailStructure.blocks[emailStructure.blocks.length - 1];
     const isSignature = lastBlock?.name?.toLowerCase().includes("signature") || 
@@ -228,6 +258,11 @@ Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`;
       });
       console.log("Adicionada Signature no final");
     }
+
+    // Log hero image info
+    const heroBlocks = emailStructure.blocks.filter((b: any) => b.content?.isHeroImage);
+    console.log("Blocos de hero image encontrados:", heroBlocks.length);
+    heroBlocks.forEach((b: any) => console.log("  - heroPrompt:", b.content?.heroPrompt));
 
     console.log("Estrutura final gerada com", emailStructure.blocks.length, "blocos");
 

@@ -10,7 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { EmailBlock } from "@/hooks/useEmailBlocks";
 import { RichTextEditor } from "./RichTextEditor";
 import { useEmailDatasets } from "@/hooks/useEmailDatasets";
-import { cn } from "@/lib/utils";
+import { SelectCharacterModal } from "./SelectCharacterModal";
+
 interface CreateWithAIModalProps {
   open: boolean;
   onClose: () => void;
@@ -18,7 +19,7 @@ interface CreateWithAIModalProps {
 
 interface AIBlock {
   name?: string;
-  type?: string; // fallback if AI uses "type" instead of "name"
+  type?: string;
   category?: string;
   content?: any;
 }
@@ -31,8 +32,36 @@ interface AIResponse {
   blocks: AIBlock[];
 }
 
+interface CharacterImage {
+  id: string;
+  image_url: string;
+  position: number;
+  is_cover: boolean;
+}
+
+interface Character {
+  id: string;
+  name: string;
+  general_prompt: string;
+  images: CharacterImage[];
+  coverImage?: string;
+}
+
+interface HeroBlockInfo {
+  index: number;
+  heroPrompt: string;
+}
+
 // Mensagens de progresso baseadas no tempo real
-const getProgressMessage = (seconds: number): string => {
+const getProgressMessage = (seconds: number, phase: 'generating' | 'hero'): string => {
+  if (phase === 'hero') {
+    if (seconds < 5) return "Iniciando geração da imagem...";
+    if (seconds < 15) return "Processando com Replicate...";
+    if (seconds < 30) return "Criando imagem com persona...";
+    if (seconds < 45) return "Finalizando imagem do banner...";
+    return "Quase lá... aguarde...";
+  }
+  
   if (seconds < 5) return "Conectando com a IA...";
   if (seconds < 15) return "Aguardando resposta do Gemini...";
   if (seconds < 30) return "Processando conteúdo (pode levar até 1 minuto)...";
@@ -40,14 +69,14 @@ const getProgressMessage = (seconds: number): string => {
   return "Finalizando... por favor aguarde...";
 };
 
-const TIMEOUT_MS = 60000; // 60 segundos
+const TIMEOUT_MS = 60000;
 
 const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
 
   let html = htmlTemplate;
 
-  // Special handling for Welcome block - has both greeting (hi) and title
+  // Special handling for Welcome block
   if (blockName === "Welcome") {
     if (content.hi) {
       html = html.replace(/Olá, Pedro\./gi, content.hi);
@@ -111,6 +140,15 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
   return html;
 };
 
+// Function to replace image src in HTML
+const replaceImageSrc = (html: string, newImageUrl: string): string => {
+  // Replace any img src with the new URL
+  return html.replace(
+    /<img([^>]*?)src="[^"]*"([^>]*?)>/gi,
+    `<img$1src="${newImageUrl}"$2>`
+  );
+};
+
 export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -121,17 +159,31 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [cancelled, setCancelled] = useState(false);
   const [useDataset, setUseDataset] = useState(true);
+  const [progressPhase, setProgressPhase] = useState<'generating' | 'hero'>('generating');
+  
+  // Hero image generation states
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
+  const [heroBlockInfo, setHeroBlockInfo] = useState<HeroBlockInfo | null>(null);
+  const [pendingEmailData, setPendingEmailData] = useState<{
+    emailStructure: AIResponse;
+    selectedBlocks: any[];
+  } | null>(null);
+  const [generatingHero, setGeneratingHero] = useState(false);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<any>(null);
 
-  // Elapsed time counter and progress message based on time
+  // Elapsed time counter and progress message
   useEffect(() => {
-    if (generating) {
-      setProgressMessage(getProgressMessage(0));
+    if (generating || generatingHero) {
+      const phase = generatingHero ? 'hero' : 'generating';
+      setProgressPhase(phase);
+      setProgressMessage(getProgressMessage(0, phase));
       
       timerRef.current = setInterval(() => {
         setElapsedTime((prev) => {
           const newTime = prev + 1;
-          setProgressMessage(getProgressMessage(newTime));
+          setProgressMessage(getProgressMessage(newTime, phase));
           return newTime;
         });
       }, 1000);
@@ -144,11 +196,24 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [generating]);
+  }, [generating, generatingHero]);
+
+  // Cleanup realtime channel on unmount
+  useEffect(() => {
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
+    };
+  }, []);
 
   const handleCancel = () => {
     setCancelled(true);
     setGenerating(false);
+    setGeneratingHero(false);
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
     toast({
       title: "Geração cancelada",
       description: "A geração do email foi interrompida.",
@@ -171,14 +236,12 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     try {
       console.log("Chamando edge function com descrição:", description.substring(0, 100) + "...");
 
-      // Promise de timeout real
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
           reject(new Error("TIMEOUT"));
         }, TIMEOUT_MS);
       });
 
-      // Race entre a chamada e o timeout
       const result = await Promise.race([
         supabase.functions.invoke("generate-email-ai", {
           body: { 
@@ -212,29 +275,24 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       // Map AI blocks to real database blocks
       const selectedBlocks = emailStructure.blocks
         .map((aiBlock, index) => {
-          // Use "name" if present, fallback to "type"
           const aiBlockName = aiBlock.name || aiBlock.type;
           
-          // Try exact name match first
           let matchingBlock = allBlocks.find(
             (dbBlock: EmailBlock) => dbBlock.name === aiBlockName
           );
 
-          // Try case-insensitive name match
           if (!matchingBlock && aiBlockName) {
             matchingBlock = allBlocks.find(
               (dbBlock: EmailBlock) => dbBlock.name.toLowerCase() === aiBlockName.toLowerCase()
             );
           }
 
-          // Try category match (with null safety)
           if (!matchingBlock && aiBlock.category) {
             matchingBlock = allBlocks.find(
               (dbBlock: EmailBlock) => dbBlock.category?.toLowerCase() === aiBlock.category?.toLowerCase()
             );
           }
 
-          // Try partial name match as last resort
           if (!matchingBlock && aiBlockName) {
             matchingBlock = allBlocks.find(
               (dbBlock: EmailBlock) => 
@@ -259,6 +317,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
             ...matchingBlock,
             instanceId: `${matchingBlock.id}-${Date.now()}-${index}`,
             customHtml,
+            aiContent: aiBlock.content, // Keep original AI content for hero detection
           };
         })
         .filter(Boolean);
@@ -267,38 +326,27 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
         throw new Error("Não foi possível mapear os blocos gerados");
       }
 
-      // Generate HTML content
-      const htmlContent = selectedBlocks.map((block) => block.customHtml || block.html_template).join("\n");
+      // Check for hero image blocks
+      const heroBlockIndex = selectedBlocks.findIndex(
+        (block: any) => block.aiContent?.isHeroImage === true
+      );
 
-      // Create the template
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error("Usuário não autenticado");
+      if (heroBlockIndex !== -1) {
+        const heroBlock = selectedBlocks[heroBlockIndex];
+        const heroPrompt = heroBlock.aiContent?.heroPrompt || `ilustrando: ${emailStructure.category || emailStructure.name}`;
+        
+        console.log("Hero image block encontrado:", heroPrompt);
+        
+        // Store pending data and show character selection modal
+        setPendingEmailData({ emailStructure, selectedBlocks });
+        setHeroBlockInfo({ index: heroBlockIndex, heroPrompt });
+        setGenerating(false);
+        setShowCharacterModal(true);
+        return;
+      }
 
-      const { data: template, error: saveError } = await supabase
-        .from("email_templates")
-        .insert({
-          name: emailStructure.name,
-          subject: emailStructure.subject,
-          preview_text: emailStructure.preview_text,
-          description: emailStructure.category || null,
-          html_content: htmlContent,
-          blocks_data: selectedBlocks,
-          created_by: user.user.id,
-          updated_by: user.user.id,
-        })
-        .select()
-        .single();
-
-      if (saveError) throw saveError;
-      if (!template) throw new Error("Erro ao criar template");
-
-      toast({
-        title: "Email gerado com sucesso! ✨",
-        description: "Seu email foi criado com IA. Agora você pode editá-lo.",
-      });
-
-      navigate(`/email-builder/${template.id}`);
-      onClose();
+      // No hero image, proceed directly to save
+      await saveEmailTemplate(emailStructure, selectedBlocks);
     } catch (error: any) {
       if (cancelled) return;
       
@@ -317,89 +365,265 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
         });
       }
     } finally {
-      if (!cancelled) {
+      if (!cancelled && !showCharacterModal) {
         setGenerating(false);
       }
     }
   };
 
+  const handleCharacterSelect = async (character: Character) => {
+    if (!pendingEmailData || !heroBlockInfo) return;
+
+    setGeneratingHero(true);
+    setElapsedTime(0);
+
+    try {
+      const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${heroBlockInfo.heroPrompt}`;
+      const imageUrls = character.images.map((img) => img.image_url);
+
+      console.log("Gerando hero image com persona:", character.name);
+      console.log("Prompt completo:", fullPrompt);
+
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
+        body: {
+          imageUrls: imageUrls,
+          prompt: fullPrompt,
+          generalPrompt: character.general_prompt,
+          characterName: character.name,
+          characterId: character.id,
+          aspectRatio: "16:9", // Banner format
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.recordId) {
+        console.log("Geração iniciada, aguardando via Realtime:", data.recordId);
+        
+        // Setup realtime listener for the generated image
+        channelRef.current = supabase
+          .channel(`hero_image_${data.recordId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'generated_images',
+              filter: `id=eq.${data.recordId}`
+            },
+            async (payload) => {
+              const updatedImage = payload.new as any;
+              console.log("Realtime update:", updatedImage.status);
+
+              if (updatedImage.status === 'completed') {
+                const imageUrl = updatedImage.image_url;
+                console.log("Hero image gerada:", imageUrl);
+                
+                // Update the hero block HTML with the new image
+                const updatedBlocks = [...pendingEmailData.selectedBlocks];
+                if (updatedBlocks[heroBlockInfo.index]) {
+                  updatedBlocks[heroBlockInfo.index].customHtml = replaceImageSrc(
+                    updatedBlocks[heroBlockInfo.index].customHtml,
+                    imageUrl
+                  );
+                }
+
+                // Cleanup and save
+                supabase.removeChannel(channelRef.current);
+                setGeneratingHero(false);
+                setShowCharacterModal(false);
+                
+                await saveEmailTemplate(pendingEmailData.emailStructure, updatedBlocks);
+                
+                toast({
+                  title: "Imagem gerada!",
+                  description: `Banner criado com ${character.name}`,
+                });
+              } else if (updatedImage.status === 'failed') {
+                console.error("Erro na geração:", updatedImage.error_message);
+                
+                supabase.removeChannel(channelRef.current);
+                setGeneratingHero(false);
+                
+                toast({
+                  variant: "destructive",
+                  title: "Erro na geração da imagem",
+                  description: updatedImage.error_message || "Não foi possível gerar a imagem. Continuando sem o banner.",
+                });
+
+                // Continue without hero image
+                await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
+              }
+            }
+          )
+          .subscribe();
+      }
+    } catch (error: any) {
+      console.error("Erro ao gerar hero image:", error);
+      setGeneratingHero(false);
+      
+      toast({
+        variant: "destructive",
+        title: "Erro na geração da imagem",
+        description: error.message || "Não foi possível gerar a imagem. Continuando sem o banner.",
+      });
+
+      // Continue without hero image
+      await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
+    }
+  };
+
+  const handleSkipHeroImage = async () => {
+    if (!pendingEmailData) return;
+    
+    setShowCharacterModal(false);
+    await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
+  };
+
+  const saveEmailTemplate = async (emailStructure: AIResponse, selectedBlocks: any[]) => {
+    try {
+      // Generate HTML content
+      const htmlContent = selectedBlocks.map((block) => block.customHtml || block.html_template).join("\n");
+
+      // Clean up aiContent from blocks before saving
+      const blocksToSave = selectedBlocks.map(({ aiContent, ...block }) => block);
+
+      // Create the template
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("Usuário não autenticado");
+
+      const { data: template, error: saveError } = await supabase
+        .from("email_templates")
+        .insert({
+          name: emailStructure.name,
+          subject: emailStructure.subject,
+          preview_text: emailStructure.preview_text,
+          description: emailStructure.category || null,
+          html_content: htmlContent,
+          blocks_data: blocksToSave,
+          created_by: user.user.id,
+          updated_by: user.user.id,
+        })
+        .select()
+        .single();
+
+      if (saveError) throw saveError;
+      if (!template) throw new Error("Erro ao criar template");
+
+      toast({
+        title: "Email gerado com sucesso! ✨",
+        description: "Seu email foi criado com IA. Agora você pode editá-lo.",
+      });
+
+      navigate(`/email-builder/${template.id}`);
+      handleClose();
+    } catch (error: any) {
+      console.error("Erro ao salvar template:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar email",
+        description: error.message || "Não foi possível salvar o email",
+      });
+    } finally {
+      setGenerating(false);
+      setGeneratingHero(false);
+      setPendingEmailData(null);
+      setHeroBlockInfo(null);
+    }
+  };
+
   const handleClose = () => {
-    if (!generating) {
+    if (!generating && !generatingHero) {
       setDescription("");
+      setPendingEmailData(null);
+      setHeroBlockInfo(null);
+      setShowCharacterModal(false);
       onClose();
     }
   };
 
+  const isLoading = generating || generatingHero;
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Criar Email com IA
-          </DialogTitle>
-          <DialogDescription>
-            Descreva o email que você quer criar e a IA montará a estrutura para você usando os blocos disponíveis.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open && !showCharacterModal} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Criar Email com IA
+            </DialogTitle>
+            <DialogDescription>
+              Descreva o email que você quer criar e a IA montará a estrutura para você usando os blocos disponíveis.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">Conteúdo do email</Label>
-            <RichTextEditor
-              value={description}
-              onChange={setDescription}
-              placeholder="Ex: Email sobre Dia dos namorados&#10;&#10;O Efí Bank lança promoção..."
-              disabled={generating}
-            />
-          </div>
-
-          {generating && (
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader className="h-4 w-4 animate-spin" />
-                <span>{progressMessage}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Tempo: {elapsedTime}s
-              </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Conteúdo do email</Label>
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Ex: Email sobre Dia dos namorados&#10;&#10;O Efí Bank lança promoção..."
+                disabled={isLoading}
+              />
             </div>
-          )}
-        </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="use-dataset"
-              checked={useDataset}
-              onCheckedChange={setUseDataset}
-              disabled={generating}
-            />
-            <Label 
-              htmlFor="use-dataset" 
-              className="text-sm cursor-pointer"
-            >
-              Usar dataset de conteúdo
-              {datasetLoading && <span className="text-muted-foreground"> (carregando...)</span>}
-              {!datasetLoading && !dataset?.content && <span className="text-muted-foreground"> (vazio)</span>}
-            </Label>
-          </div>
-          
-          <div className="flex gap-2">
-            {generating ? (
-              <Button variant="destructive" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" />
-                Cancelar
-              </Button>
-            ) : (
-              <Button onClick={handleGenerate} disabled={!description.trim()}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Gerar Email
-              </Button>
+            {isLoading && (
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader className="h-4 w-4 animate-spin" />
+                  <span>{progressMessage}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Tempo: {elapsedTime}s
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="use-dataset"
+                checked={useDataset}
+                onCheckedChange={setUseDataset}
+                disabled={isLoading}
+              />
+              <Label 
+                htmlFor="use-dataset" 
+                className="text-sm cursor-pointer"
+              >
+                Usar dataset de conteúdo
+                {datasetLoading && <span className="text-muted-foreground"> (carregando...)</span>}
+                {!datasetLoading && !dataset?.content && <span className="text-muted-foreground"> (vazio)</span>}
+              </Label>
+            </div>
+            
+            <div className="flex gap-2">
+              {isLoading ? (
+                <Button variant="destructive" onClick={handleCancel}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+              ) : (
+                <Button onClick={handleGenerate} disabled={!description.trim()}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Gerar Email
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SelectCharacterModal
+        open={showCharacterModal}
+        onClose={handleSkipHeroImage}
+        onSelect={handleCharacterSelect}
+        heroPrompt={heroBlockInfo?.heroPrompt || ""}
+        loading={generatingHero}
+      />
+    </>
   );
 };
