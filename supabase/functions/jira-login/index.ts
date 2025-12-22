@@ -35,17 +35,21 @@ serve(async (req) => {
       );
     }
 
+    // Create proper Jira auth string (email:apiToken in base64)
+    const jiraAdminEmail = 'fabio.leme@sejaefi.com.br';
+    const authString = btoa(`${jiraAdminEmail}:${jiraToken}`);
+
     // 1. Verify user in Jira
     console.log(`Verifying Jira user: ${email}`);
     
     let jiraUser = null;
     
     // Method 1: Search by email directly
-    const searchUrl = `https://efipay.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(email)}`;
+    const searchUrl = `https://sejaefi.atlassian.net/rest/api/3/user/search?query=${encodeURIComponent(email)}`;
     const jiraResponse = await fetch(searchUrl, {
       headers: {
-        'Authorization': `Basic ${jiraToken}`,
-        'Content-Type': 'application/json',
+        'Authorization': `Basic ${authString}`,
+        'Accept': 'application/json',
       },
     });
 
@@ -54,16 +58,18 @@ serve(async (req) => {
       jiraUser = users.find((u: any) => 
         u.emailAddress?.toLowerCase() === email.toLowerCase()
       );
+    } else {
+      console.log(`Jira search failed with status: ${jiraResponse.status}`);
     }
 
     // Method 2: If not found, try fetching all users
     if (!jiraUser) {
       console.log('User not found with direct search, trying bulk fetch...');
-      const bulkUrl = 'https://efipay.atlassian.net/rest/api/3/users/search?maxResults=1000';
+      const bulkUrl = 'https://sejaefi.atlassian.net/rest/api/3/users/search?maxResults=1000';
       const bulkResponse = await fetch(bulkUrl, {
         headers: {
-          'Authorization': `Basic ${jiraToken}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Basic ${authString}`,
+          'Accept': 'application/json',
         },
       });
 
