@@ -34,7 +34,7 @@ interface AIResponse {
 // Mensagens de progresso baseadas no tempo real
 const getProgressMessage = (seconds: number): string => {
   if (seconds < 5) return "Conectando com a IA...";
-  if (seconds < 15) return "Aguardando resposta da OpenAI...";
+  if (seconds < 15) return "Aguardando resposta do Gemini...";
   if (seconds < 30) return "Processando conteúdo (pode levar até 1 minuto)...";
   if (seconds < 45) return "Gerando estrutura do email...";
   return "Finalizando... por favor aguarde...";
@@ -373,16 +373,15 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
               id="use-dataset"
               checked={useDataset}
               onCheckedChange={setUseDataset}
-              disabled={generating || datasetLoading || !dataset?.content}
+              disabled={generating}
             />
             <Label 
               htmlFor="use-dataset" 
-              className={cn(
-                "text-sm cursor-pointer",
-                (!dataset?.content || datasetLoading) && "text-muted-foreground"
-              )}
+              className="text-sm cursor-pointer"
             >
               Usar dataset de conteúdo
+              {datasetLoading && <span className="text-muted-foreground"> (carregando...)</span>}
+              {!datasetLoading && !dataset?.content && <span className="text-muted-foreground"> (vazio)</span>}
             </Label>
           </div>
           
