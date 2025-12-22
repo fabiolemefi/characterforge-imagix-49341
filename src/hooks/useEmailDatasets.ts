@@ -124,7 +124,7 @@ export const useEmailDatasets = () => {
       const fileName = `pdf-extractions/${Date.now()}-${file.name}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('email-images')
+        .from('email-magic-images')
         .upload(fileName, file, {
           contentType: file.type,
           upsert: false,
@@ -137,7 +137,7 @@ export const useEmailDatasets = () => {
 
       // 2. Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('email-images')
+        .from('email-magic-images')
         .getPublicUrl(fileName);
 
       console.log('[useEmailDatasets] PDF uploaded, public URL:', publicUrl);
