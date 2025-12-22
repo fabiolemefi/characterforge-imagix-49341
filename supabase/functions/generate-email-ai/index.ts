@@ -1,6 +1,6 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Replicate from "https://esm.sh/replicate@0.25.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,10 +70,14 @@ serve(async (req) => {
 
     console.log("Dataset fornecido:", datasetContent ? `${datasetContent.length} caracteres` : "Não");
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY não configurada");
+    const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
+    if (!REPLICATE_API_KEY) {
+      throw new Error("REPLICATE_API_KEY não configurada");
     }
+
+    const replicate = new Replicate({
+      auth: REPLICATE_API_KEY,
+    });
 
     // Fetch active blocks from database
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -106,23 +110,9 @@ serve(async (req) => {
     // Combine base prompt with dynamic blocks
     const DYNAMIC_SYSTEM_PROMPT = `${blocksDescription}\n\n${BASE_SYSTEM_PROMPT}`;
 
-    console.log("Gerando email com IA (OpenAI) para:", description.substring(0, 100) + "...");
-    console.log("Blocos disponíveis:", blocks?.length || 0);
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: DYNAMIC_SYSTEM_PROMPT },
-          { 
-            role: "user", 
-            content: datasetContent 
-              ? `DATASET DE REFERÊNCIA (use como base para o conteúdo real do email):
+    // Build user prompt
+    const userPrompt = datasetContent 
+      ? `DATASET DE REFERÊNCIA (use como base para o conteúdo real do email):
 ---
 ${datasetContent}
 ---
@@ -135,29 +125,44 @@ IMPORTANTE: Use o conteúdo do dataset acima como referência principal para ext
 Lembre-se de usar exatamente os nomes dos blocos listados acima (case-sensitive).
 Sempre começar com bloco de header e terminar com bloco de assinatura/signature.
 Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`
-              : `DESCRIÇÃO DO EMAIL:
+      : `DESCRIÇÃO DO EMAIL:
 ${description}
 
 Lembre-se de usar exatamente os nomes dos blocos listados acima (case-sensitive).
 Sempre começar com bloco de header e terminar com bloco de assinatura/signature.
-Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`
-          }
-        ],
+Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`;
+
+    console.log("Gerando email com Gemini 3 Pro via Replicate para:", description.substring(0, 100) + "...");
+    console.log("Blocos disponíveis:", blocks?.length || 0);
+
+    // Call Gemini 3 Pro via Replicate
+    const geminiOutput = await replicate.run("google/gemini-3-pro", {
+      input: {
+        prompt: userPrompt,
+        system_instruction: DYNAMIC_SYSTEM_PROMPT,
         temperature: 0.7,
-        max_tokens: 3000,
-      }),
+        top_p: 0.95,
+        max_output_tokens: 8192,
+      },
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Erro na API OpenAI:", errorData);
-      throw new Error(`Erro na API OpenAI: ${response.status}`);
+    console.log("Resposta Gemini recebida, tipo:", typeof geminiOutput);
+
+    // Process response (same pattern as extract-pdf-content)
+    let responseText = "";
+    if (typeof geminiOutput === "string") {
+      responseText = geminiOutput;
+    } else if (Array.isArray(geminiOutput)) {
+      responseText = geminiOutput.join("");
+    } else if (typeof geminiOutput === "object" && geminiOutput !== null) {
+      if ("text" in geminiOutput) {
+        responseText = (geminiOutput as any).text;
+      } else if ("output" in geminiOutput) {
+        responseText = (geminiOutput as any).output;
+      } else {
+        responseText = JSON.stringify(geminiOutput);
+      }
     }
-
-    const data = await response.json();
-    console.log("Resposta OpenAI recebida");
-
-    const responseText = data.choices[0]?.message?.content || "";
     
     // Remove markdown code blocks if present
     let cleanedText = responseText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
