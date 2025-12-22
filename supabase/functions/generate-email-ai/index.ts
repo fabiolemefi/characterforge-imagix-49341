@@ -59,7 +59,7 @@ serve(async (req) => {
   }
 
   try {
-    const { description } = await req.json();
+    const { description, datasetContent } = await req.json();
 
     if (!description || description.trim().length === 0) {
       return new Response(JSON.stringify({ error: "Descrição é obrigatória" }), {
@@ -67,6 +67,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("Dataset fornecido:", datasetContent ? `${datasetContent.length} caracteres` : "Não");
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
@@ -119,12 +121,26 @@ serve(async (req) => {
           { role: "system", content: DYNAMIC_SYSTEM_PROMPT },
           { 
             role: "user", 
-            content: `DESCRIÇÃO DO EMAIL:
+            content: datasetContent 
+              ? `DATASET DE REFERÊNCIA (use como base para o conteúdo real do email):
+---
+${datasetContent}
+---
+
+DESCRIÇÃO DO EMAIL:
+${description}
+
+IMPORTANTE: Use o conteúdo do dataset acima como referência principal para extrair assuntos, pré-cabeçalhos, textos e informações do email. A descrição complementa o contexto.
+
+Lembre-se de usar exatamente os nomes dos blocos listados acima (case-sensitive).
+Sempre começar com bloco de header e terminar com bloco de assinatura/signature.
+Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`
+              : `DESCRIÇÃO DO EMAIL:
 ${description}
 
 Lembre-se de usar exatamente os nomes dos blocos listados acima (case-sensitive).
 Sempre começar com bloco de header e terminar com bloco de assinatura/signature.
-Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.` 
+Retorne APENAS o JSON válido, sem explicações adicionais, sem markdown.`
           }
         ],
         temperature: 0.7,

@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EmailBlock } from "@/hooks/useEmailBlocks";
 import { RichTextEditor } from "./RichTextEditor";
-
+import { useEmailDatasets } from "@/hooks/useEmailDatasets";
+import { cn } from "@/lib/utils";
 interface CreateWithAIModalProps {
   open: boolean;
   onClose: () => void;
@@ -112,11 +114,13 @@ const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: stri
 export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { dataset, loading: datasetLoading } = useEmailDatasets();
   const [description, setDescription] = useState("");
   const [generating, setGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState("");
   const [elapsedTime, setElapsedTime] = useState(0);
   const [cancelled, setCancelled] = useState(false);
+  const [useDataset, setUseDataset] = useState(true);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Elapsed time counter and progress message based on time
@@ -177,7 +181,10 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       // Race entre a chamada e o timeout
       const result = await Promise.race([
         supabase.functions.invoke("generate-email-ai", {
-          body: { description },
+          body: { 
+            description,
+            datasetContent: useDataset && dataset?.content ? dataset.content : null
+          },
         }),
         timeoutPromise,
       ]);
@@ -360,23 +367,38 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
           )}
         </div>
 
-        <div className="flex justify-end gap-2">
-          {generating ? (
-            <Button variant="destructive" onClick={handleCancel}>
-              <X className="h-4 w-4 mr-2" />
-              Cancelar
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleClose}>
-                Fechar
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="use-dataset"
+              checked={useDataset}
+              onCheckedChange={setUseDataset}
+              disabled={generating || datasetLoading || !dataset?.content}
+            />
+            <Label 
+              htmlFor="use-dataset" 
+              className={cn(
+                "text-sm cursor-pointer",
+                (!dataset?.content || datasetLoading) && "text-muted-foreground"
+              )}
+            >
+              Usar dataset de conteúdo
+            </Label>
+          </div>
+          
+          <div className="flex gap-2">
+            {generating ? (
+              <Button variant="destructive" onClick={handleCancel}>
+                <X className="h-4 w-4 mr-2" />
+                Cancelar
               </Button>
+            ) : (
               <Button onClick={handleGenerate} disabled={!description.trim()}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 Gerar Email
               </Button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
