@@ -8,6 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Loader2, Sparkles, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -30,7 +33,7 @@ interface Character {
 interface SelectCharacterModalProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (character: Character) => void;
+  onSelect: (character: Character, editedPrompt: string, withBorders: boolean) => void;
   heroPrompt: string;
   loading?: boolean;
 }
@@ -45,6 +48,13 @@ export const SelectCharacterModal = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loadingCharacters, setLoadingCharacters] = useState(true);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [editedPrompt, setEditedPrompt] = useState<string>(heroPrompt);
+  const [withBorders, setWithBorders] = useState<boolean>(false);
+
+  // Sincronizar editedPrompt quando heroPrompt mudar
+  useEffect(() => {
+    setEditedPrompt(heroPrompt);
+  }, [heroPrompt]);
 
   useEffect(() => {
     if (open) {
@@ -110,7 +120,7 @@ export const SelectCharacterModal = ({
   const handleSelect = () => {
     const character = characters.find((c) => c.id === selectedId);
     if (character) {
-      onSelect(character);
+      onSelect(character, editedPrompt, withBorders);
     }
   };
 
@@ -173,11 +183,37 @@ export const SelectCharacterModal = ({
               </div>
 
               {heroPrompt && (
-                <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Cena a ser gerada:
-                  </p>
-                  <p className="text-sm italic">"{heroPrompt}"</p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="prompt-textarea" className="text-xs font-medium text-muted-foreground">
+                      Cena a ser gerada:
+                    </Label>
+                    <Textarea
+                      id="prompt-textarea"
+                      value={editedPrompt}
+                      onChange={(e) => setEditedPrompt(e.target.value)}
+                      placeholder="Descreva a cena..."
+                      className="min-h-[100px] text-sm"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="borders-toggle" className="text-sm font-medium cursor-pointer">
+                        Imagem com bordas
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Adiciona ícones 3D decorativos saindo das bordas
+                      </p>
+                    </div>
+                    <Switch
+                      id="borders-toggle"
+                      checked={withBorders}
+                      onCheckedChange={setWithBorders}
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
               )}
             </>
