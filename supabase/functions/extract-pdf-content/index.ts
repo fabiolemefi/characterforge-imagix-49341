@@ -38,8 +38,8 @@ serve(async (req) => {
 
     console.log("[extract-pdf-content] Extracting content from PDF:", body.pdfUrl);
 
-    // Call Replicate with datalab-to/marker model
-    const output = await replicate.run("datalab-to/marker", {
+    // Step 1: Call Replicate with datalab-to/marker model to extract raw markdown
+    const markerOutput = await replicate.run("datalab-to/marker", {
       input: {
         file: body.pdfUrl,
         mode: "balanced",
@@ -56,31 +56,103 @@ serve(async (req) => {
       },
     });
 
-    console.log("[extract-pdf-content] Replicate response type:", typeof output);
-    console.log("[extract-pdf-content] Replicate response:", JSON.stringify(output).substring(0, 500));
+    console.log("[extract-pdf-content] Marker response type:", typeof markerOutput);
+    console.log("[extract-pdf-content] Marker response:", JSON.stringify(markerOutput).substring(0, 500));
 
-    // The marker model returns an object with markdown property
-    let markdown = "";
-    if (typeof output === "object" && output !== null) {
-      // Try to get markdown from various possible response formats
-      if ("markdown" in output) {
-        markdown = (output as { markdown: string }).markdown;
-      } else if ("text" in output) {
-        markdown = (output as { text: string }).text;
-      } else if ("output" in output) {
-        markdown = (output as { output: string }).output;
-      } else if (Array.isArray(output)) {
-        markdown = output.join("\n");
+    // Extract raw markdown from marker response
+    let rawMarkdown = "";
+    if (typeof markerOutput === "object" && markerOutput !== null) {
+      if ("markdown" in markerOutput) {
+        rawMarkdown = (markerOutput as { markdown: string }).markdown;
+      } else if ("text" in markerOutput) {
+        rawMarkdown = (markerOutput as { text: string }).text;
+      } else if ("output" in markerOutput) {
+        rawMarkdown = (markerOutput as { output: string }).output;
+      } else if (Array.isArray(markerOutput)) {
+        rawMarkdown = markerOutput.join("\n");
       } else {
-        // Try to stringify if it's an object we don't recognize
-        markdown = JSON.stringify(output);
+        rawMarkdown = JSON.stringify(markerOutput);
       }
-    } else if (typeof output === "string") {
-      markdown = output;
+    } else if (typeof markerOutput === "string") {
+      rawMarkdown = markerOutput;
     }
 
-    console.log("[extract-pdf-content] Extracted markdown length:", markdown.length);
-    console.log("[extract-pdf-content] Markdown preview:", markdown.substring(0, 300));
+    console.log("[extract-pdf-content] Raw markdown length:", rawMarkdown.length);
+    console.log("[extract-pdf-content] Raw markdown preview:", rawMarkdown.substring(0, 500));
+
+    // Step 2: Use Gemini 3 Pro to clean and extract only email content
+    const systemInstruction = `Você é um especialista em extrair conteúdos de email de documentos.
+
+Analise o texto extraído de um PDF e identifique APENAS o conteúdo do email.
+
+REGRAS DE EXTRAÇÃO:
+1. O email geralmente começa com "[logo" ou com a tabela de metadados (Assunto, Pré cabeçalho)
+2. O email termina com "Abraços,\\n\\nEquipe Efi Bank" ou assinatura similar (pode ser "Equipe Efí", "Efi Bank", etc.)
+3. MANTENHA a tabela com Assunto e Pré cabeçalho se existir
+4. REMOVA:
+   - Títulos de páginas/documentos antes do email
+   - Ícones e imagens decorativas (como "Icon representing...")
+   - Links de navegação do documento (como "[Adicionar capa]")
+   - Qualquer conteúdo antes da tabela de metadados ou do "[logo"
+   - Qualquer conteúdo após a assinatura final
+   - Referências a links do Notion/Figma/outros sistemas
+
+FORMATO DE SAÍDA:
+Se encontrar múltiplos emails, separe-os assim:
+
+Email sobre [título do email baseado no assunto]
+----------------------------------------------------------
+
+[conteúdo do email limpo]
+
+
+Email sobre [próximo título]
+----------------------------------------------------------
+
+[próximo email]
+
+RETORNE APENAS o conteúdo limpo, sem explicações ou comentários adicionais.`;
+
+    console.log("[extract-pdf-content] Cleaning markdown with Gemini 3 Pro...");
+
+    const geminiOutput = await replicate.run("google/gemini-3-pro-preview", {
+      input: {
+        prompt: rawMarkdown,
+        system_instruction: systemInstruction,
+        temperature: 0.3,
+        top_p: 0.95,
+        max_output_tokens: 65535,
+        videos: []
+      },
+    });
+
+    console.log("[extract-pdf-content] Gemini response type:", typeof geminiOutput);
+    console.log("[extract-pdf-content] Gemini response preview:", JSON.stringify(geminiOutput).substring(0, 500));
+
+    // Extract cleaned markdown from Gemini response
+    let markdown = "";
+    if (typeof geminiOutput === "string") {
+      markdown = geminiOutput;
+    } else if (Array.isArray(geminiOutput)) {
+      markdown = geminiOutput.join("");
+    } else if (typeof geminiOutput === "object" && geminiOutput !== null) {
+      if ("text" in geminiOutput) {
+        markdown = (geminiOutput as { text: string }).text;
+      } else if ("output" in geminiOutput) {
+        markdown = (geminiOutput as { output: string }).output;
+      } else {
+        // Fallback to raw markdown if Gemini response is unexpected
+        console.log("[extract-pdf-content] Unexpected Gemini response format, using raw markdown");
+        markdown = rawMarkdown;
+      }
+    } else {
+      // Fallback to raw markdown
+      console.log("[extract-pdf-content] Could not parse Gemini response, using raw markdown");
+      markdown = rawMarkdown;
+    }
+
+    console.log("[extract-pdf-content] Final cleaned markdown length:", markdown.length);
+    console.log("[extract-pdf-content] Final markdown preview:", markdown.substring(0, 300));
 
     return new Response(
       JSON.stringify({ 
