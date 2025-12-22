@@ -246,7 +246,7 @@ export default function EfiReport() {
               <Button
                 onClick={handleGenerate}
                 disabled={loading || !reportData.trim()}
-                className="w-full bg-[#f37021] hover:bg-[#d4611d] text-white font-semibold py-6 text-lg"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 text-lg"
               >
                 {loading ? (
                   <>
@@ -339,6 +339,14 @@ export default function EfiReport() {
               >
                 <Download className="h-4 w-4" />
                 Download
+              </Button>
+
+              <Button
+                onClick={() => setModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90"
+              >
+                <FileText className="h-4 w-4" />
+                Criar novo relatório
               </Button>
             </div>
           </div>
