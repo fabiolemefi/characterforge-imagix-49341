@@ -24,8 +24,24 @@ REGRA ESPECIAL PARA IMAGEM HERO (BANNER):
 - Este bloco DEVE ter no campo content:
   - "isHeroImage": true
   - "heroPrompt": uma descrição em português da CENA/AÇÃO desejada para a imagem (NÃO descrever o personagem, apenas a ação/cenário)
-- Exemplo de heroPrompt: "celebrando o Dia dos Namorados com um buquê de flores, ambiente romântico com luz suave"
-- O heroPrompt deve ser contextual ao tema do email
+
+CRÍTICO - O heroPrompt DEVE REFLETIR O TOM E CONTEXTO REAL DO EMAIL:
+- Se o email é sobre ALERTA, GOLPE, FRAUDE, PERIGO ou PROBLEMA: a cena DEVE mostrar tensão, preocupação, desconfiança, alguém em situação de risco ou sendo enganado
+- Se o email é PROMOCIONAL ou CELEBRATIVO: a cena deve mostrar alegria, celebração, conquista
+- Se o email é INFORMATIVO ou EDUCATIVO: a cena deve ser neutra e profissional
+
+EXEMPLOS DE heroPrompt por contexto (USE COMO REFERÊNCIA):
+- Email sobre GOLPE DO PIX: "idoso preocupado olhando para o celular com expressão de dúvida e desconfiança, recebendo mensagem suspeita, ambiente tenso"
+- Email sobre FRAUDE BANCÁRIA: "pessoa desconfiada ao telefone, tentando entender uma ligação suspeita, expressão de alerta e tensão"
+- Email sobre SEGURANÇA DIGITAL: "pessoa analisando tela de computador com expressão séria, ambiente de escritório, postura defensiva"
+- Email sobre ALERTA DE CONTA: "pessoa preocupada verificando extrato bancário, expressão de surpresa negativa, ambiente tenso"
+- Email de DIA DOS NAMORADOS: "celebrando com buquê de flores, ambiente romântico com luz suave, expressão de alegria"
+- Email de ANO NOVO (celebração): "brindando com família em festa, luzes e decoração festiva, sorrisos"
+- Email de PROMOÇÃO: "pessoa animada fazendo compras, expressão de satisfação, ambiente de loja"
+
+NUNCA transforme temas de ALERTA, GOLPE, FRAUDE ou PERIGO em cenas positivas, felizes ou acolhedoras. 
+O heroPrompt DEVE SER FIEL ao contexto NEGATIVO ou POSITIVO do email.
+Se o email fala de golpe, fraude ou problema, a cena DEVE refletir tensão, não felicidade
 
 CAMPOS OBRIGATÓRIOS NO JSON DE RESPOSTA:
 - name: Nome curto e objetivo do email (máx 60 chars)
