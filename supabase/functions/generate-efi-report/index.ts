@@ -1,15 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import Replicate from "https://esm.sh/replicate@0.25.2"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -23,11 +24,36 @@ serve(async (req) => {
     })
 
     const body = await req.json()
-    const { reportData } = body
+    console.log("[generate-efi-report] Request body keys:", Object.keys(body))
 
-    if (!reportData) {
+    // If it's a status check request
+    if (body.predictionId) {
+      console.log("[generate-efi-report] Checking status for prediction:", body.predictionId)
+      const prediction = await replicate.predictions.get(body.predictionId)
+      console.log("[generate-efi-report] Status:", prediction.status)
+      
+      let imageUrl = null
+      if (prediction.output) {
+        if (typeof prediction.output === "string") {
+          imageUrl = prediction.output
+        } else if (Array.isArray(prediction.output) && prediction.output.length > 0) {
+          imageUrl = prediction.output[0]
+        }
+      }
+      
+      return new Response(JSON.stringify({
+        status: prediction.status,
+        imageUrl: imageUrl,
+        error: prediction.error
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // If it's a generation request
+    if (!body.reportData) {
       return new Response(
-        JSON.stringify({ error: "Missing required field: reportData is required" }), 
+        JSON.stringify({ error: "Missing required field: reportData" }), 
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
@@ -35,20 +61,29 @@ serve(async (req) => {
       )
     }
 
-    console.log("[generate-efi-report] Starting report generation...")
-    console.log("[generate-efi-report] Report data length:", reportData.length)
+    // Load config from database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const { data: config, error: configError } = await supabase
+      .from('efi_report_config')
+      .select('*')
+      .limit(1)
+      .single()
+
+    if (configError) {
+      console.error("[generate-efi-report] Error loading config:", configError)
+      throw new Error('Failed to load configuration')
+    }
+
+    console.log("[generate-efi-report] Loaded config, starting analysis...")
 
     // Step 1: Analyze data with GPT-5-nano
     console.log("[generate-efi-report] Step 1: Analyzing data with GPT-5-nano...")
+    const analysisPrompt = `${config.analysis_prompt}\n\nDados:\n${body.reportData}`
     
-    const analysisPrompt = `Analise os dados abaixo e formate-os de forma clara para um infográfico. 
-Adicione insights e análises que ajudem diretores e pessoas não-técnicas a entender se os números são bons ou ruins. 
-Seja objetivo e destaque os pontos principais. Formate a resposta de forma estruturada com títulos, subtítulos e bullet points quando necessário.
-
-Dados do relatório:
-${reportData}`
-
-    const analysisOutput = await replicate.run("openai/gpt-5-nano", {
+    const analysisResponse = await replicate.run("openai/gpt-5-nano", {
       input: {
         prompt: analysisPrompt,
         messages: [],
@@ -58,86 +93,67 @@ ${reportData}`
       }
     })
 
-    console.log("[generate-efi-report] Analysis output type:", typeof analysisOutput)
-    
-    // Handle different response formats
-    let analysisResult = ""
-    if (typeof analysisOutput === "string") {
-      analysisResult = analysisOutput
-    } else if (Array.isArray(analysisOutput)) {
-      analysisResult = analysisOutput.join("")
-    } else if (analysisOutput && typeof analysisOutput === "object") {
-      analysisResult = JSON.stringify(analysisOutput)
+    // Handle response format
+    let analysisResult = ''
+    if (Array.isArray(analysisResponse)) {
+      analysisResult = analysisResponse.join('')
+    } else if (typeof analysisResponse === 'string') {
+      analysisResult = analysisResponse
+    } else {
+      analysisResult = JSON.stringify(analysisResponse)
     }
 
-    console.log("[generate-efi-report] Analysis result length:", analysisResult.length)
-    console.log("[generate-efi-report] Analysis preview:", analysisResult.substring(0, 200))
+    console.log("[generate-efi-report] Analysis complete, length:", analysisResult.length)
 
-    // Step 2: Generate infographic with nano-banana-pro
-    console.log("[generate-efi-report] Step 2: Generating infographic with nano-banana-pro...")
+    // Step 2: Generate infographic with nano-banana-pro (async - return prediction_id)
+    const colorsArray = Array.isArray(config.colors) 
+      ? config.colors 
+      : JSON.parse(config.colors)
+    const colorsStr = colorsArray.join(', ')
+    
+    // Build design prompt with analysis
+    let designPrompt = config.design_prompt
+    if (designPrompt.includes('{analysis}')) {
+      designPrompt = designPrompt.replace('{analysis}', analysisResult)
+    } else {
+      designPrompt = `${designPrompt}\n\nDados analisados:\n${analysisResult}`
+    }
+    designPrompt = `${designPrompt}\n\nCores: ${colorsStr}`
 
-    const designPrompt = `Crie uma imagem de infografico para demonstrar esses dados abaixo. 
-Ele deve utilizar as cores #f37021, #00809d, #f83a36, #57a73b, #f39c12, #f6f8fc, #e8f0f8, #a4acbc, #1d1d1d 
-e NUNCA escreve-las no design. Utilize negrito nos textos para reforçar infos ou dados importantes.
+    console.log("[generate-efi-report] Creating prediction with nano-banana-pro...")
 
-Utilize no header o logo do Efi Bank na esquerda (não altere o logo em anexo, mantenha ele exatamente como é) 
-e o titulo na direita (faça o titulo caber sem quebra de linha com a cor #1d1d1d). Use a fonte Red Hat.
-
-${analysisResult}`
-
-    const imageOutput = await replicate.run("google/nano-banana-pro", {
+    const prediction = await replicate.predictions.create({
+      model: "google/nano-banana-pro",
       input: {
         prompt: designPrompt,
-        resolution: "2K",
-        aspect_ratio: "3:4",
+        resolution: config.resolution || "2K",
+        aspect_ratio: config.aspect_ratio || "3:4",
         output_format: "png",
         safety_filter_level: "block_only_high",
-        image_input: [
-          "https://replicate.delivery/pbxt/OHJbCODJ07JTsXbAhr10gX6xEdLGuFoWx9z1JlVOKAwK6Ecr/logo-efi-1024.png"
-        ]
+        image_input: config.logo_url ? [config.logo_url] : []
       }
     })
 
-    console.log("[generate-efi-report] Image output type:", typeof imageOutput)
-    console.log("[generate-efi-report] Image output:", imageOutput)
+    console.log("[generate-efi-report] Prediction created:", prediction.id, "Status:", prediction.status)
 
-    // Handle different response formats for image
-    let imageUrl = ""
-    if (typeof imageOutput === "string") {
-      imageUrl = imageOutput
-    } else if (Array.isArray(imageOutput) && imageOutput.length > 0) {
-      imageUrl = imageOutput[0]
-    } else if (imageOutput && typeof imageOutput === "object" && imageOutput.output) {
-      imageUrl = Array.isArray(imageOutput.output) ? imageOutput.output[0] : imageOutput.output
-    }
-
-    if (!imageUrl) {
-      throw new Error("Failed to generate image - no URL returned")
-    }
-
-    console.log("[generate-efi-report] Generated image URL:", imageUrl)
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        imageUrl,
-        analysis: analysisResult 
-      }), 
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    )
+    return new Response(JSON.stringify({
+      success: true,
+      predictionId: prediction.id,
+      status: prediction.status,
+      analysis: analysisResult
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
     console.error("[generate-efi-report] Error:", errorMessage)
-    return new Response(
-      JSON.stringify({ error: errorMessage }), 
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    )
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      details: String(error)
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 })

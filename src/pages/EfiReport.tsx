@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -19,6 +19,69 @@ export default function EfiReport() {
   const [reportData, setReportData] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
+  const checkPredictionStatus = useCallback(async (predictionId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-efi-report", {
+        body: { predictionId },
+      });
+
+      if (error) {
+        console.error("[EfiReport] Status check error:", error);
+        return false;
+      }
+
+      console.log("[EfiReport] Status:", data?.status);
+
+      if (data?.status === "succeeded" && data?.imageUrl) {
+        setGeneratedImage(data.imageUrl);
+        setModalOpen(false);
+        setLoading(false);
+        setStatusMessage("");
+        toast({
+          title: "Infográfico gerado!",
+          description: "Seu relatório visual está pronto.",
+        });
+        return true;
+      } else if (data?.status === "failed") {
+        setLoading(false);
+        setStatusMessage("");
+        toast({
+          title: "Erro na geração",
+          description: data?.error || "Falha ao gerar o infográfico.",
+          variant: "destructive",
+        });
+        return true;
+      } else if (data?.status === "canceled") {
+        setLoading(false);
+        setStatusMessage("");
+        toast({
+          title: "Geração cancelada",
+          description: "A geração foi cancelada.",
+          variant: "destructive",
+        });
+        return true;
+      }
+
+      // Still processing
+      setStatusMessage(`Status: ${data?.status || 'processando'}...`);
+      return false;
+    } catch (error) {
+      console.error("[EfiReport] Polling error:", error);
+      return false;
+    }
+  }, [toast]);
 
   const handleGenerate = async () => {
     if (!reportData.trim()) {
@@ -31,6 +94,7 @@ export default function EfiReport() {
     }
 
     setLoading(true);
+    setStatusMessage("Analisando dados...");
 
     try {
       console.log("[EfiReport] Starting report generation...");
@@ -49,32 +113,62 @@ export default function EfiReport() {
         throw new Error(data.error);
       }
 
-      if (data?.imageUrl) {
-        console.log("[EfiReport] Image generated successfully:", data.imageUrl);
-        setGeneratedImage(data.imageUrl);
-        setModalOpen(false);
-        toast({
-          title: "Infográfico gerado!",
-          description: "Seu relatório visual está pronto.",
-        });
+      if (data?.predictionId) {
+        console.log("[EfiReport] Prediction started:", data.predictionId);
+        setStatusMessage("Gerando infográfico...");
+        
+        // Start polling
+        let attempts = 0;
+        const maxAttempts = 120; // 2 minutes max
+        
+        pollingRef.current = setInterval(async () => {
+          attempts++;
+          
+          if (attempts > maxAttempts) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            setLoading(false);
+            setStatusMessage("");
+            toast({
+              title: "Tempo esgotado",
+              description: "A geração demorou mais do que o esperado. Tente novamente.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          const completed = await checkPredictionStatus(data.predictionId);
+          if (completed && pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+        }, 2000); // Check every 2 seconds
       } else {
-        throw new Error("Nenhuma imagem foi gerada");
+        throw new Error("Nenhum ID de predição retornado");
       }
     } catch (error: any) {
       console.error("[EfiReport] Error:", error);
+      setLoading(false);
+      setStatusMessage("");
       toast({
         title: "Erro ao gerar relatório",
         description: error.message || "Tente novamente mais tarde.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleRefresh = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
     setGeneratedImage(null);
     setModalOpen(true);
+    setLoading(false);
+    setStatusMessage("");
   };
 
   const handleDownload = async () => {
@@ -115,7 +209,7 @@ export default function EfiReport() {
 
       <div className="min-h-[calc(100vh-80px)] p-8">
         {/* Modal de entrada */}
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog open={modalOpen} onOpenChange={(open) => !loading && setModalOpen(open)}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl">
@@ -144,12 +238,18 @@ export default function EfiReport() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Gerando infográfico... (pode levar até 60s)
+                    {statusMessage || "Gerando infográfico..."}
                   </>
                 ) : (
                   "Gerar relatório lindão"
                 )}
               </Button>
+
+              {loading && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Isso pode levar até 2 minutos. Não feche esta janela.
+                </p>
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -189,7 +289,7 @@ export default function EfiReport() {
         )}
 
         {/* Estado vazio quando modal fechado sem imagem */}
-        {!generatedImage && !modalOpen && (
+        {!generatedImage && !modalOpen && !loading && (
           <div className="flex flex-col items-center justify-center gap-4 min-h-[400px]">
             <FileText className="h-16 w-16 text-muted-foreground" />
             <p className="text-muted-foreground">Nenhum infográfico gerado ainda.</p>

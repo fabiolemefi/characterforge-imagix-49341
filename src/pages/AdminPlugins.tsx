@@ -471,6 +471,16 @@ export default function AdminPlugins() {
                                 <Settings className="h-4 w-4" />
                               </Button>
                             )}
+                            {plugin.name === 'Efí Report' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate('/admin/efi-report')}
+                                title="Configurar Efí Report"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

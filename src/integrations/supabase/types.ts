@@ -698,6 +698,42 @@ export type Database = {
           },
         ]
       }
+      efi_report_config: {
+        Row: {
+          analysis_prompt: string
+          aspect_ratio: string | null
+          colors: Json | null
+          created_at: string | null
+          design_prompt: string
+          id: string
+          logo_url: string | null
+          resolution: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_prompt?: string
+          aspect_ratio?: string | null
+          colors?: Json | null
+          created_at?: string | null
+          design_prompt?: string
+          id?: string
+          logo_url?: string | null
+          resolution?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_prompt?: string
+          aspect_ratio?: string | null
+          colors?: Json | null
+          created_at?: string | null
+          design_prompt?: string
+          id?: string
+          logo_url?: string | null
+          resolution?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       email_blocks: {
         Row: {
           ai_instructions: string | null
