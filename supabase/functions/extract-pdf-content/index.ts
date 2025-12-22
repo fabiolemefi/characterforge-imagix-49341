@@ -89,7 +89,8 @@ REGRAS DE EXTRAÇÃO:
 1. O email geralmente começa com "[logo" ou com a tabela de metadados (Assunto, Pré cabeçalho)
 2. O email termina com "Abraços,\\n\\nEquipe Efi Bank" ou assinatura similar (pode ser "Equipe Efí", "Efi Bank", etc.)
 3. MANTENHA a tabela com Assunto e Pré cabeçalho se existir
-4. REMOVA:
+4. Na tabela de metadados, REMOVA linhas que estão vazias ou sem valor preenchido (como Modalidade, Categoria, Prévia no Figma se estiverem sem conteúdo)
+5. REMOVA:
    - Títulos de páginas/documentos antes do email
    - Ícones e imagens decorativas (como "Icon representing...")
    - Links de navegação do documento (como "[Adicionar capa]")
@@ -98,18 +99,10 @@ REGRAS DE EXTRAÇÃO:
    - Referências a links do Notion/Figma/outros sistemas
 
 FORMATO DE SAÍDA:
-Se encontrar múltiplos emails, separe-os assim:
-
-Email sobre [título do email baseado no assunto]
-----------------------------------------------------------
-
-[conteúdo do email limpo]
-
-
-Email sobre [próximo título]
-----------------------------------------------------------
-
-[próximo email]
+- NÃO adicione cabeçalhos como "Email sobre [título]"
+- NÃO adicione linhas de separação "----------------------------------------------------------"
+- Retorne DIRETAMENTE o conteúdo do email, começando pela tabela de metadados (se existir) ou pelo "[logo"
+- Se houver múltiplos emails no PDF, separe-os com uma linha em branco
 
 RETORNE APENAS o conteúdo limpo, sem explicações ou comentários adicionais.`;
 
