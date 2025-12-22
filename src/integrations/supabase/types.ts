@@ -704,9 +704,11 @@ export type Database = {
           aspect_ratio: string | null
           colors: Json | null
           created_at: string | null
+          data_formatting_prompt: string
           design_prompt: string
           id: string
           logo_url: string | null
+          recommendations_prompt: string
           resolution: string | null
           updated_at: string | null
         }
@@ -715,9 +717,11 @@ export type Database = {
           aspect_ratio?: string | null
           colors?: Json | null
           created_at?: string | null
+          data_formatting_prompt?: string
           design_prompt?: string
           id?: string
           logo_url?: string | null
+          recommendations_prompt?: string
           resolution?: string | null
           updated_at?: string | null
         }
@@ -726,9 +730,11 @@ export type Database = {
           aspect_ratio?: string | null
           colors?: Json | null
           created_at?: string | null
+          data_formatting_prompt?: string
           design_prompt?: string
           id?: string
           logo_url?: string | null
+          recommendations_prompt?: string
           resolution?: string | null
           updated_at?: string | null
         }
