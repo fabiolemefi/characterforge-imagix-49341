@@ -23,61 +23,61 @@ export default function PluginDetails() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadPlugin = async () => {
+      if (!id) {
+        console.log('[PluginDetails] No ID provided');
+        navigate('/');
+        return;
+      }
+
+      console.log('[PluginDetails] Loading plugin with ID:', id);
+
+      try {
+        const { data, error } = await supabase
+          .from("plugins")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error('[PluginDetails] Error loading plugin:', error);
+          toast({
+            title: "Erro ao carregar plugin",
+            description: error.message,
+            variant: "destructive",
+          });
+          navigate("/");
+          return;
+        }
+
+        console.log('[PluginDetails] Plugin loaded:', data?.name);
+
+        // Mapa de redirecionamentos
+        const redirectMap: Record<string, string> = {
+          "Efimail": "/efimail",
+          "Efimagem": "/efimagem",
+          "Email Builder": "/email-templates",
+          "Efi Slides": "/efi-slides",
+          "Email mágico": "/email-magico",
+        };
+
+        const redirectPath = redirectMap[data.name];
+        if (redirectPath) {
+          console.log('[PluginDetails] Redirecting to:', redirectPath);
+          navigate(redirectPath, { replace: true });
+          return;
+        }
+
+        setPlugin(data);
+        setLoading(false);
+      } catch (err) {
+        console.error('[PluginDetails] Unexpected error:', err);
+        navigate('/');
+      }
+    };
+
     loadPlugin();
-  }, [id]);
-
-  const loadPlugin = async () => {
-    if (!id) return;
-
-    const { data, error } = await supabase
-      .from("plugins")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      toast({
-        title: "Erro ao carregar plugin",
-        description: error.message,
-        variant: "destructive",
-      });
-      navigate("/");
-      return;
-    }
-
-    // Redirecionar para página específica do Efimail
-    if (data.name === "Efimail") {
-      navigate("/efimail");
-      return;
-    }
-
-    // Redirecionar para página específica do Efimagem
-    if (data.name === "Efimagem") {
-      navigate("/efimagem");
-      return;
-    }
-
-    // Redirecionar para página específica do Email Builder
-    if (data.name === "Email Builder") {
-      navigate("/email-templates");
-      return;
-    }
-
-    // Redirecionar para página específica do Efi Slides
-    if (data.name === "Efi Slides") {
-      navigate("/efi-slides");
-      return;
-    }
-
-    // Redirecionar para página específica do Email mágico
-    if (data.name === "Email mágico") {
-      navigate("/email-magico");
-      return;
-    }
-
-    setPlugin(data);
-    setLoading(false);
-  };
+  }, [id, navigate, toast]);
 
   if (loading) {
     return (

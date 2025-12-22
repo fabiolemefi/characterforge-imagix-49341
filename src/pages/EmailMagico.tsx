@@ -11,15 +11,24 @@ import 'grapesjs/dist/css/grapes.min.css';
 import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
 
 export default function EmailMagico() {
+  console.log('[EmailMagico] Component rendering');
+  
   const [modalOpen, setModalOpen] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [htmlGenerated, setHtmlGenerated] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Log mount
+  useEffect(() => {
+    console.log('[EmailMagico] Component mounted, modalOpen:', modalOpen);
+    return () => console.log('[EmailMagico] Component unmounting');
+  }, []);
 
   // Loading messages rotation
   useEffect(() => {
@@ -54,35 +63,44 @@ export default function EmailMagico() {
   // Initialize GrapesJS when HTML is generated
   useEffect(() => {
     if (htmlGenerated && editorContainerRef.current && !editorRef.current) {
-      editorRef.current = grapesjs.init({
-        container: editorContainerRef.current,
-        height: '100%',
-        width: 'auto',
-        storageManager: false,
-        plugins: [grapesjsPresetWebpage],
-        pluginsOpts: {
-          [grapesjsPresetWebpage as any]: {
-            blocksBasicOpts: {
-              flexGrid: true,
+      console.log('[EmailMagico] Initializing GrapesJS editor');
+      try {
+        editorRef.current = grapesjs.init({
+          container: editorContainerRef.current,
+          height: '100%',
+          width: 'auto',
+          storageManager: false,
+          plugins: [grapesjsPresetWebpage],
+          pluginsOpts: {
+            [grapesjsPresetWebpage as any]: {
+              blocksBasicOpts: {
+                flexGrid: true,
+              },
             },
           },
-        },
-        canvas: {
-          styles: [
-            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-          ]
-        },
-        deviceManager: {
-          devices: [
-            { name: 'Desktop', width: '' },
-            { name: 'Mobile', width: '375px', widthMedia: '480px' },
-          ]
-        }
-      });
+          canvas: {
+            styles: [
+              'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+            ]
+          },
+          deviceManager: {
+            devices: [
+              { name: 'Desktop', width: '' },
+              { name: 'Mobile', width: '375px', widthMedia: '480px' },
+            ]
+          }
+        });
+        console.log('[EmailMagico] GrapesJS initialized successfully');
+        setEditorError(null);
+      } catch (err) {
+        console.error('[EmailMagico] Error initializing GrapesJS:', err);
+        setEditorError(err instanceof Error ? err.message : 'Erro ao inicializar editor');
+      }
     }
 
     return () => {
       if (editorRef.current) {
+        console.log('[EmailMagico] Destroying GrapesJS editor');
         editorRef.current.destroy();
         editorRef.current = null;
       }
@@ -211,7 +229,14 @@ ${html}
 
       {/* Editor Area */}
       <div className="flex-1 relative">
-        {htmlGenerated ? (
+        {editorError ? (
+          <div className="h-full flex items-center justify-center bg-destructive/10">
+            <div className="text-center text-destructive">
+              <p className="font-medium">Erro ao inicializar editor</p>
+              <p className="text-sm mt-2">{editorError}</p>
+            </div>
+          </div>
+        ) : htmlGenerated ? (
           <div ref={editorContainerRef} className="h-full" />
         ) : (
           <div className="h-full flex items-center justify-center bg-muted/20">
