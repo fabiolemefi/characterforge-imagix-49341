@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useEfiReportConfig } from "@/hooks/useEfiReportConfig";
-import { Loader2, Save, Plus, X } from "lucide-react";
+import { Loader2, Save, Plus, X, Upload, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -24,7 +24,7 @@ export default function AdminEfiReport() {
   const [authLoading, setAuthLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { config, loading, saving, updateConfig } = useEfiReportConfig();
+  const { config, loading, saving, updateConfig, uploadLogo, deleteLogo } = useEfiReportConfig();
 
   // Form state
   const [analysisPrompt, setAnalysisPrompt] = useState("");
@@ -34,6 +34,8 @@ export default function AdminEfiReport() {
   const [resolution, setResolution] = useState("2K");
   const [colors, setColors] = useState<string[]>([]);
   const [newColor, setNewColor] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     checkAuth();
@@ -107,6 +109,41 @@ export default function AdminEfiReport() {
     setColors(colors.filter(c => c !== colorToRemove));
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    
+    // Delete old logo if exists and is from our storage
+    if (logoUrl && logoUrl.includes('plugin-images')) {
+      await deleteLogo(logoUrl);
+    }
+    
+    // Upload new logo
+    const newUrl = await uploadLogo(file);
+    
+    if (newUrl) {
+      setLogoUrl(newUrl);
+      toast({ title: 'Logo carregado com sucesso!' });
+    }
+    
+    setUploadingLogo(false);
+    
+    // Reset input
+    if (logoInputRef.current) {
+      logoInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    if (logoUrl && logoUrl.includes('plugin-images')) {
+      await deleteLogo(logoUrl);
+    }
+    setLogoUrl('');
+    toast({ title: 'Logo removido' });
+  };
+
   if (authLoading || !isAdmin) {
     return null;
   }
@@ -169,22 +206,69 @@ export default function AdminEfiReport() {
                   />
                 </div>
 
-                {/* Logo URL */}
+                {/* Logo Upload */}
                 <div className="space-y-2">
-                  <Label htmlFor="logo_url">URL do Logo</Label>
-                  <Input
-                    id="logo_url"
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    placeholder="https://..."
+                  <Label>Logo do Relatório</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Faça upload de uma imagem PNG ou JPG para usar como logo no infográfico.
+                  </p>
+                  
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    ref={logoInputRef}
                   />
-                  {logoUrl && (
-                    <div className="mt-2">
-                      <img
-                        src={logoUrl}
-                        alt="Logo preview"
-                        className="h-16 object-contain bg-muted rounded p-2"
+                  
+                  {logoUrl ? (
+                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo" 
+                        className="h-16 object-contain bg-background rounded p-2 border" 
                       />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-muted-foreground truncate">{logoUrl}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={uploadingLogo}
+                        >
+                          {uploadingLogo ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleDeleteLogo}
+                          disabled={uploadingLogo}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {uploadingLogo ? (
+                        <Loader2 className="h-8 w-8 mx-auto animate-spin text-muted-foreground" />
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            Clique para selecionar uma imagem
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

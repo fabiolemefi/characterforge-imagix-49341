@@ -76,6 +76,49 @@ export function useEfiReportConfig() {
     }
   };
 
+  const uploadLogo = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `efi-report-logo-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('plugin-images')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('plugin-images')
+        .getPublicUrl(fileName);
+
+      return data.publicUrl;
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: 'Erro no upload',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const deleteLogo = async (logoUrl: string): Promise<boolean> => {
+    try {
+      const fileName = logoUrl.split('/').pop();
+      if (!fileName) return false;
+
+      await supabase.storage
+        .from('plugin-images')
+        .remove([fileName]);
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting logo:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     loadConfig();
   }, []);
@@ -86,5 +129,7 @@ export function useEfiReportConfig() {
     saving,
     updateConfig,
     reloadConfig: loadConfig,
+    uploadLogo,
+    deleteLogo,
   };
 }
