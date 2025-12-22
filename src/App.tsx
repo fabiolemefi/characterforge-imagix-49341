@@ -18,6 +18,7 @@ import Efimagem from "./pages/Efimagem";
 import EmailBuilder from './pages/EmailBuilder';
 import EmailTemplates from './pages/EmailTemplates';
 import EmailMagico from './pages/EmailMagico';
+import EfiReport from './pages/EfiReport';
 import AdminEmailMagico from './pages/AdminEmailMagico';
 import AdminEmailBlocks from './pages/AdminEmailBlocks';
 import TestsDashboard from './pages/TestsDashboard';
@@ -72,6 +73,7 @@ const App = () => <AuthProvider>
           <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
           <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
           <Route path="/email-magico" element={<ProtectedRoute><AppLayout><EmailMagico /></AppLayout></ProtectedRoute>} />
+          <Route path="/efi-report" element={<ProtectedRoute><AppLayout><EfiReport /></AppLayout></ProtectedRoute>} />
           <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />

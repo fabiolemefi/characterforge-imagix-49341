@@ -59,6 +59,7 @@ export default function PluginDetails() {
           "Email Builder": "/email-templates",
           "Efi Slides": "/efi-slides",
           "Email mágico": "/email-magico",
+          "Efí Report": "/efi-report",
         };
 
         const redirectPath = redirectMap[data.name];
