@@ -6,6 +6,8 @@ export interface EfiReportConfig {
   id: string;
   analysis_prompt: string;
   design_prompt: string;
+  data_formatting_prompt: string;
+  recommendations_prompt: string;
   logo_url: string;
   aspect_ratio: string;
   resolution: string;

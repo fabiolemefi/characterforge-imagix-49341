@@ -29,6 +29,8 @@ export default function AdminEfiReport() {
   // Form state
   const [analysisPrompt, setAnalysisPrompt] = useState("");
   const [designPrompt, setDesignPrompt] = useState("");
+  const [dataFormattingPrompt, setDataFormattingPrompt] = useState("");
+  const [recommendationsPrompt, setRecommendationsPrompt] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [aspectRatio, setAspectRatio] = useState("3:4");
   const [resolution, setResolution] = useState("2K");
@@ -45,6 +47,8 @@ export default function AdminEfiReport() {
     if (config) {
       setAnalysisPrompt(config.analysis_prompt);
       setDesignPrompt(config.design_prompt);
+      setDataFormattingPrompt(config.data_formatting_prompt || '');
+      setRecommendationsPrompt(config.recommendations_prompt || '');
       setLogoUrl(config.logo_url);
       setAspectRatio(config.aspect_ratio);
       setResolution(config.resolution);
@@ -83,6 +87,8 @@ export default function AdminEfiReport() {
     await updateConfig({
       analysis_prompt: analysisPrompt,
       design_prompt: designPrompt,
+      data_formatting_prompt: dataFormattingPrompt,
+      recommendations_prompt: recommendationsPrompt,
       logo_url: logoUrl,
       aspect_ratio: aspectRatio,
       resolution: resolution,
@@ -176,20 +182,53 @@ export default function AdminEfiReport() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Analysis Prompt */}
+                {/* Data Formatting Prompt */}
                 <div className="space-y-2">
-                  <Label htmlFor="analysis_prompt">Prompt de Análise (GPT-5-nano)</Label>
+                  <Label htmlFor="data_formatting_prompt">Prompt de Formatação de Dados (GPT-5-nano)</Label>
                   <p className="text-sm text-muted-foreground">
-                    Este prompt é enviado junto com os dados do usuário para o modelo de análise.
+                    Este prompt formata os dados para o infográfico. <strong>NÃO deve incluir insights ou recomendações</strong> - apenas dados formatados.
                   </p>
                   <Textarea
-                    id="analysis_prompt"
-                    value={analysisPrompt}
-                    onChange={(e) => setAnalysisPrompt(e.target.value)}
-                    rows={6}
+                    id="data_formatting_prompt"
+                    value={dataFormattingPrompt}
+                    onChange={(e) => setDataFormattingPrompt(e.target.value)}
+                    rows={5}
                     className="font-mono text-sm"
+                    placeholder="Formate os dados abaixo de forma clara para um infográfico visual. NÃO inclua análises ou recomendações."
                   />
                 </div>
+
+                {/* Recommendations Prompt */}
+                <div className="space-y-2">
+                  <Label htmlFor="recommendations_prompt">Prompt de Recomendações (GPT-5-nano)</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Este prompt gera recomendações e insights estratégicos que aparecem <strong>abaixo do infográfico</strong> como texto.
+                  </p>
+                  <Textarea
+                    id="recommendations_prompt"
+                    value={recommendationsPrompt}
+                    onChange={(e) => setRecommendationsPrompt(e.target.value)}
+                    rows={5}
+                    className="font-mono text-sm"
+                    placeholder="Gere recomendações estratégicas e insights acionáveis baseados nos dados. Formate em markdown."
+                  />
+                </div>
+
+                {/* Legacy Analysis Prompt (hidden or collapsed) */}
+                <details className="border rounded-lg p-4 bg-muted/30">
+                  <summary className="cursor-pointer text-sm text-muted-foreground">
+                    Prompt de Análise Legado (não utilizado)
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    <Textarea
+                      id="analysis_prompt"
+                      value={analysisPrompt}
+                      onChange={(e) => setAnalysisPrompt(e.target.value)}
+                      rows={4}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </details>
 
                 {/* Design Prompt */}
                 <div className="space-y-2">

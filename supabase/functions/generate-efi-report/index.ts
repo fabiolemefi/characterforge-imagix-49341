@@ -79,13 +79,13 @@ serve(async (req) => {
 
     console.log("[generate-efi-report] Loaded config, starting analysis...")
 
-    // Step 1: Analyze data with GPT-5-nano
-    console.log("[generate-efi-report] Step 1: Analyzing data with GPT-5-nano...")
-    const analysisPrompt = `${config.analysis_prompt}\n\nDados:\n${body.reportData}`
+    // Step 1: Format data for design (without insights)
+    console.log("[generate-efi-report] Step 1: Formatting data for infographic...")
+    const dataFormattingPrompt = `${config.data_formatting_prompt || config.analysis_prompt}\n\nDados:\n${body.reportData}`
     
-    const analysisResponse = await replicate.run("openai/gpt-5-nano", {
+    const dataResponse = await replicate.run("openai/gpt-5-nano", {
       input: {
-        prompt: analysisPrompt,
+        prompt: dataFormattingPrompt,
         messages: [],
         verbosity: "medium",
         image_input: [],
@@ -94,29 +94,54 @@ serve(async (req) => {
     })
 
     // Handle response format
-    let analysisResult = ''
-    if (Array.isArray(analysisResponse)) {
-      analysisResult = analysisResponse.join('')
-    } else if (typeof analysisResponse === 'string') {
-      analysisResult = analysisResponse
+    let dataForDesign = ''
+    if (Array.isArray(dataResponse)) {
+      dataForDesign = dataResponse.join('')
+    } else if (typeof dataResponse === 'string') {
+      dataForDesign = dataResponse
     } else {
-      analysisResult = JSON.stringify(analysisResponse)
+      dataForDesign = JSON.stringify(dataResponse)
     }
 
-    console.log("[generate-efi-report] Analysis complete, length:", analysisResult.length)
+    console.log("[generate-efi-report] Data formatting complete, length:", dataForDesign.length)
 
-    // Step 2: Generate infographic with nano-banana-pro (async - return prediction_id)
+    // Step 2: Generate recommendations separately
+    console.log("[generate-efi-report] Step 2: Generating recommendations...")
+    const recommendationsPrompt = `${config.recommendations_prompt || 'Gere recomendações estratégicas e insights acionáveis baseados nos dados abaixo. Formate em markdown.'}\n\nDados:\n${body.reportData}`
+    
+    const recommendationsResponse = await replicate.run("openai/gpt-5-nano", {
+      input: {
+        prompt: recommendationsPrompt,
+        messages: [],
+        verbosity: "medium",
+        image_input: [],
+        reasoning_effort: "medium"
+      }
+    })
+
+    let recommendations = ''
+    if (Array.isArray(recommendationsResponse)) {
+      recommendations = recommendationsResponse.join('')
+    } else if (typeof recommendationsResponse === 'string') {
+      recommendations = recommendationsResponse
+    } else {
+      recommendations = JSON.stringify(recommendationsResponse)
+    }
+
+    console.log("[generate-efi-report] Recommendations complete, length:", recommendations.length)
+
+    // Step 3: Generate infographic with nano-banana-pro (async - return prediction_id)
     const colorsArray = Array.isArray(config.colors) 
       ? config.colors 
       : JSON.parse(config.colors)
     const colorsStr = colorsArray.join(', ')
     
-    // Build design prompt with analysis
+    // Build design prompt with formatted data (not recommendations)
     let designPrompt = config.design_prompt
     if (designPrompt.includes('{analysis}')) {
-      designPrompt = designPrompt.replace('{analysis}', analysisResult)
+      designPrompt = designPrompt.replace('{analysis}', dataForDesign)
     } else {
-      designPrompt = `${designPrompt}\n\nDados analisados:\n${analysisResult}`
+      designPrompt = `${designPrompt}\n\nDados formatados:\n${dataForDesign}`
     }
     designPrompt = `${designPrompt}\n\nCores: ${colorsStr}`
 
@@ -140,7 +165,7 @@ serve(async (req) => {
       success: true,
       predictionId: prediction.id,
       status: prediction.status,
-      analysis: analysisResult
+      recommendations: recommendations
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
