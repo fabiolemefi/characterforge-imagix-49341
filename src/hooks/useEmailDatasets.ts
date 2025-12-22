@@ -179,14 +179,31 @@ export const useEmailDatasets = () => {
     }
   };
 
-  // Format extracted content with separator
-  const formatExtractedContent = (existingContent: string, newContent: string, title?: string): string => {
-    const separator = '\n\n----------------------------------------------------------\n\n';
-    const emailTitle = title || `Email ${new Date().toLocaleDateString('pt-BR')}`;
-    const formattedNew = `Email sobre ${emailTitle}${separator}${newContent}`;
+  // Get the next dataset number based on existing content
+  const getNextDatasetNumber = (existingContent: string): number => {
+    const regex = /Dataset (\d+)/g;
+    let maxNumber = 0;
+    let match;
+    
+    while ((match = regex.exec(existingContent)) !== null) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNumber) maxNumber = num;
+    }
+    
+    return maxNumber + 1;
+  };
+
+  // Format extracted content with sequential numbering (newest at top)
+  const formatExtractedContent = (existingContent: string, newContent: string): string => {
+    const separator = '==========================================================';
+    const nextNumber = getNextDatasetNumber(existingContent);
+    const paddedNumber = String(nextNumber).padStart(2, '0');
+    
+    const formattedNew = `Dataset ${paddedNumber}\n${separator}\n\n${newContent}`;
     
     if (existingContent.trim()) {
-      return `${existingContent}\n\n${formattedNew}`;
+      // Insert at TOP (newest first, descending order)
+      return `${formattedNew}\n\n${existingContent}`;
     }
     return formattedNew;
   };

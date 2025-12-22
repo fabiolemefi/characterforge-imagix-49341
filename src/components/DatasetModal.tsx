@@ -11,9 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Database, Upload, FileText, Loader2, Save } from 'lucide-react';
+import { Database, Upload, FileText, Loader2, Save, Files } from 'lucide-react';
 import { useEmailDatasets } from '@/hooks/useEmailDatasets';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface DatasetModalProps {
   open: boolean;
@@ -34,7 +35,11 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
   const [content, setContent] = useState('');
   const [name, setName] = useState('Dataset Principal');
   const [isDragging, setIsDragging] = useState(false);
+  const [processingQueue, setProcessingQueue] = useState<File[]>([]);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Sync state with loaded dataset
   useEffect(() => {
@@ -61,32 +66,52 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
     e.stopPropagation();
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    const pdfFile = files.find(f => f.type === 'application/pdf');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
 
-    if (pdfFile) {
-      await processFile(pdfFile);
+    if (files.length > 0) {
+      await processMultipleFiles(files);
     }
   }, [content]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      await processFile(file);
+    const files = Array.from(e.target.files || []).filter(f => f.type === 'application/pdf');
+    
+    if (files.length > 0) {
+      await processMultipleFiles(files);
     }
+    
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const processFile = async (file: File) => {
-    const extractedContent = await extractFromPdf(file);
-    if (extractedContent) {
-      // Extract title from filename (remove extension)
-      const title = file.name.replace(/\.pdf$/i, '');
-      const formattedContent = formatExtractedContent(content, extractedContent, title);
-      setContent(formattedContent);
+  const processMultipleFiles = async (files: File[]) => {
+    setTotalFiles(files.length);
+    setProcessingQueue(files);
+    let currentContent = content;
+    
+    for (let i = 0; i < files.length; i++) {
+      setCurrentFileIndex(i + 1);
+      
+      const extractedContent = await extractFromPdf(files[i]);
+      
+      if (extractedContent) {
+        currentContent = formatExtractedContent(currentContent, extractedContent);
+        setContent(currentContent);
+      }
+    }
+    
+    // Reset queue state
+    setTotalFiles(0);
+    setCurrentFileIndex(0);
+    setProcessingQueue([]);
+    
+    if (files.length > 1) {
+      toast({
+        title: 'PDFs processados',
+        description: `${files.length} arquivos foram extraídos e adicionados ao dataset`,
+      });
     }
   };
 
@@ -142,6 +167,7 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
               ref={fileInputRef}
               type="file"
               accept=".pdf,application/pdf"
+              multiple
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -150,23 +176,37 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
               <div className="flex flex-col items-center gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <div className="space-y-2 w-full max-w-xs">
-                  <p className="text-sm font-medium">Extraindo conteúdo do PDF...</p>
-                  <Progress value={undefined} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    Usando IA para extrair e formatar o conteúdo
-                  </p>
+                  {totalFiles > 1 ? (
+                    <>
+                      <p className="text-sm font-medium">
+                        Processando {currentFileIndex} de {totalFiles} PDFs...
+                      </p>
+                      <Progress value={(currentFileIndex / totalFiles) * 100} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {processingQueue[currentFileIndex - 1]?.name || 'Extraindo...'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium">Extraindo conteúdo do PDF...</p>
+                      <Progress value={undefined} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        Usando IA para extrair e formatar o conteúdo
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <div className="p-3 rounded-full bg-muted">
-                  <Upload className="h-6 w-6 text-muted-foreground" />
+                  <Files className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium">
-                  Arraste um PDF aqui ou clique para selecionar
+                  Arraste PDFs aqui ou clique para selecionar
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  O conteúdo será extraído automaticamente e adicionado ao dataset
+                  Você pode selecionar vários arquivos de uma vez
                 </p>
               </div>
             )}
@@ -205,6 +245,9 @@ Email sobre [Próximo Email]
               className="flex-1 resize-none font-mono text-sm min-h-[300px]"
               disabled={loading || extracting}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Formato: Dataset XX seguido do conteúdo (mais recentes no topo)
+            </p>
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>{content.length.toLocaleString()} caracteres</span>
               {dataset?.updated_at && (
