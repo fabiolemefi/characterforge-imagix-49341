@@ -8,6 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { RefreshCw, Download, Loader2, FileText } from "lucide-react";
@@ -266,6 +272,49 @@ export default function EfiReport() {
           <div className="flex flex-col items-center justify-center gap-6">
             <h1 className="text-2xl font-bold text-foreground">Seu infográfico está pronto!</h1>
             
+            {/* Recommendations Accordion - Closed by default, above image */}
+            {recommendations && (
+              <Accordion type="single" collapsible className="max-w-2xl w-full">
+                <AccordionItem value="recommendations" className="border border-border rounded-lg bg-card">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                    <span className="flex items-center gap-2 text-base font-semibold">
+                      <FileText className="h-5 w-5 text-primary" />
+                      Recomendações e Insights
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      {recommendations.split('\n').map((line, index) => {
+                        if (!line.trim()) return <br key={index} />;
+                        if (line.startsWith('# ')) return <h2 key={index} className="text-lg font-bold mt-4 mb-2">{line.slice(2)}</h2>;
+                        if (line.startsWith('## ')) return <h3 key={index} className="text-md font-semibold mt-3 mb-2">{line.slice(3)}</h3>;
+                        if (line.startsWith('### ')) return <h4 key={index} className="text-sm font-semibold mt-2 mb-1">{line.slice(4)}</h4>;
+                        if (line.startsWith('- ') || line.startsWith('* ')) {
+                          return (
+                            <div key={index} className="flex items-start gap-2 my-1">
+                              <span className="text-primary mt-1">•</span>
+                              <span>{line.slice(2)}</span>
+                            </div>
+                          );
+                        }
+                        if (line.match(/^\d+\. /)) {
+                          return (
+                            <div key={index} className="flex items-start gap-2 my-1">
+                              <span className="text-primary font-medium">{line.match(/^\d+/)?.[0]}.</span>
+                              <span>{line.replace(/^\d+\. /, '')}</span>
+                            </div>
+                          );
+                        }
+                        // Bold text
+                        const boldProcessed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        return <p key={index} className="my-2" dangerouslySetInnerHTML={{ __html: boldProcessed }} />;
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
             <div className="relative max-w-2xl w-full shadow-2xl rounded-lg overflow-hidden border border-border">
               <img
                 src={generatedImage}
@@ -273,43 +322,6 @@ export default function EfiReport() {
                 className="w-full h-auto"
               />
             </div>
-
-            {/* Recommendations Section */}
-            {recommendations && (
-              <div className="max-w-2xl w-full bg-card border border-border rounded-lg p-6 mt-4">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Recomendações e Insights
-                </h3>
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  {recommendations.split('\n').map((line, index) => {
-                    if (!line.trim()) return <br key={index} />;
-                    if (line.startsWith('# ')) return <h2 key={index} className="text-lg font-bold mt-4 mb-2">{line.slice(2)}</h2>;
-                    if (line.startsWith('## ')) return <h3 key={index} className="text-md font-semibold mt-3 mb-2">{line.slice(3)}</h3>;
-                    if (line.startsWith('### ')) return <h4 key={index} className="text-sm font-semibold mt-2 mb-1">{line.slice(4)}</h4>;
-                    if (line.startsWith('- ') || line.startsWith('* ')) {
-                      return (
-                        <div key={index} className="flex items-start gap-2 my-1">
-                          <span className="text-primary mt-1">•</span>
-                          <span>{line.slice(2)}</span>
-                        </div>
-                      );
-                    }
-                    if (line.match(/^\d+\. /)) {
-                      return (
-                        <div key={index} className="flex items-start gap-2 my-1">
-                          <span className="text-primary font-medium">{line.match(/^\d+/)?.[0]}.</span>
-                          <span>{line.replace(/^\d+\. /, '')}</span>
-                        </div>
-                      );
-                    }
-                    // Bold text
-                    const boldProcessed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                    return <p key={index} className="my-2" dangerouslySetInnerHTML={{ __html: boldProcessed }} />;
-                  })}
-                </div>
-              </div>
-            )}
 
             <div className="flex gap-4 mt-4">
               <Button
