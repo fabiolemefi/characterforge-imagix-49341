@@ -182,15 +182,25 @@ export default function EmailMagico() {
     if (!editorRef.current) return;
 
     try {
-      // Use MJML plugin command to get compiled HTML
-      const mjmlCode = editorRef.current.runCommand('mjml-get-code');
+      let fullHtml = '';
       
-      if (!mjmlCode || !mjmlCode.html) {
-        throw new Error('Não foi possível exportar o HTML');
+      // Tentar comando MJML primeiro
+      const mjmlResult = editorRef.current.runCommand('mjml-get-code');
+      
+      if (mjmlResult?.html) {
+        fullHtml = mjmlResult.html;
+      } else if (typeof mjmlResult === 'string') {
+        fullHtml = mjmlResult;
+      } else {
+        // Fallback para getHtml()
+        fullHtml = editorRef.current.getHtml();
       }
 
-      const fullHtml = mjmlCode.html;
-      console.log('[EmailMagico] HTML exportado via MJML, tamanho:', fullHtml.length);
+      if (!fullHtml) {
+        throw new Error('Não foi possível exportar o HTML');
+      }
+      
+      console.log('[EmailMagico] HTML exportado, tamanho:', fullHtml.length);
 
       // Download file
       const blob = new Blob([fullHtml], { type: 'text/html' });
