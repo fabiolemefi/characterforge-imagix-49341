@@ -4,15 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+
 export default function Login() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
 
   // Check if user is already logged in
   useEffect(() => {
@@ -30,107 +27,117 @@ export default function Login() {
     
     return () => subscription.unsubscribe();
   }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     try {
-      if (isSignUp) {
-        // Sign up new user
-        const {
-          data: signUpData,
-          error: signUpError
-        } = await supabase.auth.signUp({
-          email,
-          password
+      // 1. Call jira-login edge function
+      const { data, error } = await supabase.functions.invoke('jira-login', {
+        body: { email: email.trim().toLowerCase() }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        toast({
+          title: "Erro de conexão",
+          description: "Não foi possível verificar seu acesso. Tente novamente.",
+          variant: "destructive"
         });
-        if (signUpError) {
-          if (signUpError.message.includes('already registered')) {
-            toast({
-              title: "Usuário já cadastrado",
-              description: "Use o formulário de login para acessar",
-              variant: "destructive"
-            });
-            setIsSignUp(false);
-          } else {
-            throw signUpError;
-          }
-        } else if (signUpData.user) {
-          // Auto login after successful signup
-          const {
-            error: signInError
-          } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          if (signInError) {
-            toast({
-              title: "Cadastro realizado!",
-              description: "Faça login para acessar"
-            });
-            setIsSignUp(false);
-          } else {
-            toast({
-              title: "Cadastro realizado!",
-              description: "Redirecionando..."
-            });
-          }
-        }
-      } else {
-        // Sign in existing user
-        const {
-          error: signInError
-        } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (signInError) {
-          if (signInError.message.includes('Invalid login credentials')) {
-            toast({
-              title: "Credenciais inválidas",
-              description: "Email ou senha incorretos. Se é seu primeiro acesso, faça o cadastro.",
-              variant: "destructive"
-            });
-          } else {
-            throw signInError;
-          }
-        } 
+        return;
       }
+
+      if (!data.success) {
+        toast({
+          title: "Acesso negado",
+          description: data.error || "Email não encontrado no Jira da empresa",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // 2. Login with derived password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: data.derivedPassword
+      });
+
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        toast({
+          title: "Erro no login",
+          description: "Não foi possível autenticar. Tente novamente.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: `Bem-vindo, ${data.userData.full_name}!`,
+        description: "Redirecionando..."
+      });
+
     } catch (error: any) {
-      console.error('Auth error:', error);
+      console.error('Login error:', error);
       toast({
         title: "Erro",
-        description: error.message,
+        description: "Não foi possível verificar seu acesso. Tente novamente.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
-  return <div className="min-h-screen flex items-center justify-center" style={{ backgroundImage: 'url(/hero-laptop.webp)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+
+  return (
+    <div 
+      className="min-h-screen flex items-center justify-center" 
+      style={{ 
+        backgroundImage: 'url(/hero-laptop.webp)', 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center' 
+      }}
+    >
       <div className="max-w-sm w-full p-8 bg-card rounded-lg shadow-lg">
         <div className="flex justify-center mb-4">
-          <img src="/efi-bank-monochrome-orange.svg" alt="EFI Bank Logo" className="h-12 w-auto" />
+          <img 
+            src="/efi-bank-monochrome-orange.svg" 
+            alt="EFI Bank Logo" 
+            className="h-12 w-auto" 
+          />
         </div>
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          {isSignUp ? "Criar Conta" : "Bem-vindo"}
+        
+        <h1 className="text-2xl font-bold mb-2 text-center">
+          Acesso Interno
         </h1>
+        
+        <p className="text-sm text-muted-foreground text-center mb-6">
+          Apenas colaboradores com conta no Jira
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Input type="email" placeholder="seu.email@sejaefi.com.br" value={email} onChange={e => setEmail(e.target.value)} required disabled={loading} className="w-full" />
-          </div>
-
-          <div>
-            <Input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} className="w-full" minLength={6} />
+            <Input 
+              type="email" 
+              placeholder="seu.email@sejaefi.com.br" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              required 
+              disabled={loading} 
+              className="w-full" 
+            />
           </div>
           
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Processando..." : isSignUp ? "Criar conta" : "Entrar"}
+            {loading ? "Verificando..." : "Entrar"}
           </Button>
-
-
         </form>
 
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          Seu acesso é validado automaticamente pelo Jira
+        </p>
       </div>
-    </div>;
+    </div>
+  );
 }
