@@ -7,12 +7,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ArrowLeft, Save, Download, Loader, Palette } from 'lucide-react';
+import { ArrowLeft, Save, Download, Loader, Palette, Cloud } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
 import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SelectedBlock extends EmailBlock {
   instanceId: string;
@@ -36,6 +37,7 @@ const EmailBuilder = () => {
   const [showAddBlockModal, setShowAddBlockModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [uploadingToMC, setUploadingToMC] = useState(false);
 
   useEffect(() => {
     const loadTemplate = async () => {
@@ -175,6 +177,132 @@ const EmailBuilder = () => {
     });
   };
 
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const extractAndConvertImages = async (html: string): Promise<{ images: { blob: Blob; newName: string }[]; updatedHtml: string }> => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const imgElements = doc.querySelectorAll('img');
+    const images: { blob: Blob; newName: string }[] = [];
+    const uniqueSuffix = Math.floor(1000 + Math.random() * 9000).toString();
+
+    for (const img of Array.from(imgElements)) {
+      const src = img.getAttribute('src');
+      if (!src || src.startsWith('data:') || src.includes('image.comunicacao.sejaefi.com.br')) continue;
+
+      try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const extension = blob.type.split('/')[1] || 'jpeg';
+        const originalName = src.split('/').pop()?.split('?')[0] || `image-${Date.now()}`;
+        const baseName = originalName.replace(/\.[^/.]+$/, '');
+        const newName = `${baseName}-${uniqueSuffix}.${extension === 'jpg' ? 'jpeg' : extension}`;
+
+        images.push({ blob, newName });
+
+        const newUrl = `https://image.comunicacao.sejaefi.com.br/lib/fe4111737764047d751573/m/1/${newName}`;
+        img.setAttribute('src', newUrl);
+      } catch (error) {
+        console.error('Erro ao processar imagem:', src, error);
+      }
+    }
+
+    return { images, updatedHtml: doc.body.innerHTML };
+  };
+
+  const handleExportToMC = async () => {
+    if (!templateName) {
+      toast({
+        title: 'Erro',
+        description: 'O template precisa ter um nome para exportar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingToMC(true);
+    toast({
+      title: 'Iniciando envio',
+      description: `Enviando "${templateName}" para o Marketing Cloud...`,
+    });
+
+    try {
+      const htmlContent = generateHtmlContent();
+      const { images, updatedHtml } = await extractAndConvertImages(htmlContent);
+
+      // Upload de cada imagem
+      console.log(`Iniciando upload de ${images.length} imagens...`);
+      for (const img of images) {
+        const base64 = await blobToBase64(img.blob);
+        const extension = img.newName.split('.').pop()?.toLowerCase();
+        let assetTypeId = 22; // jpeg
+        if (extension === 'png') assetTypeId = 28;
+        else if (extension === 'gif') assetTypeId = 23;
+
+        const imagePayload = {
+          assetType: { name: extension || 'jpeg', id: assetTypeId },
+          name: img.newName,
+          file: base64,
+          category: { id: 93941 },
+          customerKey: img.newName,
+          fileProperties: { fileName: img.newName, extension: extension || 'jpeg' },
+        };
+
+        console.log(`Enviando imagem: ${img.newName}`);
+        const { error } = await supabase.functions.invoke('sfmc-upload-asset', { body: imagePayload });
+
+        if (error) {
+          throw new Error(`Erro ao enviar imagem ${img.newName}: ${error.message}`);
+        }
+        console.log(`Imagem ${img.newName} enviada com sucesso`);
+      }
+
+      // Upload do HTML
+      console.log('Iniciando upload do HTML...');
+      const htmlPayload = {
+        assetType: { name: 'htmlemail', id: 208 },
+        name: templateName,
+        category: { id: 93810 },
+        views: {
+          html: { content: updatedHtml },
+          subjectline: { content: subject || templateName },
+          preheader: { content: previewText || '' },
+        },
+      };
+
+      const { error: htmlError } = await supabase.functions.invoke('sfmc-upload-asset', { body: htmlPayload });
+
+      if (htmlError) {
+        throw new Error(`Erro ao enviar HTML: ${htmlError.message}`);
+      }
+
+      console.log('HTML enviado com sucesso');
+      toast({
+        title: 'Sucesso!',
+        description: `"${templateName}" enviado para o Marketing Cloud.`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao enviar para MC:', error);
+      toast({
+        title: 'Erro no envio',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingToMC(false);
+    }
+  };
+
   if (loadingTemplate) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-120px)]">
@@ -205,10 +333,28 @@ const EmailBuilder = () => {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDownload}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar HTML
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={uploadingToMC}>
+                  {uploadingToMC ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  {uploadingToMC ? 'Enviando...' : 'Exportar'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar HTML
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportToMC} disabled={uploadingToMC}>
+                  <Cloud className="h-4 w-4 mr-2" />
+                  Exportar para MC
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button disabled={saving}>
