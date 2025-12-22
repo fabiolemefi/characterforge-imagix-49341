@@ -27,16 +27,56 @@ export default function EfiReport() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
+  const [activePredictionId, setActivePredictionId] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorCountRef = useRef<number>(0);
 
-  // Cleanup polling on unmount
+  // Reset all loading states
+  const resetLoadingState = useCallback(() => {
+    setLoading(false);
+    setActivePredictionId(null);
+    setStatusMessage("");
+    errorCountRef.current = 0;
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-      }
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  // Global timeout: 3 minutes max for any prediction
+  useEffect(() => {
+    if (loading && activePredictionId) {
+      timeoutRef.current = setTimeout(() => {
+        console.warn("[EfiReport] Global timeout reached (3 minutes)");
+        resetLoadingState();
+        toast({
+          title: "Tempo esgotado",
+          description: "A geração demorou mais do que o esperado. Tente novamente.",
+          variant: "destructive",
+        });
+      }, 180000); // 3 minutes
+
+      return () => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+      };
+    }
+  }, [loading, activePredictionId, resetLoadingState, toast]);
 
   const checkPredictionStatus = useCallback(async (predictionId: string): Promise<boolean> => {
     try {
@@ -46,24 +86,38 @@ export default function EfiReport() {
 
       if (error) {
         console.error("[EfiReport] Status check error:", error);
+        errorCountRef.current++;
+        
+        // After 5 consecutive errors, stop polling
+        if (errorCountRef.current >= 5) {
+          console.error("[EfiReport] Too many consecutive errors, stopping polling");
+          resetLoadingState();
+          toast({
+            title: "Erro de comunicação",
+            description: "Falha ao verificar o status. Tente gerar novamente.",
+            variant: "destructive",
+          });
+          return true; // Stop polling
+        }
         return false;
       }
+
+      // Reset error count on successful response
+      errorCountRef.current = 0;
 
       console.log("[EfiReport] Status:", data?.status);
 
       if (data?.status === "succeeded" && data?.imageUrl) {
         setGeneratedImage(data.imageUrl);
         setModalOpen(false);
-        setLoading(false);
-        setStatusMessage("");
+        resetLoadingState();
         toast({
           title: "Infográfico gerado!",
           description: "Seu relatório visual está pronto.",
         });
         return true;
       } else if (data?.status === "failed") {
-        setLoading(false);
-        setStatusMessage("");
+        resetLoadingState();
         toast({
           title: "Erro na geração",
           description: data?.error || "Falha ao gerar o infográfico.",
@@ -71,8 +125,7 @@ export default function EfiReport() {
         });
         return true;
       } else if (data?.status === "canceled") {
-        setLoading(false);
-        setStatusMessage("");
+        resetLoadingState();
         toast({
           title: "Geração cancelada",
           description: "A geração foi cancelada.",
@@ -86,9 +139,21 @@ export default function EfiReport() {
       return false;
     } catch (error) {
       console.error("[EfiReport] Polling error:", error);
+      errorCountRef.current++;
+      
+      if (errorCountRef.current >= 5) {
+        console.error("[EfiReport] Too many consecutive errors, stopping polling");
+        resetLoadingState();
+        toast({
+          title: "Erro de comunicação",
+          description: "Falha ao verificar o status. Tente gerar novamente.",
+          variant: "destructive",
+        });
+        return true;
+      }
       return false;
     }
-  }, [toast]);
+  }, [toast, resetLoadingState]);
 
   const handleGenerate = async () => {
     if (!reportData.trim()) {
@@ -100,8 +165,11 @@ export default function EfiReport() {
       return;
     }
 
+    // Reset any previous state
+    resetLoadingState();
     setLoading(true);
     setStatusMessage("Analisando dados...");
+    errorCountRef.current = 0;
 
     try {
       console.log("[EfiReport] Starting report generation...");
@@ -122,6 +190,7 @@ export default function EfiReport() {
 
       if (data?.predictionId) {
         console.log("[EfiReport] Prediction started:", data.predictionId);
+        setActivePredictionId(data.predictionId);
         setStatusMessage("Gerando infográfico...");
         
         // Store recommendations from initial response
@@ -131,18 +200,14 @@ export default function EfiReport() {
         
         // Start polling
         let attempts = 0;
-        const maxAttempts = 120; // 2 minutes max
+        const maxAttempts = 90; // 3 minutes max (90 * 2s = 180s)
         
         pollingRef.current = setInterval(async () => {
           attempts++;
           
           if (attempts > maxAttempts) {
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-            setLoading(false);
-            setStatusMessage("");
+            console.warn("[EfiReport] Max polling attempts reached");
+            resetLoadingState();
             toast({
               title: "Tempo esgotado",
               description: "A geração demorou mais do que o esperado. Tente novamente.",
@@ -162,8 +227,7 @@ export default function EfiReport() {
       }
     } catch (error: any) {
       console.error("[EfiReport] Error:", error);
-      setLoading(false);
-      setStatusMessage("");
+      resetLoadingState();
       toast({
         title: "Erro ao gerar relatório",
         description: error.message || "Tente novamente mais tarde.",
@@ -173,15 +237,10 @@ export default function EfiReport() {
   };
 
   const handleRefresh = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
+    resetLoadingState();
     setGeneratedImage(null);
     setRecommendations(null);
     setModalOpen(true);
-    setLoading(false);
-    setStatusMessage("");
   };
 
   const handleDownload = async () => {
@@ -251,7 +310,7 @@ export default function EfiReport() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    {statusMessage || "Gerando infográfico..."}
+                    {!activePredictionId ? "Analisando dados..." : (statusMessage || "Gerando infográfico...")}
                   </>
                 ) : (
                   "Gerar relatório lindão"
