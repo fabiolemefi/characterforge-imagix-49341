@@ -71,6 +71,9 @@ const getProgressMessage = (seconds: number, phase: 'generating' | 'hero'): stri
 
 const TIMEOUT_MS = 60000;
 
+// Estilo "Golden Hour" para hero images - tons quentes e atmosfera cinematográfica
+const HERO_IMAGE_STYLE_SUFFIX = `Cinematic photography, warm golden hour lighting, amber and rust color palette, soft glowing atmosphere. Low contrast, matte finish with subtle film grain. Muted earthy tones, creamy highlights, diffused backlighting, dreamy aesthetic, high-end editorial style.`;
+
 const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
 
@@ -378,7 +381,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     setElapsedTime(0);
 
     try {
-      const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${heroBlockInfo.heroPrompt}`;
+      const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""}${heroBlockInfo.heroPrompt}. ${HERO_IMAGE_STYLE_SUFFIX}`;
       const imageUrls = character.images.map((img) => img.image_url);
 
       console.log("Gerando hero image com persona:", character.name);
