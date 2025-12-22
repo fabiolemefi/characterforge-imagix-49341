@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Generate a deterministic password using SHA-256 (max 64 chars, within bcrypt's 72 char limit)
+async function generateDerivedPassword(email: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${email.toLowerCase()}:${secret}:jira-auth-v1`);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -91,8 +100,9 @@ serve(async (req) => {
 
     console.log(`Jira user found: ${jiraUser.displayName}`);
 
-    // 2. Generate derived password (deterministic)
-    const derivedPassword = btoa(`${email.toLowerCase()}:${loginSecret}:jira-auth-v1`);
+    // 2. Generate derived password using SHA-256 (64 chars, within 72 char limit)
+    const derivedPassword = await generateDerivedPassword(email, loginSecret);
+    console.log(`Generated derived password length: ${derivedPassword.length}`);
 
     // 3. Initialize Supabase admin client
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
