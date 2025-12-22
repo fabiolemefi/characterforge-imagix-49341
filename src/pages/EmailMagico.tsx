@@ -5,10 +5,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Download, Wand2 } from 'lucide-react';
+import { Loader2, Download, Wand2, Monitor, Smartphone } from 'lucide-react';
 import grapesjs from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
-import grapesjsPresetWebpage from 'grapesjs-preset-webpage';
+import grapesjsMjml from 'grapesjs-mjml';
 
 export default function EmailMagico() {
   console.log('[EmailMagico] Component rendering');
@@ -18,9 +18,10 @@ export default function EmailMagico() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [htmlGenerated, setHtmlGenerated] = useState(false);
+  const [mjmlGenerated, setMjmlGenerated] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
-  const [originalHtml, setOriginalHtml] = useState<string>(''); // Armazena o HTML original completo
+  const [originalMjml, setOriginalMjml] = useState<string>('');
+  const [deviceView, setDeviceView] = useState<'desktop' | 'mobile'>('desktop');
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -37,7 +38,7 @@ export default function EmailMagico() {
 
     const messages = [
       'Analisando briefing...',
-      'Gerando estrutura HTML...',
+      'Gerando estrutura MJML...',
       'Aplicando estilos...',
       'Finalizando layout...',
       'Processando com IA...',
@@ -61,37 +62,40 @@ export default function EmailMagico() {
     };
   }, [loading]);
 
-  // Initialize GrapesJS when HTML is generated
+  // Initialize GrapesJS with MJML plugin when MJML is generated
   useEffect(() => {
-    if (htmlGenerated && editorContainerRef.current && !editorRef.current) {
-      console.log('[EmailMagico] Initializing GrapesJS editor');
+    if (mjmlGenerated && editorContainerRef.current && !editorRef.current) {
+      console.log('[EmailMagico] Initializing GrapesJS with MJML plugin');
       try {
         editorRef.current = grapesjs.init({
           container: editorContainerRef.current,
           height: '100%',
           width: 'auto',
+          fromElement: false,
           storageManager: false,
-          plugins: [grapesjsPresetWebpage],
+          plugins: [grapesjsMjml],
           pluginsOpts: {
-            [grapesjsPresetWebpage as any]: {
-              blocksBasicOpts: {
-                flexGrid: true,
-              },
+            [grapesjsMjml as any]: {
+              // Custom fonts available in the editor
+              fonts: {
+                'Inter': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+                'Red Hat Display': 'https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700&display=swap',
+              }
             },
-          },
-          canvas: {
-            styles: [
-              'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-            ]
           },
           deviceManager: {
             devices: [
               { name: 'Desktop', width: '' },
               { name: 'Mobile', width: '375px', widthMedia: '480px' },
             ]
+          },
+          // Custom styles for the editor panels
+          styleManager: {
+            sectors: []
           }
         });
-        console.log('[EmailMagico] GrapesJS initialized successfully');
+        
+        console.log('[EmailMagico] GrapesJS MJML initialized successfully');
         setEditorError(null);
       } catch (err) {
         console.error('[EmailMagico] Error initializing GrapesJS:', err);
@@ -106,7 +110,15 @@ export default function EmailMagico() {
         editorRef.current = null;
       }
     };
-  }, [htmlGenerated]);
+  }, [mjmlGenerated]);
+
+  // Handle device view toggle
+  useEffect(() => {
+    if (editorRef.current) {
+      const deviceName = deviceView === 'desktop' ? 'Desktop' : 'Mobile';
+      editorRef.current.setDevice(deviceName);
+    }
+  }, [deviceView]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -128,41 +140,30 @@ export default function EmailMagico() {
 
       if (error) throw error;
 
-      if (!data.html) {
-        throw new Error('Nenhum HTML foi gerado');
+      if (!data.mjml) {
+        throw new Error('Nenhum MJML foi gerado');
       }
 
-      // Armazenar o HTML original completo
-      setOriginalHtml(data.html);
-      console.log('[EmailMagico] HTML original armazenado, tamanho:', data.html.length);
-
-      // Extrair body e styles do HTML completo
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(data.html, 'text/html');
-      const bodyContent = doc.body.innerHTML;
-      const styleContent = Array.from(doc.querySelectorAll('style'))
-        .map(s => s.textContent || '')
-        .join('\n');
-
-      console.log('[EmailMagico] Body extraído, tamanho:', bodyContent.length);
-      console.log('[EmailMagico] Styles extraídos, tamanho:', styleContent.length);
+      // Store original MJML
+      setOriginalMjml(data.mjml);
+      console.log('[EmailMagico] MJML recebido, tamanho:', data.mjml.length);
 
       // Close modal and show editor
       setModalOpen(false);
-      setHtmlGenerated(true);
+      setMjmlGenerated(true);
 
-      // Wait for editor to initialize then load only body content
+      // Wait for editor to initialize then load MJML
       setTimeout(() => {
         if (editorRef.current) {
-          editorRef.current.setComponents(bodyContent);
-          editorRef.current.setStyle(styleContent);
-          console.log('[EmailMagico] Conteúdo carregado no editor');
+          // Load MJML directly into GrapesJS MJML editor
+          editorRef.current.setComponents(data.mjml);
+          console.log('[EmailMagico] MJML carregado no editor');
         }
       }, 500);
 
       toast({
         title: 'Email gerado!',
-        description: 'O HTML foi carregado no editor. Você pode continuar editando.',
+        description: 'O MJML foi carregado no editor. Você pode editar visualmente.',
       });
 
     } catch (error: any) {
@@ -180,76 +181,46 @@ export default function EmailMagico() {
   const handleExport = () => {
     if (!editorRef.current) return;
 
-    // Pegar conteúdo editado do GrapesJS
-    const editedBody = editorRef.current.getHtml();
-    const editedCss = editorRef.current.getCss();
-
-    let fullHtml: string;
-
-    if (originalHtml) {
-      // Reconstruir com o head original
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(originalHtml, 'text/html');
-
-      // Substituir body com conteúdo editado
-      doc.body.innerHTML = editedBody;
-
-      // Atualizar/adicionar styles no head
-      let styleTag = doc.head.querySelector('style');
-      if (!styleTag) {
-        styleTag = doc.createElement('style');
-        doc.head.appendChild(styleTag);
+    try {
+      // Use MJML plugin command to get compiled HTML
+      const mjmlCode = editorRef.current.runCommand('mjml-get-code');
+      
+      if (!mjmlCode || !mjmlCode.html) {
+        throw new Error('Não foi possível exportar o HTML');
       }
-      
-      // Combinar CSS original do head com CSS editado
-      const originalStyles = Array.from(doc.querySelectorAll('head style'))
-        .slice(1) // pular o primeiro que vamos substituir
-        .map(s => s.textContent || '')
-        .join('\n');
-      
-      styleTag.textContent = editedCss + (originalStyles ? '\n' + originalStyles : '');
 
-      // Serializar documento completo
-      fullHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
-      console.log('[EmailMagico] HTML exportado com head original preservado');
-    } else {
-      // Fallback: criar HTML básico
-      fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-${editedCss}
-  </style>
-</head>
-<body>
-${editedBody}
-</body>
-</html>`;
+      const fullHtml = mjmlCode.html;
+      console.log('[EmailMagico] HTML exportado via MJML, tamanho:', fullHtml.length);
+
+      // Download file
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `email-magic-${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'HTML exportado!',
+        description: 'O arquivo foi baixado com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('[EmailMagico] Export error:', error);
+      toast({
+        title: 'Erro ao exportar',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
     }
-
-    // Download file
-    const blob = new Blob([fullHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `email-magic-${Date.now()}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: 'HTML exportado!',
-      description: 'O arquivo foi baixado com sucesso.',
-    });
   };
 
   const handleNewEmail = () => {
     setPrompt('');
-    setHtmlGenerated(false);
-    setOriginalHtml(''); // Limpar HTML original
+    setMjmlGenerated(false);
+    setOriginalMjml('');
     setModalOpen(true);
     if (editorRef.current) {
       editorRef.current.destroy();
@@ -263,11 +234,31 @@ ${editedBody}
       <div className="h-14 border-b bg-card flex items-center justify-between px-4">
         <h1 className="text-lg font-semibold">Email mágico</h1>
         <div className="flex gap-2">
+          {mjmlGenerated && (
+            <div className="flex border rounded-md overflow-hidden mr-2">
+              <Button 
+                variant={deviceView === 'desktop' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setDeviceView('desktop')}
+                className="rounded-none"
+              >
+                <Monitor className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant={deviceView === 'mobile' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setDeviceView('mobile')}
+                className="rounded-none"
+              >
+                <Smartphone className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <Button variant="outline" onClick={handleNewEmail}>
             <Wand2 className="h-4 w-4 mr-2" />
             Novo Email
           </Button>
-          {htmlGenerated && (
+          {mjmlGenerated && (
             <Button onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Exportar HTML
@@ -285,7 +276,7 @@ ${editedBody}
               <p className="text-sm mt-2">{editorError}</p>
             </div>
           </div>
-        ) : htmlGenerated ? (
+        ) : mjmlGenerated ? (
           <div ref={editorContainerRef} className="h-full" />
         ) : (
           <div className="h-full flex items-center justify-center bg-muted/20">

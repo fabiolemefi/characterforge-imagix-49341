@@ -32,7 +32,7 @@ serve(async (req) => {
       )
     }
 
-    console.log('📧 [Email Magic] Starting generation with prompt length:', prompt.length)
+    console.log('📧 [Email Magic] Starting MJML generation with prompt length:', prompt.length)
 
     // Fetch configuration from database
     const { data: config, error: configError } = await supabase
@@ -79,26 +79,28 @@ serve(async (req) => {
     console.log('✅ [Email Magic] Replicate response received')
 
     // Output is an array of strings that need to be concatenated
-    let htmlContent = ''
+    let mjmlContent = ''
     if (Array.isArray(output)) {
-      htmlContent = output.join('')
+      mjmlContent = output.join('')
     } else if (typeof output === 'string') {
-      htmlContent = output
+      mjmlContent = output
     } else {
       console.error('❌ [Email Magic] Unexpected output format:', typeof output)
       throw new Error('Unexpected response format from Replicate')
     }
 
-    // Clean up the HTML if needed (remove markdown code blocks if present)
-    htmlContent = htmlContent
+    // Clean up the MJML if needed (remove markdown code blocks if present)
+    mjmlContent = mjmlContent
+      .replace(/^```mjml?\n?/i, '')
+      .replace(/^```xml?\n?/i, '')
       .replace(/^```html?\n?/i, '')
       .replace(/\n?```$/i, '')
       .trim()
 
-    console.log('✅ [Email Magic] HTML generated, length:', htmlContent.length)
+    console.log('✅ [Email Magic] MJML generated, length:', mjmlContent.length)
 
     return new Response(
-      JSON.stringify({ html: htmlContent }),
+      JSON.stringify({ mjml: mjmlContent }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
