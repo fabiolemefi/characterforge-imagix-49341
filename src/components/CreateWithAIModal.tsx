@@ -71,11 +71,11 @@ const getProgressMessage = (seconds: number, phase: 'generating' | 'hero'): stri
 
 const TIMEOUT_MS = 60000;
 
-// Estilo "Golden Hour" para hero images - tons quentes e atmosfera cinematográfica
-const HERO_IMAGE_STYLE_SUFFIX = `Cinematic photography, warm golden hour lighting, amber and rust color palette, soft glowing atmosphere. Low contrast, matte finish with subtle film grain. Muted earthy tones, creamy highlights, diffused backlighting, dreamy aesthetic, high-end editorial style.`;
+// Estilo "Golden Hour" para hero images - tons quentes e atmosfera cinematográfica com LARANJA VIBRANTE
+const HERO_IMAGE_STYLE_SUFFIX = `Cinematic photography with STRONG VIBRANT ORANGE lighting. Deep orange and warm amber color palette dominating the entire scene. Intense golden-orange backlighting creating glowing atmosphere. The entire scene should have a prominent orange and amber color cast. High saturation on warm tones, rich orange highlights and shadows. Dreamy aesthetic with orange-dominated ambiance, high-end editorial style.`;
 
-// Sufixo para imagens com bordas decorativas e ícones 3D
-const HERO_IMAGE_BORDERS_SUFFIX = `The image has rounded corners with generous white margins around it, not occupying the full canvas. 3D acrylic glass-like icons in translucent amber and orange material are floating and overlapping the edges of the rounded image frame, breaking out of the border. The icons are thematic and related to the content of the scene, creating depth and dynamism. The icons have a glossy, translucent appearance with subtle reflections and soft shadows, appearing to pop out between the white margin and the main image.`;
+// Sufixo para imagens com bordas decorativas e ícones 3D em LARANJA VIBRANTE
+const HERO_IMAGE_BORDERS_SUFFIX = `The image has slightly rounded corners with MINIMAL white margins (the rounded frame should occupy approximately 95% of the canvas width and 90% of the height). 3D glowing icons in VIBRANT SATURATED ORANGE and RED-ORANGE colors are floating and overlapping the edges of the rounded image frame. The icons MUST be bright, highly saturated, with neon-like orange glow, NOT pale or translucent. The icons are thematic and DIRECTLY RELATED to the scene subject matter, creating depth and dynamism. Icons should have intense orange and red inner glow with soft luminous shadows. Very thin white border around the frame.`;
 
 const applyContentToHtml = (htmlTemplate: string, content: any, blockName?: string): string => {
   if (!content) return htmlTemplate;
@@ -384,8 +384,8 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     setElapsedTime(0);
 
     try {
-      // Montar prompt base com estilo Golden Hour
-      let fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""}${editedPrompt}. ${HERO_IMAGE_STYLE_SUFFIX}`;
+      // Montar prompt com PRIORIDADE para o tema do usuário, depois persona, depois estilo
+      let fullPrompt = `SCENE REQUIREMENT (MUST FOLLOW): ${editedPrompt}. ${character.general_prompt ? character.general_prompt + " " : ""}${HERO_IMAGE_STYLE_SUFFIX}`;
       
       // Adicionar sufixo de bordas se ativado
       if (withBorders) {
