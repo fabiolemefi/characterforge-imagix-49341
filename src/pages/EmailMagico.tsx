@@ -20,6 +20,7 @@ export default function EmailMagico() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [htmlGenerated, setHtmlGenerated] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [originalHtml, setOriginalHtml] = useState<string>(''); // Armazena o HTML original completo
   const editorRef = useRef<any>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -131,15 +132,31 @@ export default function EmailMagico() {
         throw new Error('Nenhum HTML foi gerado');
       }
 
+      // Armazenar o HTML original completo
+      setOriginalHtml(data.html);
+      console.log('[EmailMagico] HTML original armazenado, tamanho:', data.html.length);
+
+      // Extrair body e styles do HTML completo
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(data.html, 'text/html');
+      const bodyContent = doc.body.innerHTML;
+      const styleContent = Array.from(doc.querySelectorAll('style'))
+        .map(s => s.textContent || '')
+        .join('\n');
+
+      console.log('[EmailMagico] Body extraído, tamanho:', bodyContent.length);
+      console.log('[EmailMagico] Styles extraídos, tamanho:', styleContent.length);
+
       // Close modal and show editor
       setModalOpen(false);
       setHtmlGenerated(true);
 
-      // Wait for editor to initialize then load HTML
+      // Wait for editor to initialize then load only body content
       setTimeout(() => {
         if (editorRef.current) {
-          editorRef.current.setComponents(data.html);
-          editorRef.current.setStyle('');
+          editorRef.current.setComponents(bodyContent);
+          editorRef.current.setStyle(styleContent);
+          console.log('[EmailMagico] Conteúdo carregado no editor');
         }
       }, 500);
 
@@ -163,23 +180,54 @@ export default function EmailMagico() {
   const handleExport = () => {
     if (!editorRef.current) return;
 
-    const html = editorRef.current.getHtml();
-    const css = editorRef.current.getCss();
+    // Pegar conteúdo editado do GrapesJS
+    const editedBody = editorRef.current.getHtml();
+    const editedCss = editorRef.current.getCss();
 
-    // Combine HTML and CSS
-    const fullHtml = `<!DOCTYPE html>
+    let fullHtml: string;
+
+    if (originalHtml) {
+      // Reconstruir com o head original
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(originalHtml, 'text/html');
+
+      // Substituir body com conteúdo editado
+      doc.body.innerHTML = editedBody;
+
+      // Atualizar/adicionar styles no head
+      let styleTag = doc.head.querySelector('style');
+      if (!styleTag) {
+        styleTag = doc.createElement('style');
+        doc.head.appendChild(styleTag);
+      }
+      
+      // Combinar CSS original do head com CSS editado
+      const originalStyles = Array.from(doc.querySelectorAll('head style'))
+        .slice(1) // pular o primeiro que vamos substituir
+        .map(s => s.textContent || '')
+        .join('\n');
+      
+      styleTag.textContent = editedCss + (originalStyles ? '\n' + originalStyles : '');
+
+      // Serializar documento completo
+      fullHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+      console.log('[EmailMagico] HTML exportado com head original preservado');
+    } else {
+      // Fallback: criar HTML básico
+      fullHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-${css}
+${editedCss}
   </style>
 </head>
 <body>
-${html}
+${editedBody}
 </body>
 </html>`;
+    }
 
     // Download file
     const blob = new Blob([fullHtml], { type: 'text/html' });
@@ -201,6 +249,7 @@ ${html}
   const handleNewEmail = () => {
     setPrompt('');
     setHtmlGenerated(false);
+    setOriginalHtml(''); // Limpar HTML original
     setModalOpen(true);
     if (editorRef.current) {
       editorRef.current.destroy();
