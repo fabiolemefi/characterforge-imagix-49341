@@ -16,6 +16,7 @@ serve(async (req) => {
   try {
     const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY')
     if (!REPLICATE_API_KEY) {
+      console.error('❌ [Email Magic] REPLICATE_API_KEY is not set')
       throw new Error('REPLICATE_API_KEY is not set')
     }
 
@@ -23,9 +24,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { prompt } = await req.json()
+    const { prompt, stream: useStream } = await req.json()
 
     if (!prompt) {
+      console.error('❌ [Email Magic] Prompt is required')
       return new Response(
         JSON.stringify({ error: 'Prompt is required' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
@@ -33,6 +35,7 @@ serve(async (req) => {
     }
 
     console.log('📧 [Email Magic] Starting generation with prompt length:', prompt.length)
+    console.log('📧 [Email Magic] Streaming enabled:', useStream)
 
     // Fetch configuration from database
     const { data: config, error: configError } = await supabase
@@ -73,10 +76,55 @@ serve(async (req) => {
     }
 
     console.log('🚀 [Email Magic] Calling Replicate with model: google/gemini-3-pro')
+    console.log('🚀 [Email Magic] Input params:', JSON.stringify({
+      ...input,
+      prompt: input.prompt.substring(0, 100) + '...',
+      system_instruction: input.system_instruction.substring(0, 100) + '...'
+    }))
 
+    // Use streaming for progressive response
+    if (useStream) {
+      console.log('🌊 [Email Magic] Using streaming mode')
+      
+      const stream = await replicate.stream("google/gemini-3-pro", { input })
+      
+      // Create a readable stream to send to the client
+      const encoder = new TextEncoder()
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const event of stream) {
+              const chunk = typeof event === 'string' ? event : JSON.stringify(event)
+              controller.enqueue(encoder.encode(`data: ${chunk}\n\n`))
+            }
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+            console.log('✅ [Email Magic] Stream completed')
+          } catch (streamError) {
+            console.error('❌ [Email Magic] Stream error:', streamError)
+            controller.error(streamError)
+          }
+        }
+      })
+
+      return new Response(readableStream, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        }
+      })
+    }
+
+    // Non-streaming mode (fallback)
+    console.log('📦 [Email Magic] Using non-streaming mode')
+    const startTime = Date.now()
+    
     const output = await replicate.run("google/gemini-3-pro", { input })
-
-    console.log('✅ [Email Magic] Replicate response received')
+    
+    const duration = Date.now() - startTime
+    console.log(`✅ [Email Magic] Replicate response received in ${duration}ms`)
 
     // Output is an array of strings that need to be concatenated
     let htmlContent = ''
@@ -105,6 +153,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('❌ [Email Magic] Error:', errorMessage);
+    console.error('❌ [Email Magic] Full error:', error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
