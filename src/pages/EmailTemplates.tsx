@@ -25,13 +25,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadEmailHtml } from '@/lib/emailExporter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreateWithAIModal } from '@/components/CreateWithAIModal';
+import { DatasetModal } from '@/components/DatasetModal';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -44,6 +45,7 @@ const EmailTemplates = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUseModelDialogOpen, setIsUseModelDialogOpen] = useState(false);
   const [isCreateWithAIModalOpen, setIsCreateWithAIModalOpen] = useState(false);
+  const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [newTemplate, setNewTemplate] = useState({
@@ -143,6 +145,10 @@ const EmailTemplates = () => {
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setIsDatasetModalOpen(true)}>
+                  <Database className="h-4 w-4 mr-2" />
+                  Dataset
+                </Button>
                 <Button variant="ghost" onClick={() => setIsUseModelDialogOpen(true)}>
                   Usar Modelo
                 </Button>
@@ -455,6 +461,11 @@ const EmailTemplates = () => {
       <CreateWithAIModal 
         open={isCreateWithAIModalOpen}
         onClose={() => setIsCreateWithAIModalOpen(false)} 
+      />
+
+      <DatasetModal 
+        open={isDatasetModalOpen}
+        onOpenChange={setIsDatasetModalOpen}
       />
     </>
   );
