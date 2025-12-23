@@ -8,8 +8,11 @@ export interface ExtensionResponse {
 
 export async function sendToExtension(action: string, payload?: any): Promise<ExtensionResponse> {
   return new Promise((resolve) => {
+    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     const message = {
-      type: 'SFMC_PROXY_REQUEST',
+      target: 'SFMC_PROXY',
+      requestId,
       action,
       payload,
     };
@@ -17,7 +20,7 @@ export async function sendToExtension(action: string, payload?: any): Promise<Ex
     window.postMessage(message, '*');
 
     const handleResponse = (event: MessageEvent) => {
-      if (event.data?.type === 'SFMC_PROXY_RESPONSE' && event.data?.action === action) {
+      if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
         window.removeEventListener('message', handleResponse);
         resolve(event.data.response || { success: false, error: 'Resposta vazia' });
       }
