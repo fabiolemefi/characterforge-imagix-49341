@@ -214,6 +214,40 @@ async function getEmailFromSfmc(assetId) {
   };
 }
 
+// Deletar email/asset do SFMC
+async function deleteEmailFromSfmc(assetId) {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/assets/${assetId}`;
+  
+  console.log('[SFMC Proxy] Deletando email:', assetId);
+  
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  // SFMC retorna 200 ou 204 em caso de sucesso
+  if (!response.ok) {
+    let errorMessage = `Erro ao deletar email: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch (e) {
+      // Resposta pode estar vazia
+    }
+    console.error('[SFMC Proxy] Erro ao deletar:', errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  console.log('[SFMC Proxy] Email deletado com sucesso');
+  
+  return { success: true };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -249,6 +283,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'GET_EMAIL':
           const emailData = await getEmailFromSfmc(message.payload?.assetId);
           return { success: true, ...emailData };
+
+        case 'DELETE_EMAIL':
+          const deleteResult = await deleteEmailFromSfmc(message.payload?.assetId);
+          return deleteResult;
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);
