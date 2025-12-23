@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Link2, Wand2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { EfiLink, EfiLinkInsert, generateFullUrl } from "@/hooks/useEfiLinks";
 import { sendToExtension, checkExtensionInstalled } from "@/lib/extensionProxy";
@@ -45,8 +45,7 @@ export function EfiLinkFormModal({
     name: '',
   });
 
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [isShortening, setIsShortening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [extensionAvailable, setExtensionAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -68,7 +67,6 @@ export function EfiLinkFormModal({
           original_url: link.original_url,
           shortened_url: link.shortened_url,
         });
-        setPreviewUrl(link.original_url || '');
       } else {
         setFormData({
           link_pattern: 'onelink',
@@ -82,7 +80,6 @@ export function EfiLinkFormModal({
           utm_term: '',
           name: '',
         });
-        setPreviewUrl('');
       }
     }
   }, [open, link]);
@@ -101,87 +98,68 @@ export function EfiLinkFormModal({
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
-  const handleGenerateUrl = () => {
+  const handleSubmit = async () => {
     if (!formData.url_destino) {
       toast.error("Preencha a URL de destino");
-      return;
-    }
-
-    const fullUrl = generateFullUrl({
-      ...formData,
-      pid: formData.utm_source,
-      af_channel: formData.utm_medium,
-      c: formData.utm_campaign,
-      af_adset: formData.utm_content,
-      af_ad: formData.utm_term,
-    });
-
-    setPreviewUrl(fullUrl);
-    setFormData(prev => ({ ...prev, original_url: fullUrl }));
-  };
-
-  const handleShortenUrl = async () => {
-    if (!previewUrl) {
-      toast.error("Gere a URL primeiro");
       return;
     }
 
     if (!extensionAvailable) {
-      toast.error("Extensão não detectada. Instale a extensão EFI SFMC Proxy.");
+      toast.error("Extensão não detectada. Instale a extensão EFI SFMC Proxy para criar links.");
       return;
     }
 
-    setIsShortening(true);
-    
+    setIsProcessing(true);
+
     try {
-      const response = await sendToExtension('SHORTEN_URL', { url: previewUrl });
-      
-      if (response.success && response.shorted_url) {
-        setFormData(prev => ({
-          ...prev,
-          shortened_url: response.shorted_url,
-          shortened_code: response.shorted,
-        }));
-        toast.success("URL encurtada com sucesso!");
-      } else {
-        toast.error(response.error || "Erro ao encurtar URL");
+      // Gerar URL completa
+      const fullUrl = generateFullUrl({
+        ...formData,
+        pid: formData.utm_source,
+        af_channel: formData.utm_medium,
+        c: formData.utm_campaign,
+        af_adset: formData.utm_content,
+        af_ad: formData.utm_term,
+      });
+
+      // Encurtar URL via extensão
+      const response = await sendToExtension('SHORTEN_URL', { url: fullUrl });
+
+      if (!response.success || !response.shorted_url) {
+        toast.error(response.error || "Erro ao encurtar URL. Verifique sua conexão e tente novamente.");
+        setIsProcessing(false);
+        return;
       }
+
+      // Salvar com URL encurtada
+      const saveData: Omit<EfiLinkInsert, 'user_id'> = {
+        link_pattern: formData.link_pattern as 'onelink' | 'sejaefi',
+        url_destino: formData.url_destino,
+        deeplink: formData.deeplink || undefined,
+        deeplink_param: formData.deeplink_param || undefined,
+        utm_source: formData.utm_source || undefined,
+        utm_medium: formData.utm_medium || undefined,
+        utm_campaign: formData.utm_campaign || undefined,
+        utm_content: formData.utm_content || undefined,
+        utm_term: formData.utm_term || undefined,
+        pid: formData.utm_source || undefined,
+        af_channel: formData.utm_medium || undefined,
+        c: formData.utm_campaign || undefined,
+        af_adset: formData.utm_content || undefined,
+        af_ad: formData.utm_term || undefined,
+        original_url: fullUrl,
+        shortened_url: response.shorted_url,
+        shortened_code: response.shorted || undefined,
+        name: formData.name || undefined,
+      };
+
+      onSave(saveData);
     } catch (error) {
-      console.error("Erro ao encurtar:", error);
-      toast.error("Erro ao encurtar URL");
+      console.error("Erro ao processar link:", error);
+      toast.error("Erro ao processar link");
     } finally {
-      setIsShortening(false);
+      setIsProcessing(false);
     }
-  };
-
-  const handleSubmit = () => {
-    if (!formData.url_destino) {
-      toast.error("Preencha a URL de destino");
-      return;
-    }
-
-    const saveData: Omit<EfiLinkInsert, 'user_id'> = {
-      link_pattern: formData.link_pattern as 'onelink' | 'sejaefi',
-      url_destino: formData.url_destino,
-      deeplink: formData.deeplink || undefined,
-      deeplink_param: formData.deeplink_param || undefined,
-      utm_source: formData.utm_source || undefined,
-      utm_medium: formData.utm_medium || undefined,
-      utm_campaign: formData.utm_campaign || undefined,
-      utm_content: formData.utm_content || undefined,
-      utm_term: formData.utm_term || undefined,
-      pid: formData.utm_source || undefined,
-      af_channel: formData.utm_medium || undefined,
-      c: formData.utm_campaign || undefined,
-      af_adset: formData.utm_content || undefined,
-      af_ad: formData.utm_term || undefined,
-      original_url: formData.original_url || previewUrl || undefined,
-      shortened_url: formData.shortened_url || undefined,
-      shortened_code: formData.shortened_code || undefined,
-      name: formData.name || undefined,
-    };
-
-    onSave(saveData);
   };
 
   return (
@@ -316,43 +294,16 @@ export function EfiLinkFormModal({
             </div>
           </div>
 
-          {/* Botões de ação */}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGenerateUrl}
-              className="flex-1"
-            >
-              <Wand2 className="h-4 w-4 mr-2" />
-              Gerar URL
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleShortenUrl}
-              disabled={!previewUrl || isShortening || !extensionAvailable}
-              className="flex-1"
-            >
-              {isShortening ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Link2 className="h-4 w-4 mr-2" />
-              )}
-              Encurtar URL
-            </Button>
-          </div>
-
-          {/* Preview da URL */}
-          {previewUrl && (
-            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg text-sm break-all">
-              <p className="text-xs text-muted-foreground mb-1">URL Gerada:</p>
-              {previewUrl}
+          {/* Mostrar URL original na edição */}
+          {isEditing && formData.original_url && (
+            <div className="p-3 bg-muted/50 border border-border rounded-lg text-sm break-all">
+              <p className="text-xs text-muted-foreground mb-1">URL Original (não encurtada):</p>
+              <span className="text-foreground/80">{formData.original_url}</span>
             </div>
           )}
 
-          {/* URL encurtada */}
-          {formData.shortened_url && (
+          {/* URL encurtada na edição */}
+          {isEditing && formData.shortened_url && (
             <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm break-all">
               <p className="text-xs text-muted-foreground mb-1">URL Encurtada:</p>
               <a href={formData.shortened_url} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">
@@ -364,7 +315,7 @@ export function EfiLinkFormModal({
           {extensionAvailable === false && (
             <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm">
               <p className="text-yellow-600">
-                Extensão não detectada. Instale a extensão EFI SFMC Proxy para encurtar URLs.
+                Extensão não detectada. Instale a extensão EFI SFMC Proxy para criar links.
               </p>
             </div>
           )}
@@ -374,9 +325,9 @@ export function EfiLinkFormModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isEditing ? 'Salvar' : 'Criar Link'}
+          <Button onClick={handleSubmit} disabled={isSaving || isProcessing || !extensionAvailable}>
+            {(isSaving || isProcessing) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isProcessing ? 'Encurtando...' : isEditing ? 'Salvar' : 'Criar Link'}
           </Button>
         </DialogFooter>
       </DialogContent>

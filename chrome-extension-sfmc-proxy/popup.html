@@ -9,46 +9,37 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="icons/icon48.svg" alt="EFI" class="logo">
+      <img src="icons/icon48.png" alt="EFI" class="logo">
       <h1>EFI SFMC Proxy</h1>
     </div>
 
-    <div id="status" class="status">
-      <span class="status-indicator"></span>
-      <span class="status-text">Verificando...</span>
+    <div class="donation-section">
+      <img src="images/fabioleme.png" alt="Fábio Leme" class="avatar">
+      <h3 class="author-name">Fábio Leme</h3>
+      <p class="donation-message">
+        Se sua vida laboral está menos difícil, é porque meus plugins te ajudaram. 
+        Doe. Ajude nessa causa.
+      </p>
+      <img src="images/qrcode-fabio.png" alt="QR Code para doação" class="qrcode">
     </div>
 
-    <form id="credentials-form">
-      <div class="form-group">
-        <label for="client_id">Client ID</label>
-        <input type="text" id="client_id" placeholder="Seu SFMC Client ID" required>
+    <button id="test-btn" class="btn btn-outline">Testar Conexão</button>
+
+    <div id="status" class="status hidden">
+      <div class="status-item">
+        <span class="status-indicator" id="sfmc-indicator"></span>
+        <span class="status-label">SFMC:</span>
+        <span class="status-value" id="sfmc-status">-</span>
       </div>
-
-      <div class="form-group">
-        <label for="client_secret">Client Secret</label>
-        <input type="password" id="client_secret" placeholder="Seu SFMC Client Secret" required>
+      <div class="status-item">
+        <span class="status-indicator" id="onelink-indicator"></span>
+        <span class="status-label">Onelink:</span>
+        <span class="status-value" id="onelink-status">-</span>
       </div>
+    </div>
 
-      <div class="form-group">
-        <label for="auth_uri">Auth Base URI</label>
-        <input type="url" id="auth_uri" placeholder="https://YOUR_SUBDOMAIN.auth.marketingcloudapis.com" required>
-      </div>
-
-      <div class="form-group">
-        <label for="subdomain">Subdomain</label>
-        <input type="text" id="subdomain" placeholder="YOUR_SUBDOMAIN">
-      </div>
-
-      <div class="button-group">
-        <button type="submit" class="btn btn-primary">Salvar</button>
-        <button type="button" id="test-btn" class="btn btn-secondary">Testar Conexão</button>
-      </div>
-    </form>
-
-    <div id="message" class="message"></div>
-
-    <div class="footer">
-      <p>Configure suas credenciais do Marketing Cloud para habilitar o upload de assets via EFI Builder.</p>
+    <div id="vpn-message" class="message error hidden">
+      Ligou a VPN da firma, campeão?
     </div>
   </div>
 

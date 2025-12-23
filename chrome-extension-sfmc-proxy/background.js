@@ -1,5 +1,13 @@
 // EFI SFMC Proxy - Background Service Worker
 
+// Credenciais SFMC hardcoded (distribuição segura interna)
+const SFMC_CREDENTIALS = {
+  clientId: 'x1rkxikmm8pcgbfbnayohoh7',
+  clientSecret: 'Lo7SP7LUKCLl9fUtk694aq8d',
+  authUri: 'https://mcn3dvqncqsps20bqzd6yb8r97ty.auth.marketingcloudapis.com',
+  subdomain: 'mcn3dvqncqsps20bqzd6yb8r97ty'
+};
+
 // Cache do token para evitar múltiplas autenticações
 let tokenCache = {
   accessToken: null,
@@ -7,18 +15,9 @@ let tokenCache = {
   expiresAt: null
 };
 
-// Obtém as credenciais salvas
+// Obtém as credenciais (agora hardcoded)
 async function getCredentials() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(['sfmc_client_id', 'sfmc_client_secret', 'sfmc_auth_uri', 'sfmc_subdomain'], (result) => {
-      resolve({
-        clientId: result.sfmc_client_id || '',
-        clientSecret: result.sfmc_client_secret || '',
-        authUri: result.sfmc_auth_uri || '',
-        subdomain: result.sfmc_subdomain || ''
-      });
-    });
-  });
+  return SFMC_CREDENTIALS;
 }
 
 // Autenticação OAuth2 no SFMC
@@ -34,10 +33,6 @@ async function getSfmcAccessToken() {
 
   const credentials = await getCredentials();
   
-  if (!credentials.clientId || !credentials.clientSecret || !credentials.authUri) {
-    throw new Error('Credenciais SFMC não configuradas. Abra a extensão e configure.');
-  }
-
   console.log('[SFMC Proxy] Autenticando no SFMC...');
   
   const authUrl = `${credentials.authUri}/v2/token`;
@@ -57,7 +52,7 @@ async function getSfmcAccessToken() {
   if (!response.ok) {
     const errorText = await response.text();
     console.error('[SFMC Proxy] Erro de autenticação:', errorText);
-    throw new Error(`Falha na autenticação SFMC: ${response.status} - ${errorText}`);
+    throw new Error(`Falha na autenticação SFMC: ${response.status}`);
   }
 
   const data = await response.json();
@@ -75,6 +70,22 @@ async function getSfmcAccessToken() {
     accessToken: data.access_token,
     restInstanceUrl: data.rest_instance_url
   };
+}
+
+// Testar conexão com Onelink API
+async function testOnelinkConnection() {
+  console.log('[Efi Link] Testando conexão com Onelink...');
+  
+  const response = await fetch('https://api.sejaefi.link/health', {
+    method: 'GET'
+  });
+
+  if (!response.ok) {
+    throw new Error('Onelink API offline');
+  }
+
+  console.log('[Efi Link] Onelink API online');
+  return { success: true };
 }
 
 // Upload de asset para o SFMC
@@ -399,13 +410,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
       switch (message.action) {
         case 'CHECK_EXTENSION':
-          const credentials = await getCredentials();
-          const isConfigured = !!(credentials.clientId && credentials.clientSecret && credentials.authUri);
-          return { success: true, configured: isConfigured };
+          return { success: true, configured: true };
 
         case 'TEST_CONNECTION':
-          await getSfmcAccessToken();
-          return { success: true, message: 'Conexão com SFMC estabelecida!' };
+          // Testa ambas as conexões
+          let sfmcOk = false;
+          let onelinkOk = false;
+          let sfmcError = null;
+          let onelinkError = null;
+
+          try {
+            await getSfmcAccessToken();
+            sfmcOk = true;
+          } catch (e) {
+            sfmcError = e.message;
+          }
+
+          try {
+            await testOnelinkConnection();
+            onelinkOk = true;
+          } catch (e) {
+            onelinkError = e.message;
+          }
+
+          return { 
+            success: sfmcOk && onelinkOk, 
+            sfmc: sfmcOk,
+            onelink: onelinkOk,
+            sfmcError,
+            onelinkError,
+            message: sfmcOk && onelinkOk ? 'Todas as conexões OK!' : 'Falha em uma ou mais conexões'
+          };
+
+        case 'TEST_ONELINK':
+          await testOnelinkConnection();
+          return { success: true, message: 'Onelink API online' };
 
         case 'UPLOAD_ASSET':
           const result = await uploadAssetToSfmc(message.payload);
@@ -463,14 +502,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Retorna true para indicar que a resposta será assíncrona
   return true;
-});
-
-// Limpa o cache ao atualizar credenciais
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && (changes.sfmc_client_id || changes.sfmc_client_secret || changes.sfmc_auth_uri)) {
-    console.log('[SFMC Proxy] Credenciais alteradas, limpando cache de token');
-    tokenCache = { accessToken: null, restInstanceUrl: null, expiresAt: null };
-  }
 });
 
 console.log('[SFMC Proxy] Service Worker iniciado');
