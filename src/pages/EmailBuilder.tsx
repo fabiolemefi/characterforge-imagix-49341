@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ArrowLeft, Save, Download, Loader, Palette, Cloud, Send } from 'lucide-react';
+import { ArrowLeft, Save, Download, Loader, Palette, Cloud, Send, Copy, ChevronDown } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
 import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
@@ -404,6 +404,107 @@ const EmailBuilder = () => {
     }
   };
 
+  // Atualizar email existente no SFMC (modo online)
+  const handleUpdateInSFMC = async () => {
+    if (!onlineEmail?.id) {
+      toast({
+        title: 'Erro',
+        description: 'ID do email não encontrado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingToMC(true);
+
+    // Verifica se a extensão está instalada e configurada
+    const extensionReady = await checkExtension();
+    if (!extensionReady) {
+      toast({
+        title: 'Extensão não encontrada',
+        description: 'Instale e configure a extensão EFI SFMC Proxy no Chrome para salvar no Marketing Cloud.',
+        variant: 'destructive',
+      });
+      setUploadingToMC(false);
+      return;
+    }
+
+    toast({
+      title: 'Atualizando email',
+      description: 'Salvando alterações no Marketing Cloud...',
+    });
+
+    try {
+      const htmlContent = generateHtmlContent();
+      const { images, updatedHtml } = await extractAndConvertImages(htmlContent);
+
+      // Upload de cada imagem via extensão
+      console.log(`[SFMC] Iniciando upload de ${images.length} imagens via extensão...`);
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        const base64 = await blobToBase64(img.blob);
+        const extension = img.newName.split('.').pop()?.toLowerCase();
+        let assetTypeId = 22; // jpeg
+        if (extension === 'png') assetTypeId = 28;
+        else if (extension === 'gif') assetTypeId = 23;
+
+        const imagePayload = {
+          assetType: { name: extension || 'jpeg', id: assetTypeId },
+          name: img.newName,
+          file: base64,
+          category: { id: 93941 },
+          customerKey: img.customerKey,
+          fileProperties: { fileName: img.newName, extension: extension || 'jpeg' },
+        };
+
+        console.log(`[SFMC] Enviando imagem ${i + 1}/${images.length}: ${img.newName}`);
+        
+        toast({
+          title: 'Enviando imagens...',
+          description: `Imagem ${i + 1} de ${images.length}: ${img.newName}`,
+        });
+
+        await sendToExtension('UPLOAD_ASSET', imagePayload);
+        console.log(`[SFMC] Imagem ${img.newName} enviada com sucesso`);
+      }
+
+      // Atualizar o email existente via PATCH
+      console.log('[SFMC] Atualizando email existente via extensão...');
+      toast({
+        title: 'Salvando...',
+        description: 'Atualizando conteúdo do email...',
+      });
+
+      const updatePayload = {
+        views: {
+          html: { content: updatedHtml },
+          subjectline: { content: subject || templateName },
+          preheader: { content: previewText || '' },
+        },
+      };
+
+      await sendToExtension('UPDATE_ASSET', { 
+        assetId: onlineEmail.id, 
+        assetData: updatePayload 
+      });
+
+      console.log('[SFMC] Email atualizado com sucesso');
+      toast({
+        title: 'Sucesso!',
+        description: 'Email atualizado no Marketing Cloud.',
+      });
+    } catch (error: any) {
+      console.error('[SFMC] Erro ao atualizar no MC:', error);
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingToMC(false);
+    }
+  };
+
   if (loadingTemplate) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-120px)]">
@@ -435,18 +536,30 @@ const EmailBuilder = () => {
 
           <div className="flex gap-2">
             {isOnlineMode ? (
-              // Modo online: apenas botão de criar novo email no SFMC
-              <Button 
-                onClick={handleExportToMC} 
-                disabled={uploadingToMC}
-              >
-                {uploadingToMC ? (
-                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                {uploadingToMC ? 'Enviando...' : 'Criar Novo Email no SFMC'}
-              </Button>
+              // Modo online: dropdown com Salvar e Salvar cópia
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button disabled={uploadingToMC}>
+                    {uploadingToMC ? (
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    {uploadingToMC ? 'Enviando...' : 'Salvar'}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleUpdateInSFMC} disabled={uploadingToMC}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportToMC} disabled={uploadingToMC}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Salvar cópia
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               // Modo offline: botões padrão
               <>

@@ -112,12 +112,12 @@ async function uploadAssetToSfmc(assetData) {
 }
 
 // Listar emails do SFMC
-async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = '') {
+async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = '', categoryId = null) {
   const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
   
   const url = `${restInstanceUrl}asset/v1/content/assets/query`;
   
-  console.log('[SFMC Proxy] Listando emails, página:', page);
+  console.log('[SFMC Proxy] Listando emails, página:', page, 'categoria:', categoryId);
   
   // Query base para tipos de email (207=Template-based, 208=HTML, 209=Text-only)
   let query = {
@@ -148,6 +148,19 @@ async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = '') {
         property: "name",
         simpleOperator: "like",
         value: `%${searchQuery}%`
+      }
+    };
+  }
+
+  // Adiciona filtro de categoria/pasta
+  if (categoryId) {
+    query.query = {
+      leftOperand: query.query,
+      logicalOperator: "AND",
+      rightOperand: {
+        property: "category.id",
+        simpleOperator: "equal",
+        value: categoryId
       }
     };
   }
@@ -311,6 +324,39 @@ async function moveAssetToCategory(assetId, categoryId) {
   return { success: true };
 }
 
+// Atualizar asset existente no SFMC
+async function updateAssetInSfmc(assetId, assetData) {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/assets/${assetId}`;
+  
+  console.log('[SFMC Proxy] Atualizando asset:', assetId, assetData.name || '');
+  
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(assetData)
+  });
+
+  const responseData = await response.json();
+
+  if (!response.ok) {
+    console.error('[SFMC Proxy] Erro na atualização:', responseData);
+    throw new Error(responseData.message || `Atualização falhou: ${response.status}`);
+  }
+
+  console.log('[SFMC Proxy] Asset atualizado:', responseData.id);
+  
+  return {
+    success: true,
+    assetId: responseData.id,
+    data: responseData
+  };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -339,7 +385,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const emailsResult = await listEmailsFromSfmc(
             message.payload?.page || 1,
             message.payload?.pageSize || 25,
-            message.payload?.search || ''
+            message.payload?.search || '',
+            message.payload?.categoryId || null
           );
           return { success: true, ...emailsResult };
 
@@ -361,6 +408,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             message.payload?.categoryId
           );
           return moveResult;
+
+        case 'UPDATE_ASSET':
+          const updateResult = await updateAssetInSfmc(
+            message.payload?.assetId,
+            message.payload?.assetData
+          );
+          return updateResult;
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);

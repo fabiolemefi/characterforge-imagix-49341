@@ -96,6 +96,7 @@ const EmailTemplates = () => {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [sfmcCategories, setSfmcCategories] = useState<SfmcCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<{ id: number; name: string } | null>(null);
 
   // Função para comunicar com a extensão SFMC Proxy
   const sendToExtension = (action: string, payload?: any): Promise<any> => {
@@ -141,7 +142,7 @@ const EmailTemplates = () => {
   };
 
   // Carrega emails online do SFMC
-  const loadOnlineEmails = async (page = 1, search = '') => {
+  const loadOnlineEmails = async (page = 1, search = '', categoryIdFilter: number | null = filterCategory?.id || null) => {
     setOnlineLoading(true);
     try {
       const isConnected = await checkExtension();
@@ -157,7 +158,8 @@ const EmailTemplates = () => {
       const response = await sendToExtension('LIST_EMAILS', { 
         page, 
         pageSize: ITEMS_PER_PAGE,
-        search 
+        search,
+        categoryId: categoryIdFilter
       });
 
       if (response.success) {
@@ -182,12 +184,24 @@ const EmailTemplates = () => {
   // Verifica extensão ao mudar para aba online
   useEffect(() => {
     if (activeTab === 'online') {
-      loadOnlineEmails(1, onlineSearchQuery);
+      loadOnlineEmails(1, onlineSearchQuery, filterCategory?.id || null);
     }
     // Limpa seleção ao mudar de aba
     setSelectedOfflineIds(new Set());
     setSelectedOnlineIds(new Set());
   }, [activeTab]);
+
+  // Handler para clicar na pasta e filtrar
+  const handleCategoryClick = (category: { id: number; name: string }) => {
+    setFilterCategory(category);
+    loadOnlineEmails(1, onlineSearchQuery, category.id);
+  };
+
+  // Handler para limpar filtro de pasta
+  const clearCategoryFilter = () => {
+    setFilterCategory(null);
+    loadOnlineEmails(1, onlineSearchQuery, null);
+  };
 
   // Filter templates based on search
   const filteredTemplates = useMemo(() => {
@@ -221,7 +235,7 @@ const EmailTemplates = () => {
   };
 
   const handleOnlineSearch = () => {
-    loadOnlineEmails(1, onlineSearchQuery);
+    loadOnlineEmails(1, onlineSearchQuery, filterCategory?.id || null);
   };
 
   const handleCreateTemplate = async () => {
@@ -423,7 +437,7 @@ const EmailTemplates = () => {
         await sendToExtension('DELETE_EMAIL', { assetId: id });
       }
       setSelectedOnlineIds(new Set());
-      await loadOnlineEmails(onlinePage, onlineSearchQuery);
+      await loadOnlineEmails(onlinePage, onlineSearchQuery, filterCategory?.id || null);
       toast({ title: 'Emails excluídos com sucesso' });
     } catch (error) {
       toast({
@@ -466,7 +480,7 @@ const EmailTemplates = () => {
       }
       setSelectedOnlineIds(new Set());
       setIsMoveModalOpen(false);
-      await loadOnlineEmails(onlinePage, onlineSearchQuery);
+      await loadOnlineEmails(onlinePage, onlineSearchQuery, filterCategory?.id || null);
       toast({ title: `${selectedOnlineIds.size} email(s) movido(s) para "${categoryName}"` });
     } catch (error) {
       toast({
@@ -763,6 +777,22 @@ const EmailTemplates = () => {
                   </div>
                 </div>
 
+                {/* Badge de filtro por pasta */}
+                {filterCategory && (
+                  <div className="mb-4 flex items-center gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-1 px-3 py-1">
+                      <FolderOpen className="h-3 w-3" />
+                      {filterCategory.name}
+                      <button 
+                        onClick={clearCategoryFilter}
+                        className="ml-1 hover:bg-muted rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  </div>
+                )}
+
                 {onlineLoading ? (
                   <div className="border rounded-lg">
                     <Table>
@@ -770,10 +800,8 @@ const EmailTemplates = () => {
                         <TableRow>
                           <TableHead className="w-[40px]"></TableHead>
                           <TableHead>Nome</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Categoria</TableHead>
+                          <TableHead>Pasta</TableHead>
                           <TableHead>Modificado em</TableHead>
-                          <TableHead>Status</TableHead>
                           <TableHead className="w-[80px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -782,10 +810,8 @@ const EmailTemplates = () => {
                           <TableRow key={index}>
                             <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
-                            <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>
                             <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
                           </TableRow>
                         ))}
@@ -796,16 +822,16 @@ const EmailTemplates = () => {
                   <div className="text-center py-12 border rounded-lg bg-muted/30">
                     <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-lg font-semibold mb-2">
-                      {onlineSearchQuery ? 'Nenhum resultado encontrado' : 'Nenhum email encontrado'}
+                      {onlineSearchQuery || filterCategory ? 'Nenhum resultado encontrado' : 'Nenhum email encontrado'}
                     </h3>
                     <p className="text-muted-foreground mb-4">
-                      {onlineSearchQuery 
-                        ? 'Tente buscar com outros termos' 
+                      {onlineSearchQuery || filterCategory
+                        ? 'Tente buscar com outros termos ou limpar o filtro' 
                         : 'Não há emails no Marketing Cloud'}
                     </p>
-                    {onlineSearchQuery && (
-                      <Button variant="outline" onClick={() => { setOnlineSearchQuery(''); loadOnlineEmails(1, ''); }}>
-                        Limpar busca
+                    {(onlineSearchQuery || filterCategory) && (
+                      <Button variant="outline" onClick={() => { setOnlineSearchQuery(''); clearCategoryFilter(); }}>
+                        Limpar filtros
                       </Button>
                     )}
                   </div>
@@ -821,10 +847,8 @@ const EmailTemplates = () => {
                             />
                           </TableHead>
                           <TableHead>Nome</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Categoria</TableHead>
+                          <TableHead>Pasta</TableHead>
                           <TableHead>Modificado em</TableHead>
-                          <TableHead>Status</TableHead>
                           <TableHead className="w-[80px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -838,21 +862,23 @@ const EmailTemplates = () => {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{email.name}</TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getAssetTypeName(email.assetType)}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {email.category?.name || '-'}
+                            <TableCell>
+                              {email.category ? (
+                                <button
+                                  onClick={() => handleCategoryClick({ id: email.category!.id, name: email.category!.name })}
+                                  className="text-muted-foreground hover:text-foreground hover:underline cursor-pointer flex items-center gap-1 transition-colors"
+                                >
+                                  <FolderOpen className="h-3 w-3" />
+                                  {email.category.name}
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {email.modifiedDate 
                                 ? format(new Date(email.modifiedDate), 'dd/MM/yyyy HH:mm') 
                                 : '-'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={email.status?.name === 'Published' ? 'default' : 'secondary'}>
-                                {email.status?.name || 'Draft'}
-                              </Badge>
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
