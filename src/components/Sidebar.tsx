@@ -64,7 +64,7 @@ export function Sidebar() {
     }
     
     // Auto-expand plugins if on plugin page
-    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates' || currentPath === '/efi-slides' || currentPath === '/email-magico' || currentPath === '/efi-report') {
+    if (currentPath.startsWith('/plugin') || currentPath === '/efimail' || currentPath === '/efimagem' || currentPath === '/email-templates' || currentPath === '/efi-slides' || currentPath === '/email-magico' || currentPath === '/efi-report' || currentPath === '/efi-link') {
       setExpandedPlugins(true);
     }
     
@@ -99,6 +99,7 @@ export function Sidebar() {
     if (plugin.name === 'Efi Slides') return '/efi-slides';
     if (plugin.name === 'Email mágico') return '/email-magico';
     if (plugin.name === 'Efí Report') return '/efi-report';
+    if (plugin.name === 'Efilink') return '/efi-link';
     return `/plugin/${plugin.id}`;
   };
 
