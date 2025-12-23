@@ -44,6 +44,7 @@ import BriefingsList from './pages/BriefingsList';
 import BriefingForm from './pages/BriefingForm';
 import NotFound from "./pages/NotFound";
 import Metricas from "./pages/Metricas";
+import EfiLink from "./pages/EfiLink";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -75,6 +76,7 @@ const App = () => <AuthProvider>
           <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
           <Route path="/email-magico" element={<ProtectedRoute><AppLayout><EmailMagico /></AppLayout></ProtectedRoute>} />
           <Route path="/efi-report" element={<ProtectedRoute><AppLayout><EfiReport /></AppLayout></ProtectedRoute>} />
+          <Route path="/efi-link" element={<ProtectedRoute><AppLayout><EfiLink /></AppLayout></ProtectedRoute>} />
           <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
           <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />

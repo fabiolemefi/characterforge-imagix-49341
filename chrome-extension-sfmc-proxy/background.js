@@ -357,6 +357,36 @@ async function updateAssetInSfmc(assetId, assetData) {
   };
 }
 
+// Encurtar URL via api.sejaefi.link
+async function shortenUrl(url) {
+  console.log('[Efi Link] Encurtando URL:', url);
+  
+  const response = await fetch('https://api.sejaefi.link/shorten', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ url })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Efi Link] Erro ao encurtar:', errorText);
+    throw new Error(`Erro ao encurtar URL: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[Efi Link] URL encurtada:', data.shorted_url);
+  
+  return {
+    success: true,
+    id: data.id,
+    original_url: data.original_url,
+    shorted: data.shorted,
+    shorted_url: data.shorted_url
+  };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -415,6 +445,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             message.payload?.assetData
           );
           return updateResult;
+
+        case 'SHORTEN_URL':
+          const shortenResult = await shortenUrl(message.payload?.url);
+          return shortenResult;
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);

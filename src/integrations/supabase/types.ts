@@ -698,6 +698,81 @@ export type Database = {
           },
         ]
       }
+      efi_links: {
+        Row: {
+          af_ad: string | null
+          af_adset: string | null
+          af_channel: string | null
+          c: string | null
+          created_at: string
+          deeplink: string | null
+          deeplink_param: string | null
+          id: string
+          link_pattern: string
+          name: string | null
+          original_url: string | null
+          pid: string | null
+          shortened_code: string | null
+          shortened_url: string | null
+          updated_at: string
+          url_destino: string
+          user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          af_ad?: string | null
+          af_adset?: string | null
+          af_channel?: string | null
+          c?: string | null
+          created_at?: string
+          deeplink?: string | null
+          deeplink_param?: string | null
+          id?: string
+          link_pattern?: string
+          name?: string | null
+          original_url?: string | null
+          pid?: string | null
+          shortened_code?: string | null
+          shortened_url?: string | null
+          updated_at?: string
+          url_destino: string
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          af_ad?: string | null
+          af_adset?: string | null
+          af_channel?: string | null
+          c?: string | null
+          created_at?: string
+          deeplink?: string | null
+          deeplink_param?: string | null
+          id?: string
+          link_pattern?: string
+          name?: string | null
+          original_url?: string | null
+          pid?: string | null
+          shortened_code?: string | null
+          shortened_url?: string | null
+          updated_at?: string
+          url_destino?: string
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
+      }
       efi_report_config: {
         Row: {
           analysis_prompt: string
