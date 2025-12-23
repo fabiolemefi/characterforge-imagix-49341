@@ -178,6 +178,42 @@ async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = '') {
   };
 }
 
+// Buscar email específico do SFMC por ID
+async function getEmailFromSfmc(assetId) {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/assets/${assetId}`;
+  
+  console.log('[SFMC Proxy] Buscando email:', assetId);
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[SFMC Proxy] Erro ao buscar email:', errorData);
+    throw new Error(errorData.message || `Erro ao buscar email: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[SFMC Proxy] Email carregado:', data.name);
+  
+  return {
+    id: data.id,
+    name: data.name,
+    content: data.content,
+    views: data.views,
+    assetType: data.assetType,
+    status: data.status,
+    category: data.category
+  };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -209,6 +245,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             message.payload?.search || ''
           );
           return { success: true, ...emailsResult };
+
+        case 'GET_EMAIL':
+          const emailData = await getEmailFromSfmc(message.payload?.assetId);
+          return { success: true, ...emailData };
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);
