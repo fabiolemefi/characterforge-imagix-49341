@@ -111,6 +111,73 @@ async function uploadAssetToSfmc(assetData) {
   };
 }
 
+// Listar emails do SFMC
+async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = '') {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/assets/query`;
+  
+  console.log('[SFMC Proxy] Listando emails, página:', page);
+  
+  // Query base para tipos de email (207=Template-based, 208=HTML, 209=Text-only)
+  let query = {
+    page: { page, pageSize },
+    query: {
+      leftOperand: {
+        property: "assetType.id",
+        simpleOperator: "greaterThanOrEqual",
+        value: 207
+      },
+      logicalOperator: "AND",
+      rightOperand: {
+        property: "assetType.id",
+        simpleOperator: "lessThanOrEqual",
+        value: 209
+      }
+    },
+    sort: [{ property: "modifiedDate", direction: "DESC" }],
+    fields: ["id", "name", "assetType", "modifiedDate", "status", "customerKey", "category"]
+  };
+
+  // Adiciona filtro de nome se houver busca
+  if (searchQuery && searchQuery.trim()) {
+    query.query = {
+      leftOperand: query.query,
+      logicalOperator: "AND",
+      rightOperand: {
+        property: "name",
+        simpleOperator: "like",
+        value: `%${searchQuery}%`
+      }
+    };
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(query)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[SFMC Proxy] Erro ao listar emails:', errorData);
+    throw new Error(errorData.message || `Erro ao listar emails: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[SFMC Proxy] Emails encontrados:', data.count);
+  
+  return {
+    items: data.items || [],
+    count: data.count || 0,
+    page: data.page || page,
+    pageSize: data.pageSize || pageSize
+  };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -134,6 +201,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'UPLOAD_ASSET':
           const result = await uploadAssetToSfmc(message.payload);
           return result;
+
+        case 'LIST_EMAILS':
+          const emailsResult = await listEmailsFromSfmc(
+            message.payload?.page || 1,
+            message.payload?.pageSize || 25,
+            message.payload?.search || ''
+          );
+          return { success: true, ...emailsResult };
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);

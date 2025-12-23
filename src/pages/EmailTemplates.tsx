@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database, Cloud, HardDrive, RefreshCw, Eye } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -35,6 +37,16 @@ import { CreateWithAIModal } from '@/components/CreateWithAIModal';
 import { DatasetModal } from '@/components/DatasetModal';
 
 const ITEMS_PER_PAGE = 10;
+
+interface OnlineEmail {
+  id: number;
+  name: string;
+  assetType?: { id: number; name: string };
+  modifiedDate?: string;
+  status?: { id: number; name: string };
+  customerKey?: string;
+  category?: { id: number; name: string };
+}
 
 const EmailTemplates = () => {
   const navigate = useNavigate();
@@ -55,6 +67,105 @@ const EmailTemplates = () => {
     description: '',
   });
 
+  // Estados para aba online
+  const [activeTab, setActiveTab] = useState<'offline' | 'online'>('offline');
+  const [onlineEmails, setOnlineEmails] = useState<OnlineEmail[]>([]);
+  const [onlineLoading, setOnlineLoading] = useState(false);
+  const [onlinePage, setOnlinePage] = useState(1);
+  const [onlineTotalCount, setOnlineTotalCount] = useState(0);
+  const [extensionConnected, setExtensionConnected] = useState(false);
+  const [onlineSearchQuery, setOnlineSearchQuery] = useState('');
+
+  // Função para comunicar com extensão
+  const sendToExtension = (action: string, payload?: any): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const messageId = `${Date.now()}-${Math.random()}`;
+      
+      const handler = (event: MessageEvent) => {
+        if (event.data?.source === 'SFMC_PROXY' && event.data?.id === messageId) {
+          window.removeEventListener('message', handler);
+          if (event.data.error) {
+            reject(new Error(event.data.error));
+          } else {
+            resolve(event.data.response);
+          }
+        }
+      };
+      
+      window.addEventListener('message', handler);
+      setTimeout(() => {
+        window.removeEventListener('message', handler);
+        reject(new Error('Timeout - Extensão não respondeu'));
+      }, 30000);
+      
+      window.postMessage({
+        source: 'EFI_BUILDER',
+        target: 'SFMC_PROXY',
+        action,
+        payload,
+        id: messageId
+      }, '*');
+    });
+  };
+
+  // Verifica se extensão está conectada
+  const checkExtension = async () => {
+    try {
+      const response = await sendToExtension('CHECK_EXTENSION');
+      setExtensionConnected(response.configured === true);
+      return response.configured === true;
+    } catch {
+      setExtensionConnected(false);
+      return false;
+    }
+  };
+
+  // Carrega emails online do SFMC
+  const loadOnlineEmails = async (page = 1, search = '') => {
+    setOnlineLoading(true);
+    try {
+      const isConnected = await checkExtension();
+      if (!isConnected) {
+        toast({
+          variant: 'destructive',
+          title: 'Extensão não configurada',
+          description: 'Configure a extensão SFMC Proxy para acessar emails online'
+        });
+        return;
+      }
+
+      const response = await sendToExtension('LIST_EMAILS', { 
+        page, 
+        pageSize: ITEMS_PER_PAGE,
+        search 
+      });
+
+      if (response.success) {
+        setOnlineEmails(response.items || []);
+        setOnlineTotalCount(response.count || 0);
+        setOnlinePage(page);
+      } else {
+        throw new Error(response.error || 'Erro ao carregar emails');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar emails online:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar emails',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setOnlineLoading(false);
+    }
+  };
+
+  // Verifica extensão ao mudar para aba online
+  useEffect(() => {
+    if (activeTab === 'online') {
+      loadOnlineEmails(1, onlineSearchQuery);
+    }
+  }, [activeTab]);
+
   // Filter templates based on search
   const filteredTemplates = useMemo(() => {
     if (!searchQuery.trim()) return templates;
@@ -74,10 +185,20 @@ const EmailTemplates = () => {
     return filteredTemplates.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredTemplates, currentPage]);
 
+  const onlineTotalPages = Math.ceil(onlineTotalCount / ITEMS_PER_PAGE);
+
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     setCurrentPage(1);
+  };
+
+  const handleOnlineSearchChange = (value: string) => {
+    setOnlineSearchQuery(value);
+  };
+
+  const handleOnlineSearch = () => {
+    loadOnlineEmails(1, onlineSearchQuery);
   };
 
   const handleCreateTemplate = async () => {
@@ -133,39 +254,80 @@ const EmailTemplates = () => {
     }
   };
 
+  const getAssetTypeName = (assetType?: { id: number; name: string }) => {
+    if (!assetType) return '-';
+    switch (assetType.id) {
+      case 207: return 'Template';
+      case 208: return 'HTML';
+      case 209: return 'Texto';
+      default: return assetType.name || '-';
+    }
+  };
+
   return (
     <>
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold">Email Builder</h1>
-                <p className="text-muted-foreground mt-1">
-                  Gerencie seus templates de email
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => setIsDatasetModalOpen(true)}>
-                  <Database className="h-4 w-4 mr-2" />
-                  Dataset
-                </Button>
-                <Button variant="ghost" onClick={() => setIsUseModelDialogOpen(true)}>
-                  Usar Modelo
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsCreateWithAIModalOpen(true)}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Criar com IA
-                </Button>
-                <Button onClick={() => setIsCreateModalOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Novo Email
-                </Button>
-              </div>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">Email Builder</h1>
+            <p className="text-muted-foreground mt-1">
+              Gerencie seus templates de email
+            </p>
+          </div>
+          {activeTab === 'offline' && (
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setIsDatasetModalOpen(true)}>
+                <Database className="h-4 w-4 mr-2" />
+                Dataset
+              </Button>
+              <Button variant="ghost" onClick={() => setIsUseModelDialogOpen(true)}>
+                Usar Modelo
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsCreateWithAIModalOpen(true)}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Criar com IA
+              </Button>
+              <Button onClick={() => setIsCreateModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Novo Email
+              </Button>
             </div>
+          )}
+          {activeTab === 'online' && (
+            <Button 
+              variant="outline" 
+              onClick={() => loadOnlineEmails(onlinePage, onlineSearchQuery)}
+              disabled={onlineLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${onlineLoading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          )}
+        </div>
 
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'offline' | 'online')} className="mb-4">
+          <TabsList>
+            <TabsTrigger value="offline" className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              Emails Offline
+            </TabsTrigger>
+            <TabsTrigger value="online" className="flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              Emails Online
+              {extensionConnected && (
+                <span className="w-2 h-2 bg-green-500 rounded-full" />
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab Offline */}
+          <TabsContent value="offline" className="mt-4">
             {/* Search bar */}
             <div className="mb-4">
               <div className="relative">
@@ -330,144 +492,327 @@ const EmailTemplates = () => {
               </div>
             </>
             )}
-          </div>
-        </div>
+          </TabsContent>
 
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Criar Novo Email</DialogTitle>
-            <DialogDescription>
-              Preencha as informações básicas do seu novo template de email
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Nome do Email *</Label>
-              <Input
-                id="name"
-                value={newTemplate.name}
-                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                placeholder="Ex: Newsletter Mensal"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="subject">Assunto do Email</Label>
-              <Input
-                id="subject"
-                value={newTemplate.subject}
-                onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
-                placeholder="Ex: Novidades deste mês"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="preview">Texto de Preview</Label>
-              <Textarea
-                id="preview"
-                value={newTemplate.preview_text}
-                onChange={(e) => setNewTemplate({ ...newTemplate, preview_text: e.target.value })}
-                placeholder="Texto que aparece na caixa de entrada..."
-                className="mt-1 resize-none"
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                value={newTemplate.description}
-                onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
-                placeholder="Descrição interna do template..."
-                className="mt-1 resize-none"
-                rows={2}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleCreateTemplate}>
-                Criar e Editar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isUseModelDialogOpen} onOpenChange={setIsUseModelDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Escolher Modelo</DialogTitle>
-            <DialogDescription>
-              Selecione um modelo para utilizar como base para seu novo email
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {models.length === 0 ? (
-              <p className="text-center text-muted-foreground">Nenhum modelo disponível</p>
+          {/* Tab Online */}
+          <TabsContent value="online" className="mt-4">
+            {!extensionConnected && !onlineLoading ? (
+              <div className="text-center py-12 border rounded-lg bg-muted/30">
+                <Cloud className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Extensão não conectada</h3>
+                <p className="text-muted-foreground mb-4">
+                  Instale e configure a extensão SFMC Proxy para acessar emails do Marketing Cloud
+                </p>
+                <Button variant="outline" onClick={() => loadOnlineEmails(1, '')}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Tentar novamente
+                </Button>
+              </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Assunto</TableHead>
-                    <TableHead>Preview</TableHead>
-                    <TableHead>Atualizado em</TableHead>
-                    <TableHead className="w-[80px]">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {models.map((model) => (
-                    <TableRow key={model.id}>
-                      <TableCell className="font-medium">{model.name}</TableCell>
-                      <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                        {model.subject || '-'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                        {model.preview_text || '-'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(model.updated_at), 'dd/MM/yyyy HH:mm')}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            navigate('/email-builder', { state: { modelId: model.id } });
-                            setIsUseModelDialogOpen(false);
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Usar Modelo
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <>
+                {/* Search bar */}
+                <div className="mb-4">
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar emails no Marketing Cloud..."
+                        value={onlineSearchQuery}
+                        onChange={(e) => handleOnlineSearchChange(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleOnlineSearch()}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={handleOnlineSearch} disabled={onlineLoading}>
+                      Buscar
+                    </Button>
+                  </div>
+                </div>
+
+                {onlineLoading ? (
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Modificado em</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-[80px]">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <TableRow key={index}>
+                            <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>
+                            <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : onlineEmails.length === 0 ? (
+                  <div className="text-center py-12 border rounded-lg bg-muted/30">
+                    <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold mb-2">
+                      {onlineSearchQuery ? 'Nenhum resultado encontrado' : 'Nenhum email encontrado'}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {onlineSearchQuery 
+                        ? 'Tente buscar com outros termos' 
+                        : 'Não há emails no Marketing Cloud'}
+                    </p>
+                    {onlineSearchQuery && (
+                      <Button variant="outline" onClick={() => { setOnlineSearchQuery(''); loadOnlineEmails(1, ''); }}>
+                        Limpar busca
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Modificado em</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-[80px]">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {onlineEmails.map((email) => (
+                          <TableRow key={email.id}>
+                            <TableCell className="font-medium">{email.name}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getAssetTypeName(email.assetType)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {email.category?.name || '-'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {email.modifiedDate 
+                                ? format(new Date(email.modifiedDate), 'dd/MM/yyyy HH:mm') 
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={email.status?.name === 'Published' ? 'default' : 'secondary'}>
+                                {email.status?.name || 'Draft'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => {
+                                    toast({
+                                      title: 'Em breve',
+                                      description: 'Funcionalidade de visualizar email online em desenvolvimento'
+                                    });
+                                  }}>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Visualizar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => {
+                                    toast({
+                                      title: 'Em breve',
+                                      description: 'Funcionalidade de importar email para offline em desenvolvimento'
+                                    });
+                                  }}>
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Importar para Offline
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {/* Pagination */}
+                    {onlineTotalPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          Mostrando {((onlinePage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(onlinePage * ITEMS_PER_PAGE, onlineTotalCount)} de {onlineTotalCount} emails
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadOnlineEmails(onlinePage - 1, onlineSearchQuery)}
+                            disabled={onlinePage === 1 || onlineLoading}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <div className="text-sm">
+                            Página {onlinePage} de {onlineTotalPages}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadOnlineEmails(onlinePage + 1, onlineSearchQuery)}
+                            disabled={onlinePage === onlineTotalPages || onlineLoading}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+
+    <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Criar Novo Email</DialogTitle>
+          <DialogDescription>
+            Preencha as informações básicas do seu novo template de email
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="name">Nome do Email *</Label>
+            <Input
+              id="name"
+              value={newTemplate.name}
+              onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+              placeholder="Ex: Newsletter Mensal"
+              className="mt-1"
+            />
           </div>
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={() => setIsUseModelDialogOpen(false)}>
+          <div>
+            <Label htmlFor="subject">Assunto do Email</Label>
+            <Input
+              id="subject"
+              value={newTemplate.subject}
+              onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
+              placeholder="Ex: Novidades deste mês"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="preview">Texto de Preview</Label>
+            <Textarea
+              id="preview"
+              value={newTemplate.preview_text}
+              onChange={(e) => setNewTemplate({ ...newTemplate, preview_text: e.target.value })}
+              placeholder="Texto que aparece na caixa de entrada..."
+              className="mt-1 resize-none"
+              rows={2}
+            />
+          </div>
+          <div>
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea
+              id="description"
+              value={newTemplate.description}
+              onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+              placeholder="Descrição interna do template..."
+              className="mt-1 resize-none"
+              rows={2}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
               Cancelar
             </Button>
+            <Button onClick={handleCreateTemplate}>
+              Criar e Editar
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </DialogContent>
+    </Dialog>
 
-      <CreateWithAIModal 
-        open={isCreateWithAIModalOpen}
-        onClose={() => setIsCreateWithAIModalOpen(false)} 
-      />
+    <Dialog open={isUseModelDialogOpen} onOpenChange={setIsUseModelDialogOpen}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Escolher Modelo</DialogTitle>
+          <DialogDescription>
+            Selecione um modelo para utilizar como base para seu novo email
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {models.length === 0 ? (
+            <p className="text-center text-muted-foreground">Nenhum modelo disponível</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Assunto</TableHead>
+                  <TableHead>Preview</TableHead>
+                  <TableHead>Atualizado em</TableHead>
+                  <TableHead className="w-[80px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {models.map((model) => (
+                  <TableRow key={model.id}>
+                    <TableCell className="font-medium">{model.name}</TableCell>
+                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                      {model.subject || '-'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                      {model.preview_text || '-'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(model.updated_at), 'dd/MM/yyyy HH:mm')}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigate('/email-builder', { state: { modelId: model.id } });
+                          setIsUseModelDialogOpen(false);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Usar Modelo
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setIsUseModelDialogOpen(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
 
-      <DatasetModal 
-        open={isDatasetModalOpen}
-        onOpenChange={setIsDatasetModalOpen}
-      />
-    </>
+    <CreateWithAIModal 
+      open={isCreateWithAIModalOpen}
+      onClose={() => setIsCreateWithAIModalOpen(false)} 
+    />
+
+    <DatasetModal 
+      open={isDatasetModalOpen}
+      onOpenChange={setIsDatasetModalOpen}
+    />
+  </>
   );
 };
 
