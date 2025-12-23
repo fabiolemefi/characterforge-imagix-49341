@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "EFI SFMC Proxy",
+  "name": "Mágicas do Fábio",
   "version": "1.0.0",
-  "description": "Proxy para upload de assets no Salesforce Marketing Cloud via EFI Builder",
+  "description": "Proxy para upload de assets no Salesforce Marketing Cloud e encurtamento de URLs",
   "permissions": [
     "storage"
   ],
