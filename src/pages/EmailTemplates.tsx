@@ -76,6 +76,7 @@ const EmailTemplates = () => {
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [onlineSearchQuery, setOnlineSearchQuery] = useState('');
   const [loadingEmailId, setLoadingEmailId] = useState<number | null>(null);
+  const [deletingEmailId, setDeletingEmailId] = useState<number | null>(null);
 
   // Função para comunicar com a extensão SFMC Proxy
   const sendToExtension = (action: string, payload?: any): Promise<any> => {
@@ -299,6 +300,36 @@ const EmailTemplates = () => {
       });
     } finally {
       setLoadingEmailId(null);
+    }
+  };
+
+  // Função para deletar email online
+  const handleDeleteOnlineEmail = async (email: OnlineEmail) => {
+    if (!confirm(`Deseja realmente excluir o email "${email.name}" do Marketing Cloud?\n\nAtenção: Esta ação não pode ser desfeita!`)) {
+      return;
+    }
+
+    setDeletingEmailId(email.id);
+    try {
+      const response = await sendToExtension('DELETE_EMAIL', { assetId: email.id });
+
+      if (response.success) {
+        toast({
+          title: 'Email excluído',
+          description: `"${email.name}" foi removido do Marketing Cloud`
+        });
+        loadOnlineEmails(onlinePage, onlineSearchQuery);
+      } else {
+        throw new Error(response.error || 'Erro ao excluir email');
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir email',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setDeletingEmailId(null);
     }
   };
 
@@ -647,8 +678,8 @@ const EmailTemplates = () => {
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" disabled={loadingEmailId === email.id}>
-                                    {loadingEmailId === email.id ? (
+                                  <Button variant="ghost" size="sm" disabled={loadingEmailId === email.id || deletingEmailId === email.id}>
+                                    {(loadingEmailId === email.id || deletingEmailId === email.id) ? (
                                       <Loader className="h-4 w-4 animate-spin" />
                                     ) : (
                                       <MoreVertical className="h-4 w-4" />
@@ -658,10 +689,18 @@ const EmailTemplates = () => {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem 
                                     onClick={() => handleEditOnlineEmail(email)}
-                                    disabled={loadingEmailId !== null}
+                                    disabled={loadingEmailId !== null || deletingEmailId !== null}
                                   >
                                     <Edit className="h-4 w-4 mr-2" />
                                     Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-destructive"
+                                    onClick={() => handleDeleteOnlineEmail(email)}
+                                    disabled={loadingEmailId !== null || deletingEmailId !== null}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
