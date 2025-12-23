@@ -1,74 +1,30 @@
-// EFI SFMC Proxy - Popup Script
+// Mágicas do Fábio - Popup Script
 
-const form = document.getElementById('credentials-form');
-const statusEl = document.getElementById('status');
-const statusIndicator = statusEl.querySelector('.status-indicator');
-const statusText = statusEl.querySelector('.status-text');
-const messageEl = document.getElementById('message');
 const testBtn = document.getElementById('test-btn');
+const statusEl = document.getElementById('status');
+const sfmcIndicator = document.getElementById('sfmc-indicator');
+const sfmcStatus = document.getElementById('sfmc-status');
+const onelinkIndicator = document.getElementById('onelink-indicator');
+const onelinkStatus = document.getElementById('onelink-status');
+const vpnMessage = document.getElementById('vpn-message');
 
-// Campos do formulário
-const clientIdInput = document.getElementById('client_id');
-const clientSecretInput = document.getElementById('client_secret');
-const authUriInput = document.getElementById('auth_uri');
-const subdomainInput = document.getElementById('subdomain');
-
-// Carrega credenciais salvas
-async function loadCredentials() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(['sfmc_client_id', 'sfmc_client_secret', 'sfmc_auth_uri', 'sfmc_subdomain'], (result) => {
-      clientIdInput.value = result.sfmc_client_id || '';
-      clientSecretInput.value = result.sfmc_client_secret || '';
-      authUriInput.value = result.sfmc_auth_uri || '';
-      subdomainInput.value = result.sfmc_subdomain || '';
-      
-      updateStatus(result.sfmc_client_id && result.sfmc_client_secret && result.sfmc_auth_uri);
-      resolve();
-    });
-  });
+// Reseta indicadores
+function resetIndicators() {
+  sfmcIndicator.classList.remove('success', 'error');
+  sfmcStatus.textContent = '-';
+  onelinkIndicator.classList.remove('success', 'error');
+  onelinkStatus.textContent = '-';
 }
 
-// Salva credenciais
-async function saveCredentials() {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({
-      sfmc_client_id: clientIdInput.value.trim(),
-      sfmc_client_secret: clientSecretInput.value.trim(),
-      sfmc_auth_uri: authUriInput.value.trim(),
-      sfmc_subdomain: subdomainInput.value.trim()
-    }, resolve);
-  });
-}
-
-// Atualiza indicador de status
-function updateStatus(configured) {
-  statusEl.classList.remove('configured', 'not-configured', 'testing');
-  
-  if (configured) {
-    statusEl.classList.add('configured');
-    statusText.textContent = 'Configurado';
-  } else {
-    statusEl.classList.add('not-configured');
-    statusText.textContent = 'Não configurado';
-  }
-}
-
-// Mostra mensagem
-function showMessage(text, type) {
-  messageEl.textContent = text;
-  messageEl.className = `message show ${type}`;
-  
-  setTimeout(() => {
-    messageEl.classList.remove('show');
-  }, 5000);
-}
-
-// Testa a conexão
+// Testa conexão com SFMC e Onelink
 async function testConnection() {
-  statusEl.classList.remove('configured', 'not-configured');
-  statusEl.classList.add('testing');
-  statusText.textContent = 'Testando...';
   testBtn.disabled = true;
+  testBtn.textContent = 'Testando...';
+  statusEl.classList.remove('hidden');
+  vpnMessage.classList.add('hidden');
+  resetIndicators();
+
+  let hasError = false;
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -76,36 +32,39 @@ async function testConnection() {
       action: 'TEST_CONNECTION'
     });
 
-    if (response.success) {
-      showMessage('Conexão estabelecida com sucesso!', 'success');
-      updateStatus(true);
+    // SFMC
+    if (response.sfmc) {
+      sfmcIndicator.classList.add('success');
+      sfmcStatus.textContent = 'OK';
     } else {
-      showMessage(response.error || 'Falha na conexão', 'error');
-      updateStatus(true); // Ainda configurado, mas com erro
+      sfmcIndicator.classList.add('error');
+      sfmcStatus.textContent = 'Erro';
+      hasError = true;
+    }
+
+    // Onelink
+    if (response.onelink) {
+      onelinkIndicator.classList.add('success');
+      onelinkStatus.textContent = 'OK';
+    } else {
+      onelinkIndicator.classList.add('error');
+      onelinkStatus.textContent = 'Erro';
+      hasError = true;
     }
   } catch (error) {
-    showMessage(error.message || 'Erro ao testar conexão', 'error');
-    updateStatus(false);
-  } finally {
-    testBtn.disabled = false;
+    sfmcIndicator.classList.add('error');
+    sfmcStatus.textContent = 'Erro';
+    onelinkIndicator.classList.add('error');
+    onelinkStatus.textContent = 'Erro';
+    hasError = true;
   }
+
+  if (hasError) {
+    vpnMessage.classList.remove('hidden');
+  }
+
+  testBtn.disabled = false;
+  testBtn.textContent = 'Testar Conexão';
 }
 
-// Event: Salvar formulário
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  await saveCredentials();
-  updateStatus(true);
-  showMessage('Credenciais salvas com sucesso!', 'success');
-});
-
-// Event: Testar conexão
-testBtn.addEventListener('click', async () => {
-  // Salva antes de testar
-  await saveCredentials();
-  await testConnection();
-});
-
-// Inicialização
-loadCredentials();
+testBtn.addEventListener('click', testConnection);
