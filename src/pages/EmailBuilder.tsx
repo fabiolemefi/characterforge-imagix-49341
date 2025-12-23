@@ -189,11 +189,11 @@ const EmailBuilder = () => {
     });
   };
 
-  const extractAndConvertImages = async (html: string): Promise<{ images: { blob: Blob; newName: string }[]; updatedHtml: string }> => {
+  const extractAndConvertImages = async (html: string): Promise<{ images: { blob: Blob; newName: string; customerKey: string }[]; updatedHtml: string }> => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const imgElements = doc.querySelectorAll('img');
-    const images: { blob: Blob; newName: string }[] = [];
+    const images: { blob: Blob; newName: string; customerKey: string }[] = [];
     const uniqueSuffix = Math.floor(1000 + Math.random() * 9000).toString();
 
     for (const img of Array.from(imgElements)) {
@@ -207,8 +207,11 @@ const EmailBuilder = () => {
         const originalName = src.split('/').pop()?.split('?')[0] || `image-${Date.now()}`;
         const baseName = originalName.replace(/\.[^/.]+$/, '');
         const newName = `${baseName}-${uniqueSuffix}.${extension === 'jpg' ? 'jpeg' : extension}`;
+        
+        // Gerar customerKey curto (máx 36 chars): img_[base36timestamp]_[suffix]
+        const customerKey = `img_${Date.now().toString(36)}_${uniqueSuffix}`;
 
-        images.push({ blob, newName });
+        images.push({ blob, newName, customerKey });
 
         const newUrl = `https://image.comunicacao.sejaefi.com.br/lib/fe4111737764047d751573/m/1/${newName}`;
         img.setAttribute('src', newUrl);
@@ -311,7 +314,7 @@ const EmailBuilder = () => {
           name: img.newName,
           file: base64,
           category: { id: 93941 },
-          customerKey: img.newName,
+          customerKey: img.customerKey, // Usar customerKey curto (máx 36 chars)
           fileProperties: { fileName: img.newName, extension: extension || 'jpeg' },
         };
 
