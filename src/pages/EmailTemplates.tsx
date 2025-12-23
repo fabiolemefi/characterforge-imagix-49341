@@ -76,16 +76,16 @@ const EmailTemplates = () => {
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [onlineSearchQuery, setOnlineSearchQuery] = useState('');
 
-  // Função para comunicar com extensão
+  // Função para comunicar com a extensão SFMC Proxy
   const sendToExtension = (action: string, payload?: any): Promise<any> => {
     return new Promise((resolve, reject) => {
-      const messageId = `${Date.now()}-${Math.random()}`;
+      const requestId = `${Date.now()}-${Math.random()}`;
       
       const handler = (event: MessageEvent) => {
-        if (event.data?.source === 'SFMC_PROXY' && event.data?.id === messageId) {
+        if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
           window.removeEventListener('message', handler);
-          if (event.data.error) {
-            reject(new Error(event.data.error));
+          if (event.data.response?.error) {
+            reject(new Error(event.data.response.error));
           } else {
             resolve(event.data.response);
           }
@@ -99,11 +99,10 @@ const EmailTemplates = () => {
       }, 30000);
       
       window.postMessage({
-        source: 'EFI_BUILDER',
         target: 'SFMC_PROXY',
         action,
         payload,
-        id: messageId
+        requestId
       }, '*');
     });
   };
