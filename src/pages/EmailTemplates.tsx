@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database, Cloud, HardDrive, RefreshCw, Eye } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database, Cloud, HardDrive, RefreshCw, Loader } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -75,6 +75,7 @@ const EmailTemplates = () => {
   const [onlineTotalCount, setOnlineTotalCount] = useState(0);
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [onlineSearchQuery, setOnlineSearchQuery] = useState('');
+  const [loadingEmailId, setLoadingEmailId] = useState<number | null>(null);
 
   // Função para comunicar com a extensão SFMC Proxy
   const sendToExtension = (action: string, payload?: any): Promise<any> => {
@@ -260,6 +261,44 @@ const EmailTemplates = () => {
       case 208: return 'HTML';
       case 209: return 'Texto';
       default: return assetType.name || '-';
+    }
+  };
+
+  // Função para editar email online
+  const handleEditOnlineEmail = async (email: OnlineEmail) => {
+    setLoadingEmailId(email.id);
+    try {
+      toast({
+        title: 'Carregando email...',
+        description: 'Buscando conteúdo do Marketing Cloud'
+      });
+
+      const response = await sendToExtension('GET_EMAIL', { assetId: email.id });
+
+      if (response.success) {
+        navigate('/email-builder', {
+          state: {
+            onlineEmail: {
+              id: response.id,
+              name: response.name,
+              content: response.content,
+              views: response.views,
+              assetType: response.assetType,
+              category: response.category
+            }
+          }
+        });
+      } else {
+        throw new Error(response.error || 'Erro ao buscar email');
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar email',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setLoadingEmailId(null);
     }
   };
 
@@ -608,28 +647,21 @@ const EmailTemplates = () => {
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreVertical className="h-4 w-4" />
+                                  <Button variant="ghost" size="sm" disabled={loadingEmailId === email.id}>
+                                    {loadingEmailId === email.id ? (
+                                      <Loader className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <MoreVertical className="h-4 w-4" />
+                                    )}
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => {
-                                    toast({
-                                      title: 'Em breve',
-                                      description: 'Funcionalidade de visualizar email online em desenvolvimento'
-                                    });
-                                  }}>
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Visualizar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => {
-                                    toast({
-                                      title: 'Em breve',
-                                      description: 'Funcionalidade de importar email para offline em desenvolvimento'
-                                    });
-                                  }}>
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Importar para Offline
+                                  <DropdownMenuItem 
+                                    onClick={() => handleEditOnlineEmail(email)}
+                                    disabled={loadingEmailId !== null}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Editar
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

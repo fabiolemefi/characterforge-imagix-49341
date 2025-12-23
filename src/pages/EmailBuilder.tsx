@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ArrowLeft, Save, Download, Loader, Palette, Cloud } from 'lucide-react';
+import { ArrowLeft, Save, Download, Loader, Palette, Cloud, Send } from 'lucide-react';
 import { EmailPreview } from '@/components/EmailPreview';
 import { AddBlockModal } from '@/components/AddBlockModal';
 import { useEmailBlocks, EmailBlock } from '@/hooks/useEmailBlocks';
@@ -26,6 +26,8 @@ const EmailBuilder = () => {
   const location = useLocation();
   const { toast } = useToast();
   const modelId = location?.state?.modelId;
+  const onlineEmail = location?.state?.onlineEmail;
+  const isOnlineMode = !!onlineEmail;
   const { blocks } = useEmailBlocks();
   const { updateTemplate, saveTemplate, loadTemplateById } = useEmailTemplates();
   
@@ -40,6 +42,42 @@ const EmailBuilder = () => {
   const [uploadingToMC, setUploadingToMC] = useState(false);
 
   useEffect(() => {
+    // Se for modo online, carregar os dados do email do SFMC
+    if (onlineEmail) {
+      setTemplateName(`Cópia de ${onlineEmail.name}`);
+      
+      // Extrair HTML do email - pode estar em content ou em views.html.content
+      const htmlContent = onlineEmail.content || 
+        onlineEmail.views?.html?.content || 
+        '';
+      
+      // Extrair subject e preheader se existirem
+      if (onlineEmail.views?.subjectline?.content) {
+        setSubject(onlineEmail.views.subjectline.content);
+      }
+      if (onlineEmail.views?.preheader?.content) {
+        setPreviewText(onlineEmail.views.preheader.content);
+      }
+      
+      if (htmlContent) {
+        setSelectedBlocks([{
+          id: 'imported-html',
+          instanceId: `imported-${Date.now()}`,
+          name: 'HTML Importado',
+          html_template: htmlContent,
+          customHtml: htmlContent,
+          category: 'imported',
+          description: null,
+          thumbnail_url: null,
+          ai_instructions: null,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        }]);
+      }
+      return;
+    }
+
+    // Caso contrário, carregar template normal
     const loadTemplate = async () => {
       const templateId = id || modelId;
       if (!templateId) return;
@@ -65,7 +103,7 @@ const EmailBuilder = () => {
     };
 
     loadTemplate();
-  }, [id, modelId]);
+  }, [id, modelId, onlineEmail]);
 
   const handleAddBlock = (block: EmailBlock) => {
     const newBlock: SelectedBlock = {
@@ -396,49 +434,67 @@ const EmailBuilder = () => {
           </div>
 
           <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={uploadingToMC}>
-                  {uploadingToMC ? (
-                    <Loader className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  {uploadingToMC ? 'Enviando...' : 'Exportar'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar HTML
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportToMC} disabled={uploadingToMC}>
-                  <Cloud className="h-4 w-4 mr-2" />
-                  Exportar para MC
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button disabled={saving}>
-                  {saving ? (
-                    <Loader className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  {saving ? 'Salvando...' : 'Salvar'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleSave}>
-                  Salvar
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSaveAsModel}>
-                  <Palette className="h-4 w-4 mr-2" />
-                  Salvar como Modelo
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {isOnlineMode ? (
+              // Modo online: apenas botão de criar novo email no SFMC
+              <Button 
+                onClick={handleExportToMC} 
+                disabled={uploadingToMC}
+              >
+                {uploadingToMC ? (
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {uploadingToMC ? 'Enviando...' : 'Criar Novo Email no SFMC'}
+              </Button>
+            ) : (
+              // Modo offline: botões padrão
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={uploadingToMC}>
+                      {uploadingToMC ? (
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      {uploadingToMC ? 'Enviando...' : 'Exportar'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleDownload}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar HTML
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportToMC} disabled={uploadingToMC}>
+                      <Cloud className="h-4 w-4 mr-2" />
+                      Exportar para MC
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button disabled={saving}>
+                      {saving ? (
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {saving ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleSave}>
+                      Salvar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSaveAsModel}>
+                      <Palette className="h-4 w-4 mr-2" />
+                      Salvar como Modelo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
       </div>
