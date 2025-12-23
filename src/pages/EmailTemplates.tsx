@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database, Cloud, HardDrive, RefreshCw, Loader } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Mail, Download, Search, ChevronLeft, ChevronRight, Sparkles, Database, Cloud, HardDrive, RefreshCw, Loader, FolderOpen, X } from 'lucide-react';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -35,6 +36,7 @@ import { downloadEmailHtml } from '@/lib/emailExporter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreateWithAIModal } from '@/components/CreateWithAIModal';
 import { DatasetModal } from '@/components/DatasetModal';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -48,10 +50,16 @@ interface OnlineEmail {
   category?: { id: number; name: string };
 }
 
+interface SfmcCategory {
+  id: number;
+  name: string;
+  parentId?: number;
+}
+
 const EmailTemplates = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { templates, loading, saveTemplate, deleteTemplate } = useEmailTemplates();
+  const { templates, loading, saveTemplate, deleteTemplate, reloadTemplates } = useEmailTemplates();
 
   const models = templates.filter(t => t.is_model);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -77,6 +85,17 @@ const EmailTemplates = () => {
   const [onlineSearchQuery, setOnlineSearchQuery] = useState('');
   const [loadingEmailId, setLoadingEmailId] = useState<number | null>(null);
   const [deletingEmailId, setDeletingEmailId] = useState<number | null>(null);
+
+  // Estados para seleção múltipla
+  const [selectedOfflineIds, setSelectedOfflineIds] = useState<Set<string>>(new Set());
+  const [selectedOnlineIds, setSelectedOnlineIds] = useState<Set<number>>(new Set());
+
+  // Estados para ações em lote
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const [batchMoving, setBatchMoving] = useState(false);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [sfmcCategories, setSfmcCategories] = useState<SfmcCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   // Função para comunicar com a extensão SFMC Proxy
   const sendToExtension = (action: string, payload?: any): Promise<any> => {
@@ -165,6 +184,9 @@ const EmailTemplates = () => {
     if (activeTab === 'online') {
       loadOnlineEmails(1, onlineSearchQuery);
     }
+    // Limpa seleção ao mudar de aba
+    setSelectedOfflineIds(new Set());
+    setSelectedOnlineIds(new Set());
   }, [activeTab]);
 
   // Filter templates based on search
@@ -333,9 +355,138 @@ const EmailTemplates = () => {
     }
   };
 
+  // Funções de seleção
+  const toggleOfflineSelection = (id: string) => {
+    setSelectedOfflineIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleOnlineSelection = (id: number) => {
+    setSelectedOnlineIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllOffline = () => {
+    if (selectedOfflineIds.size === paginatedTemplates.length && paginatedTemplates.length > 0) {
+      setSelectedOfflineIds(new Set());
+    } else {
+      setSelectedOfflineIds(new Set(paginatedTemplates.map(t => t.id)));
+    }
+  };
+
+  const toggleAllOnline = () => {
+    if (selectedOnlineIds.size === onlineEmails.length && onlineEmails.length > 0) {
+      setSelectedOnlineIds(new Set());
+    } else {
+      setSelectedOnlineIds(new Set(onlineEmails.map(e => e.id)));
+    }
+  };
+
+  // Ações em lote - Offline
+  const handleBatchDeleteOffline = async () => {
+    if (!confirm(`Deseja excluir ${selectedOfflineIds.size} email(s)?\n\nEsta ação não pode ser desfeita!`)) return;
+
+    setBatchDeleting(true);
+    try {
+      for (const id of selectedOfflineIds) {
+        await deleteTemplate(id);
+      }
+      setSelectedOfflineIds(new Set());
+      await reloadTemplates();
+      toast({ title: 'Emails excluídos com sucesso' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir emails',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
+  // Ações em lote - Online
+  const handleBatchDeleteOnline = async () => {
+    if (!confirm(`Deseja excluir ${selectedOnlineIds.size} email(s) do Marketing Cloud?\n\nAtenção: Esta ação não pode ser desfeita!`)) return;
+
+    setBatchDeleting(true);
+    try {
+      for (const id of selectedOnlineIds) {
+        await sendToExtension('DELETE_EMAIL', { assetId: id });
+      }
+      setSelectedOnlineIds(new Set());
+      await loadOnlineEmails(onlinePage, onlineSearchQuery);
+      toast({ title: 'Emails excluídos com sucesso' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir emails',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
+
+  // Carregar categorias do SFMC
+  const loadCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const response = await sendToExtension('LIST_CATEGORIES');
+      if (response.success) {
+        setSfmcCategories(response.items || []);
+      } else {
+        throw new Error(response.error || 'Erro ao carregar pastas');
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar pastas',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Mover emails online para pasta
+  const handleBatchMoveOnline = async (categoryId: number, categoryName: string) => {
+    setBatchMoving(true);
+    try {
+      for (const id of selectedOnlineIds) {
+        await sendToExtension('MOVE_ASSET', { assetId: id, categoryId });
+      }
+      setSelectedOnlineIds(new Set());
+      setIsMoveModalOpen(false);
+      await loadOnlineEmails(onlinePage, onlineSearchQuery);
+      toast({ title: `${selectedOnlineIds.size} email(s) movido(s) para "${categoryName}"` });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao mover emails',
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setBatchMoving(false);
+    }
+  };
+
+  const openMoveModal = () => {
+    loadCategories();
+    setIsMoveModalOpen(true);
+  };
+
   return (
     <>
-    <div className="p-6">
+    <div className="p-6 pb-24">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -415,6 +566,7 @@ const EmailTemplates = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[40px]"></TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Assunto</TableHead>
                       <TableHead>Preview</TableHead>
@@ -426,6 +578,7 @@ const EmailTemplates = () => {
                   <TableBody>
                     {Array.from({ length: 5 }).map((_, index) => (
                       <TableRow key={index}>
+                        <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
@@ -470,6 +623,12 @@ const EmailTemplates = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[40px]">
+                        <Checkbox 
+                          checked={selectedOfflineIds.size === paginatedTemplates.length && paginatedTemplates.length > 0}
+                          onCheckedChange={toggleAllOffline}
+                        />
+                      </TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Assunto</TableHead>
                       <TableHead>Preview</TableHead>
@@ -480,7 +639,13 @@ const EmailTemplates = () => {
                   </TableHeader>
                   <TableBody>
                     {paginatedTemplates.map((template) => (
-                      <TableRow key={template.id}>
+                      <TableRow key={template.id} className={selectedOfflineIds.has(template.id) ? 'bg-muted/50' : ''}>
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedOfflineIds.has(template.id)}
+                            onCheckedChange={() => toggleOfflineSelection(template.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{template.name}</TableCell>
                         <TableCell className="text-muted-foreground max-w-[200px] truncate">
                           {template.subject || '-'}
@@ -603,6 +768,7 @@ const EmailTemplates = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]"></TableHead>
                           <TableHead>Nome</TableHead>
                           <TableHead>Tipo</TableHead>
                           <TableHead>Categoria</TableHead>
@@ -614,6 +780,7 @@ const EmailTemplates = () => {
                       <TableBody>
                         {Array.from({ length: 5 }).map((_, index) => (
                           <TableRow key={index}>
+                            <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                             <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
@@ -647,6 +814,12 @@ const EmailTemplates = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[40px]">
+                            <Checkbox 
+                              checked={selectedOnlineIds.size === onlineEmails.length && onlineEmails.length > 0}
+                              onCheckedChange={toggleAllOnline}
+                            />
+                          </TableHead>
                           <TableHead>Nome</TableHead>
                           <TableHead>Tipo</TableHead>
                           <TableHead>Categoria</TableHead>
@@ -657,7 +830,13 @@ const EmailTemplates = () => {
                       </TableHeader>
                       <TableBody>
                         {onlineEmails.map((email) => (
-                          <TableRow key={email.id}>
+                          <TableRow key={email.id} className={selectedOnlineIds.has(email.id) ? 'bg-muted/50' : ''}>
+                            <TableCell>
+                              <Checkbox 
+                                checked={selectedOnlineIds.has(email.id)}
+                                onCheckedChange={() => toggleOnlineSelection(email.id)}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">{email.name}</TableCell>
                             <TableCell className="text-muted-foreground">
                               {getAssetTypeName(email.assetType)}
@@ -747,6 +926,106 @@ const EmailTemplates = () => {
         </Tabs>
       </div>
     </div>
+
+    {/* Footer de ações em lote - Emails Offline */}
+    {selectedOfflineIds.size > 0 && activeTab === 'offline' && (
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 shadow-lg z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedOfflineIds.size} email(s) selecionado(s)
+          </span>
+          <div className="flex gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={handleBatchDeleteOffline}
+              disabled={batchDeleting}
+            >
+              {batchDeleting ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Excluir
+            </Button>
+            <Button variant="ghost" onClick={() => setSelectedOfflineIds(new Set())}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Footer de ações em lote - Emails Online */}
+    {selectedOnlineIds.size > 0 && activeTab === 'online' && (
+      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 shadow-lg z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedOnlineIds.size} email(s) selecionado(s)
+          </span>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={openMoveModal}
+              disabled={batchMoving || batchDeleting}
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Mover para pasta
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleBatchDeleteOnline}
+              disabled={batchDeleting || batchMoving}
+            >
+              {batchDeleting ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Excluir
+            </Button>
+            <Button variant="ghost" onClick={() => setSelectedOnlineIds(new Set())}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal de seleção de pasta */}
+    <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Mover para pasta</DialogTitle>
+          <DialogDescription>
+            Selecione a pasta de destino para {selectedOnlineIds.size} email(s)
+          </DialogDescription>
+        </DialogHeader>
+        {loadingCategories ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : sfmcCategories.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Nenhuma pasta encontrada
+          </div>
+        ) : (
+          <ScrollArea className="max-h-[400px]">
+            <div className="space-y-1">
+              {sfmcCategories.map((category) => (
+                <Button
+                  key={category.id}
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => handleBatchMoveOnline(category.id, category.name)}
+                  disabled={batchMoving}
+                >
+                  {batchMoving ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                  )}
+                  {category.name}
+                </Button>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
       <DialogContent>
@@ -867,22 +1146,22 @@ const EmailTemplates = () => {
         </div>
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => setIsUseModelDialogOpen(false)}>
-            Cancelar
+            Fechar
           </Button>
         </div>
       </DialogContent>
     </Dialog>
 
     <CreateWithAIModal 
-      open={isCreateWithAIModalOpen}
+      open={isCreateWithAIModalOpen} 
       onClose={() => setIsCreateWithAIModalOpen(false)} 
     />
 
-    <DatasetModal 
+    <DatasetModal
       open={isDatasetModalOpen}
       onOpenChange={setIsDatasetModalOpen}
     />
-  </>
+    </>
   );
 };
 

@@ -248,6 +248,69 @@ async function deleteEmailFromSfmc(assetId) {
   return { success: true };
 }
 
+// Listar pastas/categorias do SFMC
+async function listCategoriesFromSfmc() {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/categories`;
+  
+  console.log('[SFMC Proxy] Listando categorias/pastas');
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[SFMC Proxy] Erro ao listar categorias:', errorData);
+    throw new Error(errorData.message || `Erro ao listar categorias: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[SFMC Proxy] Categorias encontradas:', data.count);
+  
+  return {
+    items: data.items || [],
+    count: data.count || 0
+  };
+}
+
+// Mover asset para outra pasta/categoria
+async function moveAssetToCategory(assetId, categoryId) {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+  
+  const url = `${restInstanceUrl}asset/v1/content/assets/${assetId}`;
+  
+  console.log('[SFMC Proxy] Movendo asset', assetId, 'para categoria', categoryId);
+  
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ category: { id: categoryId } })
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Erro ao mover asset: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch (e) {}
+    console.error('[SFMC Proxy] Erro ao mover:', errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  console.log('[SFMC Proxy] Asset movido com sucesso');
+  
+  return { success: true };
+}
+
 // Listener para mensagens do content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type !== 'SFMC_PROXY_REQUEST') {
@@ -287,6 +350,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'DELETE_EMAIL':
           const deleteResult = await deleteEmailFromSfmc(message.payload?.assetId);
           return deleteResult;
+
+        case 'LIST_CATEGORIES':
+          const categoriesResult = await listCategoriesFromSfmc();
+          return { success: true, ...categoriesResult };
+
+        case 'MOVE_ASSET':
+          const moveResult = await moveAssetToCategory(
+            message.payload?.assetId,
+            message.payload?.categoryId
+          );
+          return moveResult;
 
         default:
           throw new Error(`Ação desconhecida: ${message.action}`);
