@@ -220,6 +220,49 @@ const EmailBuilder = () => {
     return { images, updatedHtml: doc.body.innerHTML };
   };
 
+  // Envia requisição para a extensão Chrome SFMC Proxy
+  const sendToExtension = (action: string, payload?: any): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const requestId = `${Date.now()}-${Math.random()}`;
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', handler);
+        reject(new Error('Extensão não respondeu. Verifique se a extensão EFI SFMC Proxy está instalada e configurada.'));
+      }, 30000); // 30 segundos de timeout
+
+      const handler = (event: MessageEvent) => {
+        if (event.data?.target !== 'SFMC_PROXY_RESPONSE') return;
+        if (event.data?.requestId !== requestId) return;
+
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+
+        if (event.data.response?.success) {
+          resolve(event.data.response);
+        } else {
+          reject(new Error(event.data.response?.error || 'Erro desconhecido'));
+        }
+      };
+
+      window.addEventListener('message', handler);
+      window.postMessage({
+        target: 'SFMC_PROXY',
+        requestId,
+        action,
+        payload
+      }, '*');
+    });
+  };
+
+  // Verifica se a extensão está disponível
+  const checkExtension = async (): Promise<boolean> => {
+    try {
+      const response = await sendToExtension('CHECK_EXTENSION');
+      return response.configured === true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleExportToMC = async () => {
     if (!templateName) {
       toast({
@@ -231,18 +274,32 @@ const EmailBuilder = () => {
     }
 
     setUploadingToMC(true);
+
+    // Verifica se a extensão está instalada e configurada
+    const extensionReady = await checkExtension();
+    if (!extensionReady) {
+      toast({
+        title: 'Extensão não encontrada',
+        description: 'Instale e configure a extensão EFI SFMC Proxy no Chrome para exportar para o Marketing Cloud.',
+        variant: 'destructive',
+      });
+      setUploadingToMC(false);
+      return;
+    }
+
     toast({
       title: 'Iniciando envio',
-      description: `Enviando "${templateName}" para o Marketing Cloud...`,
+      description: `Enviando "${templateName}" para o Marketing Cloud via extensão...`,
     });
 
     try {
       const htmlContent = generateHtmlContent();
       const { images, updatedHtml } = await extractAndConvertImages(htmlContent);
 
-      // Upload de cada imagem
-      console.log(`Iniciando upload de ${images.length} imagens...`);
-      for (const img of images) {
+      // Upload de cada imagem via extensão
+      console.log(`[SFMC] Iniciando upload de ${images.length} imagens via extensão...`);
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
         const base64 = await blobToBase64(img.blob);
         const extension = img.newName.split('.').pop()?.toLowerCase();
         let assetTypeId = 22; // jpeg
@@ -258,17 +315,24 @@ const EmailBuilder = () => {
           fileProperties: { fileName: img.newName, extension: extension || 'jpeg' },
         };
 
-        console.log(`Enviando imagem: ${img.newName}`);
-        const { error } = await supabase.functions.invoke('sfmc-upload-asset', { body: imagePayload });
+        console.log(`[SFMC] Enviando imagem ${i + 1}/${images.length}: ${img.newName}`);
+        
+        toast({
+          title: 'Enviando imagens...',
+          description: `Imagem ${i + 1} de ${images.length}: ${img.newName}`,
+        });
 
-        if (error) {
-          throw new Error(`Erro ao enviar imagem ${img.newName}: ${error.message}`);
-        }
-        console.log(`Imagem ${img.newName} enviada com sucesso`);
+        await sendToExtension('UPLOAD_ASSET', imagePayload);
+        console.log(`[SFMC] Imagem ${img.newName} enviada com sucesso`);
       }
 
-      // Upload do HTML
-      console.log('Iniciando upload do HTML...');
+      // Upload do HTML via extensão
+      console.log('[SFMC] Iniciando upload do HTML via extensão...');
+      toast({
+        title: 'Enviando HTML...',
+        description: 'Finalizando envio do template...',
+      });
+
       const htmlPayload = {
         assetType: { name: 'htmlemail', id: 208 },
         name: templateName,
@@ -280,19 +344,15 @@ const EmailBuilder = () => {
         },
       };
 
-      const { error: htmlError } = await supabase.functions.invoke('sfmc-upload-asset', { body: htmlPayload });
+      await sendToExtension('UPLOAD_ASSET', htmlPayload);
 
-      if (htmlError) {
-        throw new Error(`Erro ao enviar HTML: ${htmlError.message}`);
-      }
-
-      console.log('HTML enviado com sucesso');
+      console.log('[SFMC] HTML enviado com sucesso');
       toast({
         title: 'Sucesso!',
         description: `"${templateName}" enviado para o Marketing Cloud.`,
       });
     } catch (error: any) {
-      console.error('Erro ao enviar para MC:', error);
+      console.error('[SFMC] Erro ao enviar para MC:', error);
       toast({
         title: 'Erro no envio',
         description: error.message,
