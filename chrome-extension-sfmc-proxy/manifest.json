@@ -10,7 +10,7 @@
     "https://*.exacttargetapis.com/*",
     "https://*.salesforce.com/*",
     "https://*.marketingcloudapis.com/*",
-    "https://api.sejaefi.link/*"
+    "https://gnetbr.com/*"
   ],
   "background": {
     "service_worker": "background.js"

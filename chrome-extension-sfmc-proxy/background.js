@@ -72,19 +72,23 @@ async function getSfmcAccessToken() {
   };
 }
 
-// Testar conexão com Onelink API
-async function testOnelinkConnection() {
-  console.log('[Efi Link] Testando conexão com Onelink...');
+// Testar conexão com Efí Link API (encurtador)
+async function testEfiLinkConnection() {
+  console.log('[Efí Link] Testando conexão...');
   
-  const response = await fetch('https://api.sejaefi.link/health', {
-    method: 'GET'
+  const response = await fetch('https://gnetbr.com/shortener', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ url: 'https://teste.com' })
   });
 
   if (!response.ok) {
-    throw new Error('Onelink API offline');
+    throw new Error('Efí Link API offline');
   }
 
-  console.log('[Efi Link] Onelink API online');
+  console.log('[Efí Link] API online');
   return { success: true };
 }
 
@@ -368,11 +372,11 @@ async function updateAssetInSfmc(assetId, assetData) {
   };
 }
 
-// Encurtar URL via api.sejaefi.link
+// Encurtar URL via gnetbr.com
 async function shortenUrl(url) {
-  console.log('[Efi Link] Encurtando URL:', url);
+  console.log('[Efí Link] Encurtando URL:', url);
   
-  const response = await fetch('https://api.sejaefi.link/shorten', {
+  const response = await fetch('https://gnetbr.com/shortener', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -382,12 +386,12 @@ async function shortenUrl(url) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[Efi Link] Erro ao encurtar:', errorText);
+    console.error('[Efí Link] Erro ao encurtar:', errorText);
     throw new Error(`Erro ao encurtar URL: ${response.status}`);
   }
 
   const data = await response.json();
-  console.log('[Efi Link] URL encurtada:', data.shorted_url);
+  console.log('[Efí Link] URL encurtada:', data.shorted_url);
   
   return {
     success: true,
@@ -415,9 +419,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'TEST_CONNECTION':
           // Testa ambas as conexões
           let sfmcOk = false;
-          let onelinkOk = false;
+          let efilinkOk = false;
           let sfmcError = null;
-          let onelinkError = null;
+          let efilinkError = null;
 
           try {
             await getSfmcAccessToken();
@@ -427,24 +431,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           try {
-            await testOnelinkConnection();
-            onelinkOk = true;
+            await testEfiLinkConnection();
+            efilinkOk = true;
           } catch (e) {
-            onelinkError = e.message;
+            efilinkError = e.message;
           }
 
           return { 
-            success: sfmcOk && onelinkOk, 
+            success: sfmcOk && efilinkOk, 
             sfmc: sfmcOk,
-            onelink: onelinkOk,
+            efilink: efilinkOk,
             sfmcError,
-            onelinkError,
-            message: sfmcOk && onelinkOk ? 'Todas as conexões OK!' : 'Falha em uma ou mais conexões'
+            efilinkError,
+            message: sfmcOk && efilinkOk ? 'Todas as conexões OK!' : 'Falha em uma ou mais conexões'
           };
 
-        case 'TEST_ONELINK':
-          await testOnelinkConnection();
-          return { success: true, message: 'Onelink API online' };
+        case 'TEST_EFILINK':
+          await testEfiLinkConnection();
+          return { success: true, message: 'Efí Link API online' };
 
         case 'UPLOAD_ASSET':
           const result = await uploadAssetToSfmc(message.payload);
