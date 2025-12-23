@@ -19,6 +19,7 @@
       "matches": [
         "*://*.lovable.app/*",
         "*://*.lovable.dev/*",
+        "*://*.lovableproject.com/*",
         "http://localhost:*/*",
         "http://127.0.0.1:*/*"
       ],
