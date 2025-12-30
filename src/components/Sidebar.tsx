@@ -344,12 +344,13 @@ export function Sidebar() {
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
                       onClick={() => {
-                        window.open("https://www.figma.com/board/RVhMrsj2PtOeJLTlXAssqJ/Martech---Framework-de-Testes?node-id=0-1&t=DJmJb5OHadPWMQpz-1", "_blank");
+                        navigate("/blog/framework-de-testes");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
                       }}
+                      isActive={location.pathname === "/blog/framework-de-testes"}
                       className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
                     >
-                      <span>Nosso Framework</span>
-                      <ExternalLink className="ml-auto h-3 w-3" />
+                      <span>Guia Framework de teste</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
