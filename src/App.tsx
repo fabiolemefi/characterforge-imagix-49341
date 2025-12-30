@@ -1,8 +1,9 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { waitForSessionVerification } from "@/stores/authStore";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -49,6 +50,24 @@ import TestReportPublic from "./pages/TestReportPublic";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
+
+// Configurar focusManager para aguardar verificação de sessão antes de refetch
+focusManager.setEventListener((handleFocus) => {
+  const onVisibilityChange = async () => {
+    if (document.visibilityState === 'visible') {
+      // Aguardar verificação de sessão antes de disparar refetch
+      await waitForSessionVerification();
+      // Pequeno delay adicional para garantir que o estado foi atualizado
+      setTimeout(() => handleFocus(), 150);
+    }
+  };
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
+});
 
 // Helper para verificar erro de autenticação
 function isAuthError(error: unknown): boolean {
