@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Header from "@/components/Header";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -12,10 +12,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminBlogPosts, useAdminBlogCategories, useCreateBlogPost, useUpdateBlogPost, useDeleteBlogPost, useUsers } from "@/hooks/useBlog";
 import { BlogEditor } from "@/components/blog/BlogEditor";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Upload, X, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AdminBlogPosts() {
   const navigate = useNavigate();
@@ -23,6 +24,8 @@ export default function AdminBlogPosts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
@@ -40,6 +43,55 @@ export default function AdminBlogPosts() {
   const createPost = useCreateBlogPost();
   const updatePost = useUpdateBlogPost();
   const deletePost = useDeleteBlogPost();
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({ title: "Erro", description: "Por favor, selecione uma imagem válida", variant: "destructive" });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Erro", description: "A imagem deve ter no máximo 5MB", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `posts/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('blog-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('blog-images')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, featured_image: publicUrl });
+      toast({ title: "Sucesso", description: "Imagem enviada com sucesso" });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({ title: "Erro", description: error.message || "Erro ao enviar imagem", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData({ ...formData, featured_image: "" });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,12 +238,52 @@ export default function AdminBlogPosts() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="featured_image">Imagem de Destaque (URL)</Label>
-                      <Input
-                        id="featured_image"
-                        value={formData.featured_image}
-                        onChange={(e) => setFormData({ ...formData, featured_image: e.target.value })}
+                      <Label>Imagem de Destaque</Label>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                        accept="image/*"
+                        className="hidden"
                       />
+                      {formData.featured_image ? (
+                        <div className="mt-2 relative">
+                          <img
+                            src={formData.featured_image}
+                            alt="Preview"
+                            className="w-full h-48 object-cover rounded-lg border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={handleRemoveImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full mt-2 h-32 border-dashed"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">Enviando...</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <Upload className="h-8 w-8 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">Clique para enviar uma imagem</span>
+                            </div>
+                          )}
+                        </Button>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="excerpt">Resumo</Label>
