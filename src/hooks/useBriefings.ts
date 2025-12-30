@@ -2,8 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BriefingStatus, Briefing } from "@/types/briefing";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import { queryWithAuth } from "@/lib/queryWithAuth";
 
 interface BriefingsFilter {
   status?: BriefingStatus;

@@ -1,121 +1,34 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGateway } from "@/hooks/useAuthGateway";
 import Lottie from "lottie-react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
+/**
+ * ProtectedRoute - Componente simplificado que usa o AuthGateway
+ * 
+ * Responsabilidades:
+ * - Verificar se o gateway está pronto
+ * - Verificar se há usuário autenticado
+ * - Verificar se usuário está ativo
+ * - Redirecionar para login se necessário
+ */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading: authLoading } = useAuth();
-  const [isActive, setIsActive] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isReady, isUserActive } = useAuthGateway();
   const [animationData, setAnimationData] = useState(null);
-  const { toast } = useToast();
 
   useEffect(() => {
-    // Fetch Lottie animation data
     fetch('/loading-outline-default.json')
       .then(response => response.json())
       .then(data => setAnimationData(data))
       .catch(error => console.error('Error loading animation:', error));
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const checkUserStatus = async () => {
-      console.log("🔐 [ProtectedRoute] Verificando status do usuário...", {
-        hasUser: !!user,
-        userId: user?.id,
-        authLoading,
-        timestamp: new Date().toISOString()
-      });
-      
-      if (!user) {
-        console.log("⚠️ [ProtectedRoute] Sem usuário autenticado");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("is_active")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (!mounted) return;
-
-        if (error) {
-          console.error("❌ [ProtectedRoute] Erro ao buscar profile:", {
-            error,
-            code: error.code,
-            message: error.message,
-            timestamp: new Date().toISOString()
-          });
-          await supabase.auth.signOut();
-          toast({
-            title: "Erro de autenticação",
-            description: "Faça login novamente",
-            variant: "destructive",
-          });
-          setIsActive(false);
-          setLoading(false);
-          return;
-        }
-
-        if (!profile) {
-          console.log("⚠️ [ProtectedRoute] Profile não encontrado, permitindo acesso");
-          setIsActive(true);
-          setLoading(false);
-          return;
-        }
-
-        if (!profile.is_active) {
-          console.warn("🚫 [ProtectedRoute] Usuário desativado:", { userId: user.id });
-          await supabase.auth.signOut();
-          toast({
-            title: "Acesso bloqueado",
-            description: "Seu acesso foi desativado por um administrador",
-            variant: "destructive",
-          });
-          setIsActive(false);
-          setLoading(false);
-        } else {
-          console.log("✅ [ProtectedRoute] Usuário autenticado e ativo:", {
-            userId: user.id,
-            timestamp: new Date().toISOString()
-          });
-          setIsActive(true);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("❌ [ProtectedRoute] Erro inesperado:", {
-          error,
-          timestamp: new Date().toISOString()
-        });
-        if (mounted) {
-          await supabase.auth.signOut();
-          setIsActive(false);
-          setLoading(false);
-        }
-      }
-    };
-
-    if (!authLoading) {
-      checkUserStatus();
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [user, authLoading, toast]);
-
-  if (authLoading || loading) {
+  // Enquanto não está pronto, mostrar loading
+  if (!isReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Lottie
@@ -128,9 +41,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!user || isActive === false) {
+  // Se não tem usuário ou usuário não está ativo, redirecionar
+  if (!user || !isUserActive) {
+    console.log('🚪 [ProtectedRoute] Redirecionando para login:', { 
+      hasUser: !!user, 
+      isUserActive 
+    });
     return <Navigate to="/login" replace />;
   }
 
+  // Usuário autenticado e ativo - renderizar conteúdo
   return <>{children}</>;
 }
