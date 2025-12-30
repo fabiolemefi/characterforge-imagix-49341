@@ -43,7 +43,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTest, useCreateTest, useUpdateTest } from "@/hooks/useTests";
 import { TestStatus } from "@/types/test";
-import { AttachmentsSection } from "@/components/tests/AttachmentsSection";
+import { TestImagesSection } from "@/components/tests/TestImagesSection";
 import { LinksSection } from "@/components/tests/LinksSection";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { getAvailableMetrics } from "@/lib/metricsConfig";
@@ -74,6 +74,7 @@ const formSchema = z.object({
   status: z.enum(["planejamento", "execucao", "analise", "documentacao"]),
   attachments: z.array(z.any()).default([]),
   links: z.array(z.any()).default([]),
+  test_images: z.array(z.any()).default([]),
   created_by: z.string().optional(),
 });
 
@@ -117,6 +118,7 @@ export default function TestForm() {
       status: "planejamento",
       attachments: [],
       links: [],
+      test_images: [],
     },
   });
 
@@ -136,6 +138,7 @@ export default function TestForm() {
         status: test.status,
         attachments: test.attachments || [],
         links: test.links || [],
+        test_images: (test as any).test_images || [],
         created_by: test.created_by,
       });
     }
@@ -569,14 +572,14 @@ export default function TestForm() {
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="extra-info">
               <AccordionTrigger>Informações extras</AccordionTrigger>
-              <AccordionContent className="space-y-4">
+              <AccordionContent className="space-y-6">
                 <FormField
                   control={form.control}
-                  name="attachments"
+                  name="test_images"
                   render={({ field }) => (
                     <FormItem>
-                      <AttachmentsSection
-                        attachments={field.value}
+                      <TestImagesSection
+                        images={field.value}
                         onChange={field.onChange}
                         disabled={isReadOnly}
                       />

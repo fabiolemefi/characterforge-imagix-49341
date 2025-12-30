@@ -294,6 +294,32 @@ export default function TestReportPublic() {
             </div>
           )}
 
+          {/* Criativos / Imagens */}
+          {(test as any).test_images && (test as any).test_images.length > 0 && (
+            <div className="bg-indigo-500/5 rounded-lg p-5 border border-indigo-500/20">
+              <div className="flex items-center gap-2 text-indigo-600 mb-4">
+                <ImageIcon className="h-5 w-5" />
+                <h3 className="font-semibold">Criativos ({(test as any).test_images.length})</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {(test as any).test_images.map((image: any, index: number) => (
+                  <div key={index} className="space-y-2">
+                    <img 
+                      src={image.url} 
+                      alt={image.caption || `Criativo ${index + 1}`}
+                      className="w-full rounded-lg border object-cover"
+                    />
+                    {image.caption && (
+                      <p className="text-center text-sm font-medium text-foreground">
+                        {image.caption}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Anexos */}
           {test.attachments && test.attachments.length > 0 && (
             <div>

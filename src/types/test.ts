@@ -14,6 +14,12 @@ export interface Link {
   added_at: string;
 }
 
+export interface TestImage {
+  url: string;
+  caption: string;
+  uploaded_at: string;
+}
+
 export interface Test {
   id: string;
   nome_teste: string;
@@ -29,6 +35,7 @@ export interface Test {
   status: TestStatus;
   attachments: Attachment[];
   links: Link[];
+  test_images: TestImage[];
   is_active: boolean;
   created_by: string;
   updated_by?: string;
@@ -49,4 +56,5 @@ export interface TestFormData {
   end_date?: Date | null;
   attachments: Attachment[];
   links: Link[];
+  test_images: TestImage[];
 }
