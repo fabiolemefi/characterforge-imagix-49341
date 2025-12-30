@@ -34,6 +34,7 @@ export interface Test {
   updated_by?: string;
   created_at: string;
   updated_at: string;
+  share_code?: string;
 }
 
 export interface TestFormData {

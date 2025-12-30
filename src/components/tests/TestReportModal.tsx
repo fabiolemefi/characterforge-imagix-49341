@@ -24,10 +24,13 @@ import {
   Link2,
   Loader2,
   Image as ImageIcon,
+  Share2,
 } from "lucide-react";
 import { TestStatusBadge } from "./TestStatusBadge";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface TestReportModalProps {
   open: boolean;
@@ -38,6 +41,8 @@ interface TestReportModalProps {
 export function TestReportModal({ open, onOpenChange, test }: TestReportModalProps) {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const queryClient = useQueryClient();
 
   const formatDuration = () => {
     if (!test.start_date || !test.end_date) return null;
@@ -120,9 +125,45 @@ export function TestReportModal({ open, onOpenChange, test }: TestReportModalPro
     } catch (error: any) {
       toast.error("Erro ao exportar imagem: " + error.message);
     } finally {
-      setIsExporting(false);
+    setIsExporting(false);
+  }
+};
+
+const generateShareCode = () => {
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)))
+    .map(b => b.toString(36).padStart(2, '0'))
+    .join('')
+    .substring(0, 12);
+};
+
+const handleShare = async () => {
+  setIsSharing(true);
+  try {
+    let code = test.share_code;
+
+    if (!code) {
+      code = generateShareCode();
+      const { error } = await supabase
+        .from("tests")
+        .update({ share_code: code } as any)
+        .eq("id", test.id);
+
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ["tests"] });
+      queryClient.invalidateQueries({ queryKey: ["test", test.id] });
     }
-  };
+
+    const shareUrl = `${window.location.origin}/tests/report?code=${code}`;
+    await navigator.clipboard.writeText(shareUrl);
+
+    toast.success("Link copiado para a área de transferência!");
+  } catch (error: any) {
+    toast.error("Erro ao gerar link: " + error.message);
+  } finally {
+    setIsSharing(false);
+  }
+};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -133,6 +174,20 @@ export function TestReportModal({ open, onOpenChange, test }: TestReportModalPro
             Relatório de Teste
           </DialogTitle>
           <div className="flex gap-2">
+            <Button
+              onClick={handleShare}
+              disabled={isSharing}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              {isSharing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="h-4 w-4" />
+              )}
+              Copiar Link
+            </Button>
             <Button
               onClick={handleExportPDF}
               disabled={isExporting}
