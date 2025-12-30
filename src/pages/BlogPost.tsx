@@ -11,7 +11,7 @@ export default function BlogPost() {
   const { data: post, isLoading } = useBlogPost(slug || "");
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-background">
       <div className="max-w-4xl mx-auto">
             <Button
               variant="ghost"
