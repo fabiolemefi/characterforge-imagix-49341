@@ -18,6 +18,7 @@ import { TestStatusBadge } from "@/components/tests/TestStatusBadge";
 import { TestFilters } from "@/components/tests/TestFilters";
 import { TestActionsDropdown } from "@/components/tests/TestActionsDropdown";
 import { CollectDataModal } from "@/components/tests/CollectDataModal";
+import { TestReportModal } from "@/components/tests/TestReportModal";
 import { differenceInDays, differenceInWeeks, differenceInMonths } from "date-fns";
 
 const formatDuration = (startDate: Date, endDate: Date): string => {
@@ -39,6 +40,7 @@ export default function TestsList() {
   const [statusFilter, setStatusFilter] = useState<TestStatus | undefined>();
   const [createdByFilter, setCreatedByFilter] = useState<string | undefined>();
   const [collectDataTest, setCollectDataTest] = useState<Test | null>(null);
+  const [finalReportTest, setFinalReportTest] = useState<Test | null>(null);
 
   const { data: tests, isLoading } = useTests({
     status: statusFilter,
@@ -131,6 +133,7 @@ export default function TestsList() {
                       status={test.status}
                       test={test}
                       onCollectData={() => setCollectDataTest(test)}
+                      onFinalReport={() => setFinalReportTest(test)}
                     />
                   </TableCell>
                 </TableRow>
@@ -152,6 +155,14 @@ export default function TestsList() {
           open={!!collectDataTest}
           onOpenChange={(open) => !open && setCollectDataTest(null)}
           test={collectDataTest}
+        />
+      )}
+
+      {finalReportTest && (
+        <TestReportModal
+          open={!!finalReportTest}
+          onOpenChange={(open) => !open && setFinalReportTest(null)}
+          test={finalReportTest}
         />
       )}
     </div>
