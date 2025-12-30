@@ -108,6 +108,43 @@ export function TestImagesSection({
     }
   };
 
+  const handlePasteFromClipboard = async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find(type => type.startsWith("image/"));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], `clipboard-${Date.now()}.png`, { type: imageType });
+          
+          setUploading(true);
+          try {
+            const url = await uploadImage(file);
+            if (url) {
+              const newImage: TestImage = {
+                url,
+                caption: "",
+                uploaded_at: new Date().toISOString(),
+              };
+              onChange([...images, newImage]);
+              toast.success("Imagem colada!");
+            }
+          } finally {
+            setUploading(false);
+          }
+          return;
+        }
+      }
+      toast.error("Nenhuma imagem encontrada na área de transferência");
+    } catch (error: any) {
+      if (error.name === "NotAllowedError") {
+        toast.error("Permissão negada para acessar a área de transferência");
+      } else {
+        toast.error("Erro ao colar imagem: " + error.message);
+      }
+    }
+  };
+
   const handleCaptionChange = (index: number, caption: string) => {
     const updated = images.map((img, i) =>
       i === index ? { ...img, caption } : img
@@ -171,38 +208,49 @@ export function TestImagesSection({
 
       {/* Upload Area */}
       {!disabled && (
-        <div
-          ref={pasteAreaRef}
-          onPaste={handlePaste}
-          className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors focus-within:border-primary cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
-          tabIndex={0}
-        >
-          {uploading ? (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <p className="text-sm">Enviando imagem...</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Plus className="h-5 w-5" />
-                  <ImageIcon className="h-5 w-5" />
-                </div>
-                <span className="text-muted-foreground/50">ou</span>
-                <div className="flex items-center gap-1">
-                  <Clipboard className="h-5 w-5" />
-                </div>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              <Plus className="h-4 w-4" />
+              <ImageIcon className="h-4 w-4" />
+              Upload
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-2"
+              onClick={handlePasteFromClipboard}
+              disabled={uploading}
+            >
+              <Clipboard className="h-4 w-4" />
+              Colar
+            </Button>
+          </div>
+          
+          <div
+            ref={pasteAreaRef}
+            onPaste={handlePaste}
+            className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/50 transition-colors focus-within:border-primary"
+            tabIndex={0}
+          >
+            {uploading ? (
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <p className="text-sm">Enviando imagem...</p>
               </div>
-              <p className="text-sm">
-                Clique para fazer upload ou <strong>Ctrl+V</strong> para colar uma imagem
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Ou arraste uma imagem aqui / <strong>Ctrl+V</strong> para colar
               </p>
-              <p className="text-xs text-muted-foreground/70">
-                PNG, JPG, GIF, WebP até 20MB
-              </p>
-            </div>
-          )}
+            )}
+          </div>
+          
           <input
             ref={fileInputRef}
             type="file"
