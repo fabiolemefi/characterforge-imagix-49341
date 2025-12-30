@@ -52,21 +52,22 @@ import { AuthProvider } from "./contexts/AuthContext";
 // Helper para verificar erro de autenticação
 function isAuthError(error: unknown): boolean {
   if (!error) return false;
-  const err = error as { status?: number; message?: string; code?: string };
-  return err.status === 401 || 
-         err.status === 403 || 
-         err.code === 'PGRST301' ||
-         err.message?.includes('JWT') ||
-         err.message?.includes('token') ||
-         err.message?.includes('session');
+  const err = error as {
+    status?: number;
+    message?: string;
+    code?: string;
+  };
+  return err.status === 401 || err.status === 403 || err.code === 'PGRST301' || err.message?.includes('JWT') || err.message?.includes('token') || err.message?.includes('session');
 }
 
 // Configuração do React Query com tratamento de erros de auth
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10 * 60 * 1000,  // 10 minutos
-      gcTime: 60 * 60 * 1000,     // 1 hora
+      staleTime: 10 * 60 * 1000,
+      // 10 minutos
+      gcTime: 60 * 60 * 1000,
+      // 1 hora
       retry: (failureCount, error) => {
         // NÃO tentar novamente se for erro de auth
         if (isAuthError(error)) {
@@ -78,16 +79,14 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: true,
       refetchOnMount: 'always',
       refetchOnReconnect: true,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
     },
     mutations: {
-      retry: false,
+      retry: false
     }
   }
 });
-
-const App = () => (
-  <BrowserRouter>
+const App = () => <BrowserRouter>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -116,7 +115,7 @@ const App = () => (
             <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
             <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
             <Route path="/blog" element={<ProtectedRoute><AppLayout><Blog /></AppLayout></ProtectedRoute>} />
-            <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
+            <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} className="bg-primary-foreground" />
             <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
             <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
             <Route path="/tests" element={<ProtectedRoute><AppLayout><TestsDashboard /></AppLayout></ProtectedRoute>} />
@@ -146,7 +145,5 @@ const App = () => (
         </TooltipProvider>
       </QueryClientProvider>
     </AuthProvider>
-  </BrowserRouter>
-);
-
+  </BrowserRouter>;
 export default App;
