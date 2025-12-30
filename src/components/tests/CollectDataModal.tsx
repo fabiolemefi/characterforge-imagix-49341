@@ -40,7 +40,7 @@ export function CollectDataModal({ open, onOpenChange, test }: CollectDataModalP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Coletar Dados - {test.nome_teste}</DialogTitle>
           <DialogDescription>
@@ -48,7 +48,7 @@ export function CollectDataModal({ open, onOpenChange, test }: CollectDataModalP
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto py-4">
           <div className="space-y-2">
             <Label htmlFor="report-data">Dados do Relatório</Label>
             <RichTextEditor
