@@ -45,6 +45,7 @@ import BriefingForm from './pages/BriefingForm';
 import NotFound from "./pages/NotFound";
 import Metricas from "./pages/Metricas";
 import EfiLink from "./pages/EfiLink";
+import TestReportPublic from "./pages/TestReportPublic";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -132,6 +133,7 @@ const App = () => <BrowserRouter>
             <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
             <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
             <Route path="/share/file" element={<ShareDownload />} />
+            <Route path="/tests/report" element={<TestReportPublic />} />
             <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
             <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
             <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />

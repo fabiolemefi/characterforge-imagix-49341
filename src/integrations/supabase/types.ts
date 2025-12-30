@@ -1374,6 +1374,7 @@ export type Database = {
           is_active: boolean
           links: Json | null
           nome_teste: string
+          share_code: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["test_status"]
           success_metric: string[] | null
@@ -1395,6 +1396,7 @@ export type Database = {
           is_active?: boolean
           links?: Json | null
           nome_teste: string
+          share_code?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["test_status"]
           success_metric?: string[] | null
@@ -1416,6 +1418,7 @@ export type Database = {
           is_active?: boolean
           links?: Json | null
           nome_teste?: string
+          share_code?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["test_status"]
           success_metric?: string[] | null
