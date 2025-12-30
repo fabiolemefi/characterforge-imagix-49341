@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Upload, Clipboard, Check } from "lucide-react";
-import AuthGateway from "@/services/AuthGateway";
+
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { ImageMaskEditor } from "@/components/ImageMaskEditor";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -342,18 +342,16 @@ export default function Efimagem() {
       const fullPrompt = `${character.general_prompt ? character.general_prompt + " " : ""} ${prompt}`;
       const imageUrls = character.images.map((img) => img.image_url);
 
-      const { data, error } = await retryWithAuthRefresh(() =>
-        supabase.functions.invoke("generate-character-image", {
-          body: {
-            imageUrls: imageUrls,
-            prompt: fullPrompt,
-            generalPrompt: character.general_prompt,
-            characterName: character.name,
-            characterId: character.id,
-            aspectRatio: aspectRatio,
-          },
-        })
-      );
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
+        body: {
+          imageUrls: imageUrls,
+          prompt: fullPrompt,
+          generalPrompt: character.general_prompt,
+          characterName: character.name,
+          characterId: character.id,
+          aspectRatio: aspectRatio,
+        },
+      });
 
       if (error) throw error;
 
@@ -390,11 +388,9 @@ export default function Efimagem() {
     setLoading(true);
 
     try {
-      const { data, error } = await retryWithAuthRefresh(() =>
-        supabase.functions.invoke("generate-character-image", {
-          body: image.request_params,
-        })
-      );
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
+        body: image.request_params,
+      });
 
       if (error) throw error;
 
@@ -484,16 +480,14 @@ export default function Efimagem() {
         totalImages: imageUrls.length
       });
 
-      const { data, error } = await retryWithAuthRefresh(() =>
-        supabase.functions.invoke("generate-character-image", {
-          body: {
-            imageUrls: imageUrls,
-            prompt: fullPrompt,
-            generalPrompt: character.general_prompt,
-            aspectRatio: aspectRatio,
-          },
-        })
-      );
+      const { data, error } = await supabase.functions.invoke("generate-character-image", {
+        body: {
+          imageUrls: imageUrls,
+          prompt: fullPrompt,
+          generalPrompt: character.general_prompt,
+          aspectRatio: aspectRatio,
+        },
+      });
 
       if (error) throw error;
 
