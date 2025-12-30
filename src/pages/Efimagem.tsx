@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Upload, Clipboard, Check } from "lucide-react";
-import { retryWithAuthRefresh } from "@/lib/utils";
+import AuthGateway from "@/services/AuthGateway";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 import { ImageMaskEditor } from "@/components/ImageMaskEditor";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -48,77 +48,94 @@ import EfiLink from "./pages/EfiLink";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
+import { isAuthError } from "./services/AuthGateway";
+
+// Configuração do React Query com tratamento de erros de auth
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 10 * 60 * 1000,  // 10 minutos
       gcTime: 60 * 60 * 1000,     // 1 hora
-      retry: 3,
+      retry: (failureCount, error) => {
+        // NÃO tentar novamente se for erro de auth
+        if (isAuthError(error)) {
+          console.log('🚫 [QueryClient] Erro de auth, não vai retentar');
+          return false;
+        }
+        return failureCount < 3;
+      },
       refetchOnWindowFocus: true,
       refetchOnMount: 'always',
       refetchOnReconnect: true,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    },
+    mutations: {
+      retry: false,
     }
   }
 });
-const App = () => <AuthProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
-          <Route path="/plugin/:id" element={<ProtectedRoute><AppLayout><PluginDetails /></AppLayout></ProtectedRoute>} />
-          <Route path="/efimail" element={<ProtectedRoute><AppLayout><Efimail /></AppLayout></ProtectedRoute>} />
-          <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
-          <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
-          <Route path="/email-magico" element={<ProtectedRoute><AppLayout><EmailMagico /></AppLayout></ProtectedRoute>} />
-          <Route path="/efi-report" element={<ProtectedRoute><AppLayout><EfiReport /></AppLayout></ProtectedRoute>} />
-          <Route path="/efi-link" element={<ProtectedRoute><AppLayout><EfiLink /></AppLayout></ProtectedRoute>} />
-          <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
-          <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
-          <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
-          <Route path="/admin/email-magico" element={<ProtectedRoute><AdminEmailMagico /></ProtectedRoute>} />
-          <Route path="/admin/efi-report" element={<ProtectedRoute><AdminEfiReport /></ProtectedRoute>} />
-          <Route path="/brand-guide" element={<ProtectedRoute><AppLayout><BrandGuideHome /></AppLayout></ProtectedRoute>} />
-          <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
-          <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
-          <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
-          <Route path="/blog" element={<ProtectedRoute><AppLayout><Blog /></AppLayout></ProtectedRoute>} />
-          <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
-          <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
-          <Route path="/tests" element={<ProtectedRoute><AppLayout><TestsDashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/tests/list" element={<ProtectedRoute><AppLayout><TestsList /></AppLayout></ProtectedRoute>} />
-          <Route path="/tests/new" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
-          <Route path="/tests/:id/edit" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-          <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
-          <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />
-          <Route path="/admin/documentation" element={<ProtectedRoute><AdminDocumentation /></ProtectedRoute>} />
-          <Route path="/admin/ai-assistants" element={<ProtectedRoute><AdminAIAssistants /></ProtectedRoute>} />
-          <Route path="/admin/ai-assistants/:id" element={<ProtectedRoute><AdminAIAssistantEdit /></ProtectedRoute>} />
-          <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
-          <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
-          <Route path="/share/file" element={<ShareDownload />} />
-          <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
-          <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
-          <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
-          <Route path="/briefings/list" element={<ProtectedRoute><AppLayout><BriefingsList /></AppLayout></ProtectedRoute>} />
-          <Route path="/briefings/new" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
-          <Route path="/briefings/:id/edit" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
-          <Route path="/metricas" element={<ProtectedRoute><AppLayout><Metricas /></AppLayout></ProtectedRoute>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-  </AuthProvider>;
+
+const App = () => (
+  <BrowserRouter>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
+            <Route path="/plugin/:id" element={<ProtectedRoute><AppLayout><PluginDetails /></AppLayout></ProtectedRoute>} />
+            <Route path="/efimail" element={<ProtectedRoute><AppLayout><Efimail /></AppLayout></ProtectedRoute>} />
+            <Route path="/efimagem" element={<ProtectedRoute><AppLayout><Efimagem /></AppLayout></ProtectedRoute>} />
+            <Route path="/efi-slides" element={<ProtectedRoute><AppLayout><EfiSlides /></AppLayout></ProtectedRoute>} />
+            <Route path="/email-magico" element={<ProtectedRoute><AppLayout><EmailMagico /></AppLayout></ProtectedRoute>} />
+            <Route path="/efi-report" element={<ProtectedRoute><AppLayout><EfiReport /></AppLayout></ProtectedRoute>} />
+            <Route path="/efi-link" element={<ProtectedRoute><AppLayout><EfiLink /></AppLayout></ProtectedRoute>} />
+            <Route path="/email-templates" element={<ProtectedRoute><AppLayout><EmailTemplates /></AppLayout></ProtectedRoute>} />
+            <Route path="/email-builder" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
+            <Route path="/email-builder/:id" element={<ProtectedRoute><AppLayout><EmailBuilder /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/email-blocks" element={<ProtectedRoute><AdminEmailBlocks /></ProtectedRoute>} />
+            <Route path="/admin/email-magico" element={<ProtectedRoute><AdminEmailMagico /></ProtectedRoute>} />
+            <Route path="/admin/efi-report" element={<ProtectedRoute><AdminEfiReport /></ProtectedRoute>} />
+            <Route path="/brand-guide" element={<ProtectedRoute><AppLayout><BrandGuideHome /></AppLayout></ProtectedRoute>} />
+            <Route path="/brand-guide/:categorySlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
+            <Route path="/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AppLayout><BrandGuide /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/brand-guide" element={<ProtectedRoute><AdminBrandGuide /></ProtectedRoute>} />
+            <Route path="/admin/brand-guide/home" element={<ProtectedRoute><AdminBrandGuideHome /></ProtectedRoute>} />
+            <Route path="/admin/brand-guide/:categorySlug/:pageSlug" element={<ProtectedRoute><AdminBrandGuidePage /></ProtectedRoute>} />
+            <Route path="/blog" element={<ProtectedRoute><AppLayout><Blog /></AppLayout></ProtectedRoute>} />
+            <Route path="/blog/:slug" element={<ProtectedRoute><AppLayout><BlogPost /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/blog/categories" element={<ProtectedRoute><AdminBlogCategories /></ProtectedRoute>} />
+            <Route path="/admin/blog/posts" element={<ProtectedRoute><AdminBlogPosts /></ProtectedRoute>} />
+            <Route path="/tests" element={<ProtectedRoute><AppLayout><TestsDashboard /></AppLayout></ProtectedRoute>} />
+            <Route path="/tests/list" element={<ProtectedRoute><AppLayout><TestsList /></AppLayout></ProtectedRoute>} />
+            <Route path="/tests/new" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
+            <Route path="/tests/:id/edit" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
+            <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />
+            <Route path="/admin/documentation" element={<ProtectedRoute><AdminDocumentation /></ProtectedRoute>} />
+            <Route path="/admin/ai-assistants" element={<ProtectedRoute><AdminAIAssistants /></ProtectedRoute>} />
+            <Route path="/admin/ai-assistants/:id" element={<ProtectedRoute><AdminAIAssistantEdit /></ProtectedRoute>} />
+            <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
+            <Route path="/share/file" element={<ShareDownload />} />
+            <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
+            <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
+            <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
+            <Route path="/briefings/list" element={<ProtectedRoute><AppLayout><BriefingsList /></AppLayout></ProtectedRoute>} />
+            <Route path="/briefings/new" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
+            <Route path="/briefings/:id/edit" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
+            <Route path="/metricas" element={<ProtectedRoute><AppLayout><Metricas /></AppLayout></ProtectedRoute>} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AuthProvider>
+  </BrowserRouter>
+);
+
 export default App;
