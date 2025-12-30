@@ -1379,6 +1379,7 @@ export type Database = {
           status: Database["public"]["Enums"]["test_status"]
           success_metric: string[] | null
           target_audience: string | null
+          test_images: Json | null
           test_types: string[]
           tested_elements: string | null
           tools: string[]
@@ -1401,6 +1402,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["test_status"]
           success_metric?: string[] | null
           target_audience?: string | null
+          test_images?: Json | null
           test_types?: string[]
           tested_elements?: string | null
           tools?: string[]
@@ -1423,6 +1425,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["test_status"]
           success_metric?: string[] | null
           target_audience?: string | null
+          test_images?: Json | null
           test_types?: string[]
           tested_elements?: string | null
           tools?: string[]
