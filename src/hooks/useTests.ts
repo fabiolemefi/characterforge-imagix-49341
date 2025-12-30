@@ -164,10 +164,10 @@ export const useDeactivateTest = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tests"] });
       queryClient.invalidateQueries({ queryKey: ["tests-metrics"] });
-      toast.success("Teste desativado com sucesso!");
+      toast.success("Teste excluído com sucesso!");
     },
     onError: (error) => {
-      toast.error("Erro ao desativar teste: " + error.message);
+      toast.error("Erro ao excluir teste: " + error.message);
     },
   });
 };

@@ -5,7 +5,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Copy, Ban, BarChart3, FileText } from "lucide-react";
+import { MoreHorizontal, Pencil, Copy, Trash2, BarChart3 } from "lucide-react";
 import { TestStatus } from "@/types/test";
 import { useNavigate } from "react-router-dom";
 import { useCreateTest, useDeactivateTest } from "@/hooks/useTests";
@@ -40,8 +40,8 @@ export function TestActionsDropdown({
     });
   };
 
-  const handleDeactivate = async () => {
-    if (confirm("Tem certeza que deseja desativar este teste?")) {
+  const handleDelete = async () => {
+    if (confirm("Tem certeza que deseja excluir este teste?")) {
       await deactivateTest.mutateAsync(testId);
     }
   };
@@ -68,9 +68,9 @@ export function TestActionsDropdown({
           <Copy className="h-4 w-4 mr-2" />
           Duplicar
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDeactivate}>
-          <Ban className="h-4 w-4 mr-2" />
-          Desativar
+        <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Excluir
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
