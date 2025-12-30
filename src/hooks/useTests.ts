@@ -154,9 +154,16 @@ export const useDeactivateTest = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Verificar se usuário está autenticado
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
       const { error } = await supabase
         .from("tests")
-        .update({ is_active: false })
+        .update({ 
+          is_active: false,
+          updated_by: user.id
+        })
         .eq("id", id);
 
       if (error) throw error;
