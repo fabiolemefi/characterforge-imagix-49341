@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,7 +36,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { CalendarIcon, Sparkles, Lightbulb } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CalendarIcon, Sparkles, Lightbulb, ArrowLeft } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTest, useCreateTest, useUpdateTest } from "@/hooks/useTests";
@@ -71,6 +74,7 @@ const formSchema = z.object({
   status: z.enum(["planejamento", "execucao", "analise", "documentacao"]),
   attachments: z.array(z.any()).default([]),
   links: z.array(z.any()).default([]),
+  created_by: z.string().optional(),
 });
 
 export default function TestForm() {
@@ -82,6 +86,20 @@ export default function TestForm() {
   const { data: test } = useTest(id);
   const createTest = useCreateTest();
   const updateTest = useUpdateTest();
+
+  // Buscar lista de perfis para o campo de autor
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, avatar_url")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isEditing,
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -118,6 +136,7 @@ export default function TestForm() {
         status: test.status,
         attachments: test.attachments || [],
         links: test.links || [],
+        created_by: test.created_by,
       });
     }
   }, [test, form]);
@@ -169,10 +188,12 @@ export default function TestForm() {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const { created_by, ...restValues } = values;
     const data = {
-      ...values,
-      start_date: values.start_date ? format(values.start_date, "yyyy-MM-dd") : null,
-      end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
+      ...restValues,
+      start_date: restValues.start_date ? format(restValues.start_date, "yyyy-MM-dd") : null,
+      end_date: restValues.end_date ? format(restValues.end_date, "yyyy-MM-dd") : null,
+      ...(isEditing && created_by ? { created_by } : {}),
     };
 
     try {
@@ -192,9 +213,18 @@ export default function TestForm() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">
-          {isEditing ? "Editar Teste" : "Novo Teste"}
-        </h1>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/tests/list")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-3xl font-bold">
+            {isEditing ? "Editar Teste" : "Novo Teste"}
+          </h1>
+        </div>
 
         {!isEditing && (
           <Button
@@ -260,6 +290,41 @@ export default function TestForm() {
             />
           </div>
 
+          {isEditing && profiles && (
+            <FormField
+              control={form.control}
+              name="created_by"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Autor</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o autor" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={profile.avatar_url || undefined} />
+                              <AvatarFallback className="text-xs">
+                                {(profile.full_name?.[0] || profile.email[0]).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {profile.full_name || profile.email}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
           <FormField
             control={form.control}
             name="hypothesis"
@@ -290,9 +355,10 @@ export default function TestForm() {
                 </FormLabel>
                 <FormControl>
                   {field.value ? (
-                    <div className="min-h-[150px] p-4 rounded-md border border-yellow-200 bg-yellow-50/50 whitespace-pre-wrap text-sm leading-relaxed">
-                      {field.value}
-                    </div>
+                    <div 
+                      className="min-h-[150px] p-4 rounded-md border border-yellow-200 bg-yellow-50/50 text-sm leading-relaxed prose prose-sm max-w-none [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1"
+                      dangerouslySetInnerHTML={{ __html: field.value }}
+                    />
                   ) : (
                     <div className="min-h-[100px] p-4 rounded-md border border-dashed border-yellow-300 bg-yellow-50/30 flex items-center justify-center text-muted-foreground text-sm">
                       Os insights serão gerados automaticamente pelo assistente de IA
