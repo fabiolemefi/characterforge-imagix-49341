@@ -48,7 +48,18 @@ import EfiLink from "./pages/EfiLink";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
-import { isAuthError } from "./services/AuthGateway";
+
+// Helper para verificar erro de autenticação
+function isAuthError(error: unknown): boolean {
+  if (!error) return false;
+  const err = error as { status?: number; message?: string; code?: string };
+  return err.status === 401 || 
+         err.status === 403 || 
+         err.code === 'PGRST301' ||
+         err.message?.includes('JWT') ||
+         err.message?.includes('token') ||
+         err.message?.includes('session');
+}
 
 // Configuração do React Query com tratamento de erros de auth
 const queryClient = new QueryClient({

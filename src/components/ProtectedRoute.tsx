@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuthGateway } from "@/hooks/useAuthGateway";
+import { useAuthStore } from "@/stores/authStore";
 import Lottie from "lottie-react";
 
 interface ProtectedRouteProps {
@@ -8,16 +8,16 @@ interface ProtectedRouteProps {
 }
 
 /**
- * ProtectedRoute - Componente simplificado que usa o AuthGateway
+ * ProtectedRoute - Componente simplificado que usa o AuthStore (Zustand)
  * 
  * Responsabilidades:
- * - Verificar se o gateway está pronto
+ * - Verificar se o store está pronto
  * - Verificar se há usuário autenticado
  * - Verificar se usuário está ativo
  * - Redirecionar para login se necessário
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isReady, isUserActive } = useAuthGateway();
+  const { user, isReady, isUserActive } = useAuthStore();
   const [animationData, setAnimationData] = useState(null);
 
   useEffect(() => {
