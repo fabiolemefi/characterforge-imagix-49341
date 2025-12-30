@@ -71,6 +71,67 @@ function stopRefreshInterval() {
   }
 }
 
+// Flag para evitar verificações simultâneas
+let isVerifyingSession = false;
+
+// Verificar sessão quando a aba volta ao foco
+async function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') return;
+  if (isVerifyingSession) return;
+  
+  const state = useAuthStore.getState();
+  if (!state.session) return;
+  
+  isVerifyingSession = true;
+  console.log('👁️ [AuthStore] Aba voltou ao foco, verificando sessão...');
+  
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (error || !data.session) {
+      console.log('🔄 [AuthStore] Sessão perdida, tentando refresh...');
+      const refreshed = await state.refreshSession();
+      if (!refreshed) {
+        console.log('❌ [AuthStore] Falha no refresh após volta ao foco');
+      }
+    } else {
+      // Atualizar estado com a sessão atual
+      useAuthStore.setState({ 
+        session: data.session, 
+        user: data.session.user 
+      });
+      console.log('✅ [AuthStore] Sessão verificada com sucesso');
+    }
+  } catch (err) {
+    console.error('❌ [AuthStore] Erro ao verificar sessão no foco:', err);
+  } finally {
+    isVerifyingSession = false;
+  }
+}
+
+// Inicializar listener de visibilidade
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
+// Exportar função para aguardar verificação de sessão (usada pelo React Query)
+export async function waitForSessionVerification(): Promise<void> {
+  if (document.visibilityState !== 'visible') return;
+  
+  const state = useAuthStore.getState();
+  if (!state.session) return;
+  
+  // Se já está verificando, aguardar
+  if (isVerifyingSession) {
+    await new Promise(resolve => {
+      const checkInterval = setInterval(() => {
+        if (!isVerifyingSession) {
+          clearInterval(checkInterval);
+          resolve(undefined);
+        }
+      }, 50);
+    });
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
