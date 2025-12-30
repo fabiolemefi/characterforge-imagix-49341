@@ -23,6 +23,7 @@ import {
   Paperclip,
   Link2,
   Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { TestStatusBadge } from "./TestStatusBadge";
 import { format, differenceInDays } from "date-fns";
@@ -97,6 +98,32 @@ export function TestReportModal({ open, onOpenChange, test }: TestReportModalPro
     }
   };
 
+  const handleExportJPG = async () => {
+    const element = reportRef.current;
+    if (!element) return;
+
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const link = document.createElement("a");
+      link.download = `relatorio-${test.nome_teste.replace(/\s+/g, "-")}.jpg`;
+      link.href = canvas.toDataURL("image/jpeg", 0.95);
+      link.click();
+
+      toast.success("Imagem exportada com sucesso!");
+    } catch (error: any) {
+      toast.error("Erro ao exportar imagem: " + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -105,19 +132,36 @@ export function TestReportModal({ open, onOpenChange, test }: TestReportModalPro
             <FileText className="h-5 w-5 text-primary" />
             Relatório de Teste
           </DialogTitle>
-          <Button
-            onClick={handleExportPDF}
-            disabled={isExporting}
-            size="sm"
-            className="gap-2"
-          >
-            {isExporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileDown className="h-4 w-4" />
-            )}
-            Exportar PDF
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              PDF
+            </Button>
+            <Button
+              onClick={handleExportJPG}
+              disabled={isExporting}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImageIcon className="h-4 w-4" />
+              )}
+              JPG
+            </Button>
+          </div>
         </DialogHeader>
 
         <div ref={reportRef} className="bg-background p-6 space-y-6">
@@ -236,9 +280,10 @@ export function TestReportModal({ open, onOpenChange, test }: TestReportModalPro
                 <FileText className="h-5 w-5" />
                 <h3 className="font-semibold">Insights / Dados Coletados</h3>
               </div>
-              <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-                {test.insights}
-              </p>
+              <div 
+                className="text-foreground prose prose-sm max-w-none leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: test.insights }}
+              />
             </div>
           )}
 

@@ -5,7 +5,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Copy, Trash2, BarChart3 } from "lucide-react";
+import { MoreHorizontal, Pencil, Copy, Trash2, BarChart3, FileText } from "lucide-react";
 import { TestStatus } from "@/types/test";
 import { useNavigate } from "react-router-dom";
 import { useCreateTest, useDeactivateTest } from "@/hooks/useTests";
@@ -15,6 +15,7 @@ export interface TestActionsDropdownProps {
   status: TestStatus;
   test: any;
   onCollectData?: () => void;
+  onFinalReport?: () => void;
 }
 
 export function TestActionsDropdown({
@@ -22,6 +23,7 @@ export function TestActionsDropdown({
   status,
   test,
   onCollectData,
+  onFinalReport,
 }: TestActionsDropdownProps) {
   const navigate = useNavigate();
   const createTest = useCreateTest();
@@ -58,6 +60,12 @@ export function TestActionsDropdown({
           <DropdownMenuItem onClick={onCollectData}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Coletar dados
+          </DropdownMenuItem>
+        )}
+        {onFinalReport && (
+          <DropdownMenuItem onClick={onFinalReport}>
+            <FileText className="h-4 w-4 mr-2" />
+            Relatório final
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleEdit}>
