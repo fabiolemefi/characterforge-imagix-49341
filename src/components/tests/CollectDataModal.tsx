@@ -8,12 +8,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useUpdateTest } from "@/hooks/useTests";
 import { Test } from "@/types/test";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 interface CollectDataModalProps {
   open: boolean;
@@ -51,12 +51,10 @@ export function CollectDataModal({ open, onOpenChange, test }: CollectDataModalP
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="report-data">Dados do Relatório</Label>
-            <Textarea
-              id="report-data"
-              placeholder="Cole aqui os dados do relatório, métricas, resultados, etc..."
+            <RichTextEditor
               value={reportData}
-              onChange={(e) => setReportData(e.target.value)}
-              className="min-h-[300px] resize-none"
+              onChange={setReportData}
+              placeholder="Cole aqui os dados do relatório, métricas, resultados, etc..."
             />
           </div>
         </div>
