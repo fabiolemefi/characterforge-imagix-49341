@@ -15,7 +15,7 @@ export default function Blog() {
   const { data: posts, isLoading: postsLoading } = useBlogPosts(selectedCategory);
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-background">
       <div className="max-w-7xl mx-auto">
             <div className="mb-8">
               <h1 className="text-4xl font-bold mb-4">Blog</h1>
