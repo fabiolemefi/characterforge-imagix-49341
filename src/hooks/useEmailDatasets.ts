@@ -158,11 +158,19 @@ export const useEmailDatasets = () => {
         throw new Error(extractData?.error || 'Resposta inválida da extração');
       }
 
+      // Count emails in the extracted content
+      const emailCount = extractData.markdown.includes('---EMAIL_SEPARATOR---')
+        ? extractData.markdown.split('---EMAIL_SEPARATOR---').filter((e: string) => e.trim()).length
+        : 1;
+
       console.log('[useEmailDatasets] Extracted content length:', extractData.markdown.length);
+      console.log('[useEmailDatasets] Number of emails found:', emailCount);
 
       toast({
         title: 'PDF extraído',
-        description: `Conteúdo extraído com ${extractData.markdown.length} caracteres`,
+        description: emailCount > 1 
+          ? `${emailCount} emails extraídos com sucesso`
+          : `Conteúdo extraído com ${extractData.markdown.length} caracteres`,
       });
 
       return extractData.markdown;
@@ -194,18 +202,30 @@ export const useEmailDatasets = () => {
   };
 
   // Format extracted content with sequential numbering (newest at top)
+  // Supports multiple emails separated by ---EMAIL_SEPARATOR---
   const formatExtractedContent = (existingContent: string, newContent: string): string => {
     const separator = '==========================================================';
-    const nextNumber = getNextDatasetNumber(existingContent);
-    const paddedNumber = String(nextNumber).padStart(2, '0');
     
-    const formattedNew = `Dataset ${paddedNumber}\n${separator}\n\n${newContent}`;
+    // Check if content has multiple emails
+    const emails = newContent.includes('---EMAIL_SEPARATOR---')
+      ? newContent.split('---EMAIL_SEPARATOR---').map(e => e.trim()).filter(e => e.length > 0)
+      : [newContent.trim()];
+    
+    let formattedNew = '';
+    let currentNumber = getNextDatasetNumber(existingContent);
+    
+    // Process each email, creating a separate dataset entry for each
+    for (const email of emails) {
+      const paddedNumber = String(currentNumber).padStart(2, '0');
+      formattedNew += `Dataset ${paddedNumber}\n${separator}\n\n${email}\n\n`;
+      currentNumber++;
+    }
     
     if (existingContent.trim()) {
       // Insert at TOP (newest first, descending order)
-      return `${formattedNew}\n\n${existingContent}`;
+      return `${formattedNew.trim()}\n\n${existingContent}`;
     }
-    return formattedNew;
+    return formattedNew.trim();
   };
 
   useEffect(() => {

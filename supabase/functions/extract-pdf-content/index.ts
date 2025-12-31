@@ -83,28 +83,56 @@ serve(async (req) => {
     // Step 2: Use Gemini 3 Pro to clean and extract only email content
     const systemInstruction = `Você é um especialista em extrair conteúdos de email de documentos.
 
-Analise o texto extraído de um PDF e identifique APENAS o conteúdo do email.
+Analise o texto extraído de um PDF e identifique TODOS os emails presentes no documento.
 
-REGRAS DE EXTRAÇÃO:
-1. O email geralmente começa com "[logo" ou com a tabela de metadados (Assunto, Pré cabeçalho)
-2. O email termina com "Abraços,\\n\\nEquipe Efi Bank" ou assinatura similar (pode ser "Equipe Efí", "Efi Bank", etc.)
-3. MANTENHA a tabela com Assunto e Pré cabeçalho se existir
-4. Na tabela de metadados, REMOVA linhas que estão vazias ou sem valor preenchido (como Modalidade, Categoria, Prévia no Figma se estiverem sem conteúdo)
-5. REMOVA:
-   - Títulos de páginas/documentos antes do email
+COMO IDENTIFICAR EMAILS SEPARADOS:
+1. Marcadores como "# Email - A", "# Email - B", "# Email", "Email D3", "Email D7", "Disparo X"
+2. Cada email geralmente tem sua própria tabela de metadados (Assunto, Pré cabeçalho, Modalidade, Categoria)
+3. Corpo do email geralmente começa após a tabela de metadados ou com "[logo"
+4. Emails terminam com assinatura (Abraços, Equipe Efi Bank, Equipe Efí, etc.)
+
+REGRAS DE EXTRAÇÃO PARA CADA EMAIL:
+1. MANTENHA a tabela com Assunto, Pré cabeçalho, Modalidade, Categoria se existirem e tiverem valores
+2. REMOVA linhas da tabela que estão vazias ou sem valor preenchido
+3. REMOVA:
+   - Títulos de páginas/documentos repetitivos (como "Disparo pontual", "Solicitação de cartão PJ")
    - Ícones e imagens decorativas (como "Icon representing...")
    - Links de navegação do documento (como "[Adicionar capa]")
-   - Qualquer conteúdo antes da tabela de metadados ou do "[logo"
-   - Qualquer conteúdo após a assinatura final
+   - Informações de Push e Inapp (apenas emails)
    - Referências a links do Notion/Figma/outros sistemas
+   - Prévia no Figma se não for conteúdo relevante
 
 FORMATO DE SAÍDA:
-- NÃO adicione cabeçalhos como "Email sobre [título]"
+- Separe cada email com a linha: ---EMAIL_SEPARATOR---
+- Para cada email, retorne diretamente a tabela de metadados (se existir) seguida do corpo
+- NÃO adicione cabeçalhos como "Email sobre [título]" ou "Email A:"
 - NÃO adicione linhas de separação "----------------------------------------------------------"
-- Retorne DIRETAMENTE o conteúdo do email, começando pela tabela de metadados (se existir) ou pelo "[logo"
-- Se houver múltiplos emails no PDF, separe-os com uma linha em branco
 
-RETORNE APENAS o conteúdo limpo, sem explicações ou comentários adicionais.`;
+EXEMPLO DE SAÍDA:
+| Assunto: | Seu Cartão PJ com 500 pontos grátis |
+| Pré cabeçalho: | Garanta o seu cartão Visa Platinum... |
+| Modalidade: | Efí Empresas |
+| Categoria: | Cartão |
+
+Pedro, seu negócio merece: limite de crédito à altura + 500 pontos grátis no cartão
+
+Por confiar no Efí Bank desde %%DataAbertura%%...
+
+Abraços,
+Equipe Efí Bank
+---EMAIL_SEPARATOR---
+| Assunto: | %%LimiteDisponivel%% de limite pré-aprovado |
+| Pré cabeçalho: | Exclusivo para você... |
+| Modalidade: | Efí Empresas |
+| Categoria: | Cartão |
+
+[conteúdo do próximo email]
+
+Abraços,
+Equipe Efí Bank
+
+RETORNE APENAS o conteúdo dos emails separados, sem explicações ou comentários.
+Se houver apenas 1 email, retorne apenas seu conteúdo sem separador.`;
 
     console.log("[extract-pdf-content] Cleaning markdown with Gemini 3 Pro...");
 
