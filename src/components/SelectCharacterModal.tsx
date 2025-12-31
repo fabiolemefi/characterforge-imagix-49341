@@ -128,99 +128,106 @@ export const SelectCharacterModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Escolha uma Persona
-          </DialogTitle>
-          <DialogDescription>
-            Selecione qual personagem do Efimagem será usado para gerar a imagem do banner
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          {loadingCharacters ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : characters.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma persona encontrada no Efimagem
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-3 justify-center">
-                {characters.map((character) => (
-                  <button
-                    key={character.id}
-                    onClick={() => setSelectedId(character.id)}
-                    disabled={loading}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all",
-                      "hover:border-primary/50 hover:bg-muted/50",
-                      selectedId === character.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border",
-                      loading && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <Avatar className="h-16 w-16">
-                      {character.coverImage ? (
-                        <AvatarImage 
-                          src={character.coverImage} 
-                          alt={character.name}
-                          className="object-cover"
-                        />
-                      ) : null}
-                      <AvatarFallback>
-                        <User className="h-8 w-8" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">{character.name}</span>
-                  </button>
-                ))}
-              </div>
-
-              {heroPrompt && (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="prompt-textarea" className="text-xs font-medium text-muted-foreground">
-                      Cena a ser gerada:
-                    </Label>
-                    <Textarea
-                      id="prompt-textarea"
-                      value={editedPrompt}
-                      onChange={(e) => setEditedPrompt(e.target.value)}
-                      placeholder="Descreva a cena..."
-                      className="min-h-[100px] text-sm"
-                      disabled={loading}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="borders-toggle" className="text-sm font-medium cursor-pointer">
-                        Imagem com bordas
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Adiciona ícones 3D decorativos saindo das bordas
-                      </p>
-                    </div>
-                    <Switch
-                      id="borders-toggle"
-                      checked={withBorders}
-                      onCheckedChange={setWithBorders}
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col p-0 gap-0">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 p-6 pb-4 border-b">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Escolha uma Persona
+            </DialogTitle>
+            <DialogDescription>
+              Selecione qual personagem do Efimagem será usado para gerar a imagem do banner
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        <div className="flex justify-end gap-2">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
+            {loadingCharacters ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : characters.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhuma persona encontrada no Efimagem
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  {characters.map((character) => (
+                    <button
+                      key={character.id}
+                      onClick={() => setSelectedId(character.id)}
+                      disabled={loading}
+                      className={cn(
+                        "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all",
+                        "hover:border-primary/50 hover:bg-muted/50",
+                        selectedId === character.id
+                          ? "border-primary bg-primary/5"
+                          : "border-border",
+                        loading && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <Avatar className="h-16 w-16">
+                        {character.coverImage ? (
+                          <AvatarImage 
+                            src={character.coverImage} 
+                            alt={character.name}
+                            className="object-cover"
+                          />
+                        ) : null}
+                        <AvatarFallback>
+                          <User className="h-8 w-8" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{character.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {heroPrompt && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="prompt-textarea" className="text-xs font-medium text-muted-foreground">
+                        Cena a ser gerada:
+                      </Label>
+                      <Textarea
+                        id="prompt-textarea"
+                        value={editedPrompt}
+                        onChange={(e) => setEditedPrompt(e.target.value)}
+                        placeholder="Descreva a cena..."
+                        className="min-h-[100px] text-sm"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="borders-toggle" className="text-sm font-medium cursor-pointer">
+                          Imagem com bordas
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Adiciona ícones 3D decorativos saindo das bordas
+                        </p>
+                      </div>
+                      <Switch
+                        id="borders-toggle"
+                        checked={withBorders}
+                        onCheckedChange={setWithBorders}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0 p-6 pt-4 border-t flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Pular
           </Button>
