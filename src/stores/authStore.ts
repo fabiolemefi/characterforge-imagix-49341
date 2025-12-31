@@ -1,25 +1,19 @@
 import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AuthState {
   user: User | null;
   session: Session | null;
   isReady: boolean;
   isUserActive: boolean;
-  
-  // Actions
   initialize: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
-// Flags externas para garantir inicialização única
-let isInitializing = false;
-let isInitialized = false;
-let refreshInterval: ReturnType<typeof setInterval> | null = null;
-
-// Funções auxiliares fora do store
+// Helper to check if user is active in profiles table
 async function checkUserActive(userId: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
@@ -29,106 +23,128 @@ async function checkUserActive(userId: string): Promise<boolean> {
       .maybeSingle();
     
     if (error) {
-      console.error('❌ [AuthStore] Erro ao verificar is_active:', error);
-      return true; // Assume ativo em caso de erro
+      console.error('❌ [AuthStore] Erro ao verificar status do usuário:', error);
+      return false;
     }
     
-    return data?.is_active ?? true;
+    return data?.is_active ?? false;
   } catch (err) {
-    console.error('❌ [AuthStore] Exceção ao verificar is_active:', err);
-    return true;
+    console.error('❌ [AuthStore] Exceção ao verificar status:', err);
+    return false;
   }
 }
 
+// Refresh interval management
+let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
+
 function startRefreshInterval() {
-  if (refreshInterval) return;
+  if (refreshIntervalId) return;
   
-  console.log('⏰ [AuthStore] Iniciando refresh interval');
+  console.log('⏰ [AuthStore] Iniciando refresh interval (30s)');
   
-  refreshInterval = setInterval(async () => {
+  refreshIntervalId = setInterval(async () => {
     const state = useAuthStore.getState();
-    const { session } = state;
+    if (!state.session) return;
     
-    if (!session?.expires_at) return;
+    const expiresAt = state.session.expires_at;
+    if (!expiresAt) return;
     
-    const expiresAt = session.expires_at * 1000;
     const now = Date.now();
-    const fiveMinutes = 5 * 60 * 1000;
-    const timeUntilExpiry = expiresAt - now;
+    const expiryTime = expiresAt * 1000;
+    const timeUntilExpiry = expiryTime - now;
+    const tenMinutes = 10 * 60 * 1000; // 10 minutos de margem
     
-    if (timeUntilExpiry > 0 && timeUntilExpiry < fiveMinutes) {
-      console.log('🔄 [AuthStore] Token expirando em breve, renovando proativamente...');
+    console.log(`⏰ [AuthStore] Token expira em ${Math.round(timeUntilExpiry / 1000 / 60)} minutos`);
+    
+    if (timeUntilExpiry > 0 && timeUntilExpiry < tenMinutes) {
+      console.log('🔄 [AuthStore] Refresh proativo do token...');
       await state.refreshSession();
     }
-  }, 60 * 1000); // Verifica a cada 1 minuto
+  }, 30 * 1000); // Verificar a cada 30 segundos
 }
 
 function stopRefreshInterval() {
-  if (refreshInterval) {
+  if (refreshIntervalId) {
     console.log('⏹️ [AuthStore] Parando refresh interval');
-    clearInterval(refreshInterval);
-    refreshInterval = null;
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
   }
 }
 
-// Flag para evitar verificações simultâneas
-let isVerifyingSession = false;
+// Track visibility changes and inactive time
+let lastVisibleTime = Date.now();
+let visibilityListenerAttached = false;
+let storageListenerAttached = false;
+let sessionVerificationPromise: Promise<void> | null = null;
+let sessionVerificationResolve: (() => void) | null = null;
 
-// Verificar sessão quando a aba volta ao foco
 async function handleVisibilityChange() {
-  if (document.visibilityState !== 'visible') return;
-  if (isVerifyingSession) return;
-  
-  const state = useAuthStore.getState();
-  if (!state.session) return;
-  
-  isVerifyingSession = true;
-  console.log('👁️ [AuthStore] Aba voltou ao foco, verificando sessão...');
-  
-  try {
-    const { data, error } = await supabase.auth.getSession();
+  if (document.visibilityState === 'visible') {
+    const inactiveTime = Date.now() - lastVisibleTime;
+    console.log(`👁️ [AuthStore] Aba voltou após ${Math.round(inactiveTime / 1000)}s inativo`);
     
-    if (error || !data.session) {
-      console.log('🔄 [AuthStore] Sessão perdida, tentando refresh...');
-      const refreshed = await state.refreshSession();
-      if (!refreshed) {
-        console.log('❌ [AuthStore] Falha no refresh após volta ao foco');
+    const state = useAuthStore.getState();
+    if (!state.session) return;
+    
+    // Criar promise para sincronização
+    sessionVerificationPromise = new Promise<void>((resolve) => {
+      sessionVerificationResolve = resolve;
+    });
+    
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error || !data.session) {
+        console.log('⚠️ [AuthStore] Sessão inválida ao retornar, tentando refresh...');
+        const refreshed = await state.refreshSession();
+        if (!refreshed) {
+          console.log('❌ [AuthStore] Refresh falhou, fazendo logout...');
+        }
+      } else {
+        useAuthStore.setState({ 
+          session: data.session, 
+          user: data.session.user 
+        });
       }
-    } else {
-      // Atualizar estado com a sessão atual
-      useAuthStore.setState({ 
-        session: data.session, 
-        user: data.session.user 
-      });
-      console.log('✅ [AuthStore] Sessão verificada com sucesso');
+    } finally {
+      sessionVerificationResolve?.();
+      sessionVerificationPromise = null;
+      sessionVerificationResolve = null;
     }
-  } catch (err) {
-    console.error('❌ [AuthStore] Erro ao verificar sessão no foco:', err);
-  } finally {
-    isVerifyingSession = false;
+  } else {
+    lastVisibleTime = Date.now();
   }
 }
 
-// Inicializar listener de visibilidade
-document.addEventListener('visibilitychange', handleVisibilityChange);
-
-// Exportar função para aguardar verificação de sessão (usada pelo React Query)
-export async function waitForSessionVerification(): Promise<void> {
-  if (document.visibilityState !== 'visible') return;
-  
-  const state = useAuthStore.getState();
-  if (!state.session) return;
-  
-  // Se já está verificando, aguardar
-  if (isVerifyingSession) {
-    await new Promise(resolve => {
-      const checkInterval = setInterval(() => {
-        if (!isVerifyingSession) {
-          clearInterval(checkInterval);
-          resolve(undefined);
-        }
-      }, 50);
+// Handle storage events for multi-tab sync
+function handleStorageChange(event: StorageEvent) {
+  if (event.key?.includes('auth-token')) {
+    console.log('🔄 [AuthStore] Sessão mudou em outra aba, sincronizando...');
+    
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        useAuthStore.setState({ 
+          session: data.session, 
+          user: data.session.user 
+        });
+        console.log('✅ [AuthStore] Sessão sincronizada de outra aba');
+      } else {
+        // Outra aba fez logout
+        useAuthStore.setState({ 
+          session: null, 
+          user: null,
+          isUserActive: false 
+        });
+        console.log('🚪 [AuthStore] Logout detectado em outra aba');
+      }
     });
+  }
+}
+
+// Export function to wait for session verification
+export async function waitForSessionVerification(): Promise<void> {
+  if (sessionVerificationPromise) {
+    await sessionVerificationPromise;
   }
 }
 
@@ -136,148 +152,155 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   isReady: false,
-  isUserActive: true,
+  isUserActive: false,
 
   initialize: async () => {
-    // Prevenir inicialização duplicada de forma absoluta
-    if (isInitializing || isInitialized) {
-      console.log('⚠️ [AuthStore] Já inicializado/inicializando, ignorando');
-      return;
+    console.log('🚀 [AuthStore] Inicializando...');
+    
+    // Setup visibility change listener (once)
+    if (!visibilityListenerAttached) {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      visibilityListenerAttached = true;
     }
     
-    isInitializing = true;
-    console.log('🚀 [AuthStore] Inicializando...');
-
-    // ÚNICO listener em toda a aplicação
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`🔄 [AuthStore] Auth event: ${event}`, {
-        userId: session?.user?.id?.substring(0, 8),
-        expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null
-      });
-      
-      // Atualizar estado sincronamente
-      set({ 
-        session, 
-        user: session?.user ?? null 
-      });
-
-      if (event === 'SIGNED_OUT') {
-        set({ isUserActive: false, isReady: true });
-        stopRefreshInterval();
-        return;
-      }
-
-      if (event === 'TOKEN_REFRESHED' && session) {
-        console.log('✅ [AuthStore] Token renovado com sucesso');
-        startRefreshInterval();
-      }
-
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Verificar is_active de forma assíncrona (usando setTimeout para evitar deadlock)
-        setTimeout(async () => {
-          const isActive = await checkUserActive(session.user.id);
-          set({ isUserActive: isActive });
-          
-          if (!isActive) {
-            console.log('🚫 [AuthStore] Usuário inativo, fazendo logout');
-            get().signOut();
-          } else {
-            startRefreshInterval();
+    // Setup storage listener for multi-tab sync (once)
+    if (!storageListenerAttached) {
+      window.addEventListener('storage', handleStorageChange);
+      storageListenerAttached = true;
+    }
+    
+    // Setup auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 [AuthStore] Auth event:', event, {
+          userId: session?.user?.id?.slice(0, 8),
+          expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null
+        });
+        
+        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          if (event === 'SIGNED_OUT') {
+            stopRefreshInterval();
+            set({ user: null, session: null, isUserActive: false, isReady: true });
+            return;
           }
-        }, 0);
+        }
+        
+        if (session?.user) {
+          set({ user: session.user, session });
+          
+          // Defer Supabase call to avoid deadlock
+          setTimeout(async () => {
+            const isActive = await checkUserActive(session.user.id);
+            set({ isUserActive: isActive, isReady: true });
+            startRefreshInterval();
+          }, 0);
+        } else {
+          set({ user: null, session: null, isUserActive: false, isReady: true });
+        }
       }
-    });
+    );
 
-    // Buscar sessão inicial
+    // Get initial session
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.error('❌ [AuthStore] Erro ao buscar sessão inicial:', error);
+        console.error('❌ [AuthStore] Erro ao obter sessão inicial:', error);
         set({ isReady: true });
-        isInitializing = false;
-        isInitialized = true;
         return;
       }
       
       if (session?.user) {
-        console.log('📦 [AuthStore] Sessão inicial encontrada:', session.user.id.substring(0, 8));
+        console.log('📦 [AuthStore] Sessão inicial encontrada:', session.user.id.slice(0, 8));
+        set({ user: session.user, session });
         
-        // Verificar is_active
         const isActive = await checkUserActive(session.user.id);
-        
-        set({ 
-          user: session.user, 
-          session, 
-          isReady: true,
-          isUserActive: isActive 
-        });
-        
-        if (isActive) {
-          startRefreshInterval();
-        } else {
-          console.log('🚫 [AuthStore] Usuário inativo na sessão inicial');
-        }
+        set({ isUserActive: isActive, isReady: true });
+        startRefreshInterval();
       } else {
-        console.log('📭 [AuthStore] Sem sessão inicial');
         set({ isReady: true });
       }
     } catch (err) {
-      console.error('❌ [AuthStore] Exceção ao buscar sessão inicial:', err);
+      console.error('❌ [AuthStore] Exceção ao inicializar:', err);
       set({ isReady: true });
     }
-
-    isInitializing = false;
-    isInitialized = true;
+    
     console.log('✅ [AuthStore] Inicialização concluída');
   },
 
   refreshSession: async () => {
-    console.log('🔄 [AuthStore] Renovando sessão...');
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
     
-    try {
-      const { data, error } = await supabase.auth.refreshSession();
-      
-      if (error) {
-        console.error('❌ [AuthStore] Erro no refresh:', error);
+    while (retryCount < MAX_RETRIES) {
+      try {
+        console.log(`🔄 [AuthStore] Tentativa de refresh ${retryCount + 1}/${MAX_RETRIES}...`);
         
-        // Se for erro irrecuperável, fazer logout
-        if (error.message?.includes('refresh_token_not_found') || 
-            error.message?.includes('invalid_grant') ||
-            error.status === 400) {
-          console.log('🚪 [AuthStore] Erro irrecuperável, fazendo logout');
-          await get().signOut();
+        const { data, error } = await supabase.auth.refreshSession();
+        
+        if (!error && data.session) {
+          console.log('✅ [AuthStore] Token renovado com sucesso');
+          set({ session: data.session, user: data.session.user });
+          return true;
         }
         
-        return false;
+        // Erros irrecuperáveis - não tentar novamente
+        if (error?.message?.includes('refresh_token_not_found') ||
+            error?.message?.includes('invalid_grant') ||
+            error?.message?.includes('Invalid Refresh Token')) {
+          console.error('❌ [AuthStore] Erro irrecuperável de refresh:', error.message);
+          break;
+        }
+        
+        // Erro recuperável - tentar novamente com backoff
+        console.warn(`⚠️ [AuthStore] Erro de refresh (tentativa ${retryCount + 1}):`, error?.message);
+        retryCount++;
+        
+        if (retryCount < MAX_RETRIES) {
+          const delay = 1000 * retryCount;
+          console.log(`⏳ [AuthStore] Aguardando ${delay}ms antes de retry...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+        
+      } catch (err) {
+        console.error(`❌ [AuthStore] Exceção no refresh (tentativa ${retryCount + 1}):`, err);
+        retryCount++;
+        
+        if (retryCount < MAX_RETRIES) {
+          const delay = 1000 * retryCount;
+          await new Promise(r => setTimeout(r, delay));
+        }
       }
-      
-      if (data.session) {
-        console.log('✅ [AuthStore] Sessão renovada com sucesso');
-        set({ session: data.session, user: data.session.user });
-        return true;
-      }
-      
-      return false;
-    } catch (err) {
-      console.error('❌ [AuthStore] Exceção no refresh:', err);
-      return false;
     }
+    
+    // Esgotou retries - fazer logout
+    console.error('❌ [AuthStore] Todas as tentativas de refresh falharam, fazendo logout...');
+    await get().signOut();
+    return false;
   },
 
   signOut: async () => {
-    console.log('🚪 [AuthStore] Fazendo logout...');
+    const wasForced = get().session !== null;
+    
     stopRefreshInterval();
     
     try {
       await supabase.auth.signOut();
     } catch (err) {
-      console.error('❌ [AuthStore] Erro no signOut:', err);
+      console.error('❌ [AuthStore] Erro ao fazer signOut:', err);
     }
     
     set({ user: null, session: null, isUserActive: false, isReady: true });
+    
+    if (wasForced) {
+      toast.error('Sessão expirada', {
+        description: 'Por favor, faça login novamente.'
+      });
+    }
+    
+    console.log('🚪 [AuthStore] Logout realizado');
   }
 }));
 
-// Auto-inicializar quando o módulo é carregado
+// Initialize on load
 useAuthStore.getState().initialize();
