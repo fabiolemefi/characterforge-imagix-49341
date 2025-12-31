@@ -152,7 +152,7 @@ Se houver múltiplos emails, separe-os com ---`;
       const webhookUrl = `${SUPABASE_URL}/functions/v1/pdf-extraction-webhook`;
 
       const geminiPrediction = await replicate.predictions.create({
-        version: "9835b8f23376f52ab293a0824cf4876ff945ed2f1e48f8e397644b9e01c6d7b7",
+        model: "google-deepmind/gemini-2.0-flash-001",
         input: {
           prompt: rawMarkdown,
           system_prompt: systemInstruction,
