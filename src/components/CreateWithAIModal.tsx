@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader, Sparkles, X } from "lucide-react";
+import { Loader, Sparkles, X, AlertTriangle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EmailBlock } from "@/hooks/useEmailBlocks";
@@ -175,6 +185,14 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     selectedBlocks: any[];
   } | null>(null);
   const [generatingHero, setGeneratingHero] = useState(false);
+  
+  // Error handling states
+  const [heroError, setHeroError] = useState<string | null>(null);
+  const [lastCharacterSelection, setLastCharacterSelection] = useState<{
+    character: Character;
+    editedPrompt: string;
+    withBorders: boolean;
+  } | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
@@ -380,6 +398,9 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
   const handleCharacterSelect = async (character: Character, editedPrompt: string, withBorders: boolean) => {
     if (!pendingEmailData || !heroBlockInfo) return;
 
+    // Save selection for retry
+    setLastCharacterSelection({ character, editedPrompt, withBorders });
+    setHeroError(null);
     setGeneratingHero(true);
     setElapsedTime(0);
 
@@ -446,6 +467,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
                 supabase.removeChannel(channelRef.current);
                 setGeneratingHero(false);
                 setShowCharacterModal(false);
+                setLastCharacterSelection(null);
                 
                 await saveEmailTemplate(pendingEmailData.emailStructure, updatedBlocks);
                 
@@ -458,15 +480,7 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
                 
                 supabase.removeChannel(channelRef.current);
                 setGeneratingHero(false);
-                
-                toast({
-                  variant: "destructive",
-                  title: "Erro na geração da imagem",
-                  description: updatedImage.error_message || "Não foi possível gerar a imagem. Continuando sem o banner.",
-                });
-
-                // Continue without hero image
-                await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
+                setHeroError(updatedImage.error_message || "Não foi possível gerar a imagem.");
               }
             }
           )
@@ -475,22 +489,36 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
     } catch (error: any) {
       console.error("Erro ao gerar hero image:", error);
       setGeneratingHero(false);
-      
-      toast({
-        variant: "destructive",
-        title: "Erro na geração da imagem",
-        description: error.message || "Não foi possível gerar a imagem. Continuando sem o banner.",
-      });
-
-      // Continue without hero image
-      await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
+      setHeroError(error.message || "Não foi possível gerar a imagem.");
     }
+  };
+
+  const handleRetryHeroImage = () => {
+    if (lastCharacterSelection) {
+      setHeroError(null);
+      handleCharacterSelect(
+        lastCharacterSelection.character,
+        lastCharacterSelection.editedPrompt,
+        lastCharacterSelection.withBorders
+      );
+    }
+  };
+
+  const handleSkipAfterError = async () => {
+    if (!pendingEmailData) return;
+    
+    setHeroError(null);
+    setShowCharacterModal(false);
+    setLastCharacterSelection(null);
+    await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
   };
 
   const handleSkipHeroImage = async () => {
     if (!pendingEmailData) return;
     
+    setHeroError(null);
     setShowCharacterModal(false);
+    setLastCharacterSelection(null);
     await saveEmailTemplate(pendingEmailData.emailStructure, pendingEmailData.selectedBlocks);
   };
 
@@ -552,6 +580,8 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       setPendingEmailData(null);
       setHeroBlockInfo(null);
       setShowCharacterModal(false);
+      setHeroError(null);
+      setLastCharacterSelection(null);
       onClose();
     }
   };
@@ -632,12 +662,38 @@ export const CreateWithAIModal = ({ open, onClose }: CreateWithAIModalProps) => 
       </Dialog>
 
       <SelectCharacterModal
-        open={showCharacterModal}
+        open={showCharacterModal && !heroError}
         onClose={handleSkipHeroImage}
         onSelect={handleCharacterSelect}
         heroPrompt={heroBlockInfo?.heroPrompt || ""}
         loading={generatingHero}
       />
+
+      {/* Error Dialog */}
+      <AlertDialog open={!!heroError} onOpenChange={() => setHeroError(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Erro na geração da imagem
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {heroError}
+              <br /><br />
+              Deseja tentar novamente ou continuar sem a imagem do banner?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleSkipAfterError}>
+              Continuar sem imagem
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRetryHeroImage} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Tentar novamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
