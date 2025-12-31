@@ -27,6 +27,7 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
     loading,
     saving,
     extracting,
+    extractionStatus,
     saveDataset,
     extractFromPdf,
     formatExtractedContent,
@@ -183,12 +184,14 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
                       </p>
                       <Progress value={(currentFileIndex / totalFiles) * 100} className="h-2" />
                       <p className="text-xs text-muted-foreground">
-                        {processingQueue[currentFileIndex - 1]?.name || 'Extraindo...'}
+                        {extractionStatus || processingQueue[currentFileIndex - 1]?.name || 'Extraindo...'}
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-medium">Extraindo conteúdo do PDF...</p>
+                      <p className="text-sm font-medium">
+                        {extractionStatus || 'Extraindo conteúdo do PDF...'}
+                      </p>
                       <Progress value={undefined} className="h-2" />
                       <p className="text-xs text-muted-foreground">
                         Usando IA para extrair e formatar o conteúdo

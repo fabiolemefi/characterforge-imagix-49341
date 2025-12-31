@@ -12,11 +12,19 @@ export interface EmailDataset {
   updated_at: string;
 }
 
+interface PdfExtraction {
+  id: string;
+  status: string;
+  cleaned_markdown: string | null;
+  error_message: string | null;
+}
+
 export const useEmailDatasets = () => {
   const [dataset, setDataset] = useState<EmailDataset | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [extractionStatus, setExtractionStatus] = useState<string>('');
   const { toast } = useToast();
 
   // Load the main dataset (we'll use a single dataset for simplicity)
@@ -102,12 +110,13 @@ export const useEmailDatasets = () => {
         });
         return data;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       console.error('[useEmailDatasets] Error saving dataset:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar',
-        description: error.message || 'Não foi possível salvar o dataset',
+        description: errorMessage,
       });
       return null;
     } finally {
@@ -132,10 +141,61 @@ export const useEmailDatasets = () => {
     return sanitized + ext.toLowerCase();
   };
 
-  // Extract content from PDF using Replicate marker
+  // Poll for extraction status
+  const pollExtractionStatus = async (extractionId: string): Promise<string | null> => {
+    const maxAttempts = 120; // 10 minutes max (5s * 120)
+    const pollInterval = 5000; // 5 seconds
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const { data, error } = await supabase
+        .from('pdf_extractions')
+        .select('status, cleaned_markdown, error_message')
+        .eq('id', extractionId)
+        .single();
+
+      if (error) {
+        console.error('Error polling extraction status:', error);
+        throw new Error('Falha ao verificar status da extração');
+      }
+
+      const extraction = data as PdfExtraction | null;
+
+      if (!extraction) {
+        throw new Error('Extração não encontrada');
+      }
+
+      console.log(`📊 Poll attempt ${attempt + 1}: status = ${extraction.status}`);
+
+      // Update UI status
+      switch (extraction.status) {
+        case 'pending':
+          setExtractionStatus('Iniciando extração...');
+          break;
+        case 'extracting':
+          setExtractionStatus('Extraindo texto do PDF...');
+          break;
+        case 'cleaning':
+          setExtractionStatus('Limpando e formatando conteúdo...');
+          break;
+        case 'completed':
+          setExtractionStatus('Concluído!');
+          return extraction.cleaned_markdown;
+        case 'failed':
+          throw new Error(extraction.error_message || 'Extração falhou');
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error('Timeout - extração demorou demais');
+  };
+
+  // Extract content from PDF using async Replicate processing
   const extractFromPdf = async (file: File): Promise<string | null> => {
     try {
       setExtracting(true);
+      setExtractionStatus('Fazendo upload do PDF...');
       
       // 1. Upload PDF to storage with sanitized filename
       const sanitizedName = sanitizeFileName(file.name);
@@ -144,7 +204,7 @@ export const useEmailDatasets = () => {
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('email-magic-images')
         .upload(fileName, file, {
-          contentType: file.type,
+          contentType: 'application/pdf',
           upsert: false,
         });
 
@@ -154,54 +214,69 @@ export const useEmailDatasets = () => {
       }
 
       // 2. Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from('email-magic-images')
-        .getPublicUrl(fileName);
+        .getPublicUrl(uploadData.path);
 
-      console.log('[useEmailDatasets] PDF uploaded, public URL:', publicUrl);
+      const pdfUrl = urlData.publicUrl;
+      console.log('📄 PDF uploaded:', pdfUrl);
 
-      // 3. Call edge function to extract content
-      const { data: extractData, error: extractError } = await supabase.functions
-        .invoke('extract-pdf-content', {
-          body: { pdfUrl: publicUrl },
-        });
+      setExtractionStatus('Iniciando extração...');
 
-      if (extractError) {
-        console.error('[useEmailDatasets] Extract error:', extractError);
-        throw new Error('Erro ao extrair conteúdo do PDF');
+      // 3. Call edge function to start async extraction
+      const { data: extractionData, error: extractionError } = await supabase.functions.invoke(
+        'extract-pdf-content',
+        {
+          body: { pdfUrl, fileName: file.name },
+        }
+      );
+
+      if (extractionError) {
+        console.error('[useEmailDatasets] Extraction start error:', extractionError);
+        throw new Error('Erro ao iniciar extração');
       }
 
-      if (!extractData?.success || !extractData?.markdown) {
-        console.error('[useEmailDatasets] Invalid extract response:', extractData);
-        throw new Error(extractData?.error || 'Resposta inválida da extração');
+      console.log('🚀 Extraction started:', extractionData);
+
+      if (!extractionData?.extractionId) {
+        throw new Error('Nenhum ID de extração retornado');
       }
+
+      // 4. Poll for completion
+      const markdown = await pollExtractionStatus(extractionData.extractionId);
+
+      if (!markdown) {
+        throw new Error('Nenhum conteúdo extraído do PDF');
+      }
+
+      console.log('✅ Extraction completed, markdown length:', markdown.length);
 
       // Count emails in the extracted content
-      const emailCount = extractData.markdown.includes('---EMAIL_SEPARATOR---')
-        ? extractData.markdown.split('---EMAIL_SEPARATOR---').filter((e: string) => e.trim()).length
+      const emailCount = markdown.includes('---EMAIL_SEPARATOR---')
+        ? markdown.split('---EMAIL_SEPARATOR---').filter((e: string) => e.trim()).length
         : 1;
-
-      console.log('[useEmailDatasets] Extracted content length:', extractData.markdown.length);
-      console.log('[useEmailDatasets] Number of emails found:', emailCount);
 
       toast({
         title: 'PDF extraído',
         description: emailCount > 1 
           ? `${emailCount} emails extraídos com sucesso`
-          : `Conteúdo extraído com ${extractData.markdown.length} caracteres`,
+          : `Conteúdo extraído com ${markdown.length} caracteres`,
       });
 
-      return extractData.markdown;
-    } catch (error: any) {
+      return markdown;
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       console.error('[useEmailDatasets] Extract from PDF failed:', error);
       toast({
         variant: 'destructive',
         title: 'Erro na extração',
-        description: error.message || 'Não foi possível extrair o conteúdo do PDF',
+        description: errorMessage,
       });
       return null;
     } finally {
       setExtracting(false);
+      setExtractionStatus('');
     }
   };
 
@@ -255,6 +330,7 @@ export const useEmailDatasets = () => {
     loading,
     saving,
     extracting,
+    extractionStatus,
     saveDataset,
     extractFromPdf,
     formatExtractedContent,
