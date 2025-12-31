@@ -115,13 +115,31 @@ export const useEmailDatasets = () => {
     }
   };
 
+  // Sanitize filename for Supabase Storage compatibility
+  const sanitizeFileName = (fileName: string): string => {
+    const ext = fileName.substring(fileName.lastIndexOf('.'));
+    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+    
+    const sanitized = nameWithoutExt
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9\-_]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase();
+    
+    return sanitized + ext.toLowerCase();
+  };
+
   // Extract content from PDF using Replicate marker
   const extractFromPdf = async (file: File): Promise<string | null> => {
     try {
       setExtracting(true);
       
-      // 1. Upload PDF to storage
-      const fileName = `pdf-extractions/${Date.now()}-${file.name}`;
+      // 1. Upload PDF to storage with sanitized filename
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `pdf-extractions/${Date.now()}-${sanitizedName}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('email-magic-images')
