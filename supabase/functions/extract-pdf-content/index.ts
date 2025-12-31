@@ -80,7 +80,7 @@ serve(async (req) => {
     console.log("🔗 Webhook URL:", webhookUrl);
 
     const prediction = await replicate.predictions.create({
-      version: "2e1d7cd82a9c36d2d7e8da989cc9b01c722c6e23f9ccbd3546edd8496a6a5e85",
+      model: "datalab-to/marker",
       input: {
         file: pdfUrl,
         output_format: "markdown",
