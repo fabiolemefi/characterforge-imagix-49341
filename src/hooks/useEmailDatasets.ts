@@ -141,12 +141,13 @@ export const useEmailDatasets = () => {
     return sanitized + ext.toLowerCase();
   };
 
-  // Poll for extraction status
+  // Poll for extraction status with visibility change support
   const pollExtractionStatus = async (extractionId: string): Promise<string | null> => {
     const maxAttempts = 120; // 10 minutes max (5s * 120)
     const pollInterval = 5000; // 5 seconds
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Function to check status once
+    const checkStatus = async (): Promise<PdfExtraction | null> => {
       const { data, error } = await supabase
         .from('pdf_extractions')
         .select('status, cleaned_markdown, error_message')
@@ -158,16 +159,12 @@ export const useEmailDatasets = () => {
         throw new Error('Falha ao verificar status da extração');
       }
 
-      const extraction = data as PdfExtraction | null;
+      return data as PdfExtraction | null;
+    };
 
-      if (!extraction) {
-        throw new Error('Extração não encontrada');
-      }
-
-      console.log(`📊 Poll attempt ${attempt + 1}: status = ${extraction.status}`);
-
-      // Update UI status
-      switch (extraction.status) {
+    // Function to update UI based on status
+    const updateUIStatus = (status: string): void => {
+      switch (status) {
         case 'pending':
           setExtractionStatus('Iniciando extração...');
           break;
@@ -179,13 +176,55 @@ export const useEmailDatasets = () => {
           break;
         case 'completed':
           setExtractionStatus('Concluído!');
-          return extraction.cleaned_markdown;
-        case 'failed':
-          throw new Error(extraction.error_message || 'Extração falhou');
+          break;
+      }
+    };
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const extraction = await checkStatus();
+
+      if (!extraction) {
+        throw new Error('Extração não encontrada');
       }
 
-      // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      console.log(`📊 Poll attempt ${attempt + 1}: status = ${extraction.status}`);
+
+      updateUIStatus(extraction.status);
+
+      if (extraction.status === 'completed') {
+        return extraction.cleaned_markdown;
+      }
+
+      if (extraction.status === 'failed') {
+        throw new Error(extraction.error_message || 'Extração falhou');
+      }
+
+      // Wait with visibility change support - check immediately when tab regains focus
+      await new Promise<void>(resolve => {
+        let resolved = false;
+
+        // Normal timer
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            document.removeEventListener('visibilitychange', handleVisibility);
+            resolve();
+          }
+        }, pollInterval);
+
+        // Listener for when tab regains focus - trigger immediate check
+        const handleVisibility = () => {
+          if (document.visibilityState === 'visible' && !resolved) {
+            console.log('👁️ Tab regained focus, checking status immediately...');
+            resolved = true;
+            clearTimeout(timer);
+            document.removeEventListener('visibilitychange', handleVisibility);
+            resolve();
+          }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibility);
+      });
     }
 
     throw new Error('Timeout - extração demorou demais');
