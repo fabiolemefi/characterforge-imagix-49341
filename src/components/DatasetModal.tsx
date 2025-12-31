@@ -132,7 +132,7 @@ export const DatasetModal = ({ open, onOpenChange }: DatasetModalProps) => {
             Dataset de Conteúdos para Emails
           </DialogTitle>
           <DialogDescription>
-            Adicione conteúdos de emails para usar como referência. Você pode digitar ou importar de PDFs.
+            Adicione conteúdos de emails para usar como referência. Você pode digitar ou importar de PDFs (suporta múltiplos emails por arquivo).
           </DialogDescription>
         </DialogHeader>
 
