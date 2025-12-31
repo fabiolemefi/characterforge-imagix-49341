@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.extract-pdf-content]
 verify_jwt = true
+
+[functions.pdf-extraction-webhook]
+verify_jwt = false

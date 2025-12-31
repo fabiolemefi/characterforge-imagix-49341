@@ -1081,6 +1081,51 @@ export type Database = {
           },
         ]
       }
+      pdf_extractions: {
+        Row: {
+          cleaned_markdown: string | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          file_name: string
+          gemini_prediction_id: string | null
+          id: string
+          marker_prediction_id: string | null
+          pdf_url: string
+          raw_markdown: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          cleaned_markdown?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          file_name: string
+          gemini_prediction_id?: string | null
+          id?: string
+          marker_prediction_id?: string | null
+          pdf_url: string
+          raw_markdown?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          cleaned_markdown?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          file_name?: string
+          gemini_prediction_id?: string | null
+          id?: string
+          marker_prediction_id?: string | null
+          pdf_url?: string
+          raw_markdown?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       plugin_characters: {
         Row: {
           created_at: string
