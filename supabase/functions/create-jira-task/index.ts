@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
             },
           ],
         },
-        issuetype: { id: "10278" },
+        issuetype: { name: "Esteira" },
         labels: sprint_label ? [sprint_label] : [],
       },
     };
@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
                 },
               ],
             },
-            issuetype: { id: "10011" },
+            issuetype: { name: "Subtarefa" },
             labels: [area_label, ...(sprint_label ? [sprint_label] : [])],
           },
         };
