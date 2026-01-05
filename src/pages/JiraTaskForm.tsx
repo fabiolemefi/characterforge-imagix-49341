@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,25 +27,22 @@ export default function JiraTaskForm() {
   const { data: areas, isLoading: areasLoading } = useJiraAreas();
   const createTask = useCreateJiraTask();
 
+  // Memoize sprint options to avoid recreating on every render
+  const sprintOptions = useMemo(() => getSprintOptions(), []);
+  
+  // Get default sprint value
+  const defaultSprint = useMemo(() => {
+    const currentSprint = sprintOptions.find(s => s.label.includes("(atual)"));
+    return currentSprint?.value || "";
+  }, [sprintOptions]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedOkrId, setSelectedOkrId] = useState<string>("");
-  const [sprintLabel, setSprintLabel] = useState<string>("");
+  const [sprintLabel, setSprintLabel] = useState<string>(defaultSprint);
   const [selectedAreas, setSelectedAreas] = useState<SelectedArea[]>([]);
   const [newSubtask, setNewSubtask] = useState<Record<string, string>>({});
   const [createdTask, setCreatedTask] = useState<{ key: string; url: string } | null>(null);
-
-  const sprintOptions = getSprintOptions();
-
-  // Set default sprint to current
-  useEffect(() => {
-    if (sprintOptions.length > 0 && !sprintLabel) {
-      const currentSprint = sprintOptions.find(s => s.label.includes("(atual)"));
-      if (currentSprint) {
-        setSprintLabel(currentSprint.value);
-      }
-    }
-  }, [sprintOptions, sprintLabel]);
 
   const handleAreaToggle = (area: { id: string; name: string; label: string; default_subtasks: string[] }) => {
     const exists = selectedAreas.find(a => a.id === area.id);
