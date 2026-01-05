@@ -280,18 +280,20 @@ export default function JiraTaskForm() {
                 {areas?.map((area) => {
                   const isSelected = selectedAreas.some(a => a.id === area.id);
                   return (
-                    <div
+                    <label
                       key={area.id}
                       className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer transition-colors ${
                         isSelected 
                           ? "bg-primary/10 border-primary" 
                           : "hover:bg-accent"
                       }`}
-                      onClick={() => handleAreaToggle(area)}
                     >
-                      <Checkbox checked={isSelected} />
+                      <Checkbox 
+                        checked={isSelected} 
+                        onCheckedChange={() => handleAreaToggle(area)}
+                      />
                       <span className="font-medium">{area.name}</span>
-                    </div>
+                    </label>
                   );
                 })}
               </div>
