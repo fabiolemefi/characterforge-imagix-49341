@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const JIRA_BASE_URL = "https://efibankmarketing.atlassian.net";
+const JIRA_BASE_URL = "https://sejaefi.atlassian.net";
 const JIRA_PROJECT_KEY = "MAR";
 
 interface CreateEpicRequest {
