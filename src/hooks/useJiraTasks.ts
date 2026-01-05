@@ -234,6 +234,159 @@ export function useCreateJiraTask() {
   });
 }
 
+// ============ DELETE TASKS/SUBTASKS ============
+
+export function useDeleteJiraTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      // First delete all subtasks
+      const { error: subtasksError } = await supabase
+        .from("jira_task_subtasks")
+        .delete()
+        .eq("jira_task_id", taskId);
+
+      if (subtasksError) throw subtasksError;
+
+      // Then delete the task
+      const { error: taskError } = await supabase
+        .from("jira_tasks")
+        .delete()
+        .eq("id", taskId);
+
+      if (taskError) throw taskError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jira-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["jira-tasks-metrics"] });
+      toast.success("Tarefa deletada com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error deleting task:", error);
+      toast.error("Erro ao deletar tarefa");
+    },
+  });
+}
+
+export function useDeleteJiraSubtask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (subtaskId: string) => {
+      const { error } = await supabase
+        .from("jira_task_subtasks")
+        .delete()
+        .eq("id", subtaskId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jira-task"] });
+      toast.success("Subtarefa deletada!");
+    },
+    onError: (error) => {
+      console.error("Error deleting subtask:", error);
+      toast.error("Erro ao deletar subtarefa");
+    },
+  });
+}
+
+// ============ JIRA AREAS CRUD ============
+
+export function useCreateJiraArea() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { name: string; label: string; default_subtasks: string[] }) => {
+      // Get max display_order
+      const { data: maxOrder } = await supabase
+        .from("jira_areas")
+        .select("display_order")
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .single();
+
+      const newOrder = (maxOrder?.display_order || 0) + 1;
+
+      const { data, error } = await supabase
+        .from("jira_areas")
+        .insert({
+          name: input.name,
+          label: input.label,
+          default_subtasks: input.default_subtasks,
+          display_order: newOrder,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as JiraArea;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jira-areas"] });
+      toast.success("Área criada com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error creating area:", error);
+      toast.error("Erro ao criar área");
+    },
+  });
+}
+
+export function useUpdateJiraArea() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...input }: { id: string; name: string; label: string; default_subtasks: string[] }) => {
+      const { data, error } = await supabase
+        .from("jira_areas")
+        .update({
+          name: input.name,
+          label: input.label,
+          default_subtasks: input.default_subtasks,
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as JiraArea;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jira-areas"] });
+      toast.success("Área atualizada com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error updating area:", error);
+      toast.error("Erro ao atualizar área");
+    },
+  });
+}
+
+export function useDeleteJiraArea() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("jira_areas")
+        .update({ is_active: false })
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jira-areas"] });
+      toast.success("Área removida com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Error deleting area:", error);
+      toast.error("Erro ao remover área");
+    },
+  });
+}
+
 // ============ METRICS ============
 
 export function useJiraTasksMetrics() {

@@ -19,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ArrowLeft, 
   Search, 
@@ -27,9 +37,10 @@ import {
   Clock,
   ExternalLink,
   ListTodo,
-  Eye
+  Eye,
+  Trash2
 } from "lucide-react";
-import { useJiraTasks, useJiraTaskWithSubtasks } from "@/hooks/useJiraTasks";
+import { useJiraTasks, useJiraTaskWithSubtasks, useDeleteJiraTask, useDeleteJiraSubtask } from "@/hooks/useJiraTasks";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { JiraTask } from "@/types/jiraTask";
@@ -43,10 +54,14 @@ const statusConfig = {
 export default function JiraTasksList() {
   const navigate = useNavigate();
   const { data: tasks, isLoading } = useJiraTasks();
+  const deleteTask = useDeleteJiraTask();
+  const deleteSubtask = useDeleteJiraSubtask();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [deleteSubtaskId, setDeleteSubtaskId] = useState<string | null>(null);
 
   const { data: taskDetails, isLoading: detailsLoading } = useJiraTaskWithSubtasks(
     selectedTaskId || ""
@@ -67,6 +82,27 @@ export default function JiraTasksList() {
     if (!config) return null;
     const Icon = config.icon;
     return <Icon className={`h-5 w-5 ${config.color}`} />;
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deleteTaskId) return;
+    try {
+      await deleteTask.mutateAsync(deleteTaskId);
+      setDeleteTaskId(null);
+      setSelectedTaskId(null);
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
+  };
+
+  const handleDeleteSubtask = async () => {
+    if (!deleteSubtaskId) return;
+    try {
+      await deleteSubtask.mutateAsync(deleteSubtaskId);
+      setDeleteSubtaskId(null);
+    } catch (error) {
+      console.error("Error deleting subtask:", error);
+    }
   };
 
   return (
@@ -177,6 +213,16 @@ export default function JiraTasksList() {
                     <Button variant="ghost" size="icon">
                       <Eye className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTaskId(task.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                     {task.jira_task_key && (
                       <Button
                         variant="ghost"
@@ -264,36 +310,53 @@ export default function JiraTasksList() {
                       key={subtask.id}
                       className="flex items-center justify-between p-3 border rounded-lg"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
                         <StatusIcon status={subtask.status} />
-                        <span className="text-sm">{subtask.subtask_name}</span>
+                        <span className="text-sm truncate">{subtask.subtask_name}</span>
                         {subtask.jira_area && (
                           <Badge variant="outline" className="text-xs">
                             {subtask.jira_area.label}
                           </Badge>
                         )}
                       </div>
-                      {subtask.jira_subtask_key && (
+                      <div className="flex items-center gap-1 ml-2">
                         <Button
                           variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(
-                            `https://sejaefi.atlassian.net/browse/${subtask.jira_subtask_key}`,
-                            "_blank"
-                          )}
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeleteSubtaskId(subtask.id)}
                         >
-                          {subtask.jira_subtask_key}
-                          <ExternalLink className="h-3 w-3 ml-1" />
+                          <Trash2 className="h-3 w-3 text-destructive" />
                         </Button>
-                      )}
+                        {subtask.jira_subtask_key && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(
+                              `https://sejaefi.atlassian.net/browse/${subtask.jira_subtask_key}`,
+                              "_blank"
+                            )}
+                          >
+                            {subtask.jira_subtask_key}
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Actions */}
-              {taskDetails.task.jira_task_key && (
-                <div className="flex justify-end pt-4 border-t">
+              <div className="flex justify-between pt-4 border-t">
+                <Button
+                  variant="destructive"
+                  onClick={() => setDeleteTaskId(taskDetails.task.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Deletar Tarefa
+                </Button>
+                {taskDetails.task.jira_task_key && (
                   <Button
                     onClick={() => window.open(
                       `https://sejaefi.atlassian.net/browse/${taskDetails.task.jira_task_key}`,
@@ -303,12 +366,56 @@ export default function JiraTasksList() {
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Abrir no Jira
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Task Confirmation */}
+      <AlertDialog open={!!deleteTaskId} onOpenChange={() => setDeleteTaskId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá remover a tarefa e todas as suas subtarefas do sistema.
+              A tarefa no Jira não será afetada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTask}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Subtask Confirmation */}
+      <AlertDialog open={!!deleteSubtaskId} onOpenChange={() => setDeleteSubtaskId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar subtarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá remover a subtarefa do sistema.
+              A subtarefa no Jira não será afetada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSubtask}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
