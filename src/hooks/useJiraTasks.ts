@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { withAuthRetry } from "@/hooks/useAuthenticatedMutation";
 import type { 
   JiraOkr, 
   JiraArea, 
@@ -33,42 +34,44 @@ export function useCreateJiraOkr() {
 
   return useMutation({
     mutationFn: async (input: CreateJiraOkrInput) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      return withAuthRetry(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
 
-      // 1. Criar épico no Jira via edge function
-      const { data: epicResult, error: epicError } = await supabase.functions.invoke("create-jira-epic", {
-        body: {
-          name: input.name,
-          description: input.description,
-        },
+        // 1. Criar épico no Jira via edge function
+        const { data: epicResult, error: epicError } = await supabase.functions.invoke("create-jira-epic", {
+          body: {
+            name: input.name,
+            description: input.description,
+          },
+        });
+
+        if (epicError) {
+          console.error("Error invoking create-jira-epic:", epicError);
+          throw new Error("Erro ao criar épico no Jira");
+        }
+
+        if (!epicResult?.success) {
+          throw new Error(epicResult?.error || "Erro ao criar épico no Jira");
+        }
+
+        // 2. Salvar OKR no banco com a chave do Jira
+        const { data, error } = await supabase
+          .from("jira_okrs")
+          .insert({
+            name: input.name,
+            jira_epic_key: epicResult.epic_key,
+            description: input.description || null,
+            start_date: input.start_date || null,
+            end_date: input.end_date || null,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data as JiraOkr;
       });
-
-      if (epicError) {
-        console.error("Error invoking create-jira-epic:", epicError);
-        throw new Error("Erro ao criar épico no Jira");
-      }
-
-      if (!epicResult?.success) {
-        throw new Error(epicResult?.error || "Erro ao criar épico no Jira");
-      }
-
-      // 2. Salvar OKR no banco com a chave do Jira
-      const { data, error } = await supabase
-        .from("jira_okrs")
-        .insert({
-          name: input.name,
-          jira_epic_key: epicResult.epic_key,
-          description: input.description || null,
-          start_date: input.start_date || null,
-          end_date: input.end_date || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as JiraOkr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-okrs"] });
@@ -220,25 +223,27 @@ export function useCreateJiraTask() {
 
   return useMutation({
     mutationFn: async (input: CreateJiraTaskInput) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      return withAuthRetry(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado");
 
-      // Get user session for the edge function
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sessão não encontrada");
+        // Get user session for the edge function
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Sessão não encontrada");
 
-      // Call edge function to create task in Jira
-      const { data, error } = await supabase.functions.invoke("create-jira-task", {
-        body: {
-          ...input,
-          user_id: user.id,
-        },
+        // Call edge function to create task in Jira
+        const { data, error } = await supabase.functions.invoke("create-jira-task", {
+          body: {
+            ...input,
+            user_id: user.id,
+          },
+        });
+
+        if (error) throw error;
+        if (data.error) throw new Error(data.error);
+
+        return data;
       });
-
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-tasks"] });
@@ -258,14 +263,16 @@ export function useDeleteJiraTask() {
 
   return useMutation({
     mutationFn: async (taskId: string) => {
-      const { data, error } = await supabase.functions.invoke("delete-jira-task", {
-        body: { taskId },
+      return withAuthRetry(async () => {
+        const { data, error } = await supabase.functions.invoke("delete-jira-task", {
+          body: { taskId },
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        return data;
       });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-tasks"] });
@@ -284,14 +291,16 @@ export function useDeleteJiraSubtask() {
 
   return useMutation({
     mutationFn: async (subtaskId: string) => {
-      const { data, error } = await supabase.functions.invoke("delete-jira-task", {
-        body: { subtaskId },
+      return withAuthRetry(async () => {
+        const { data, error } = await supabase.functions.invoke("delete-jira-task", {
+          body: { subtaskId },
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        return data;
       });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-task"] });
