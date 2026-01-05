@@ -51,6 +51,7 @@ import JiraTasksDashboard from "./pages/JiraTasksDashboard";
 import JiraTaskForm from "./pages/JiraTaskForm";
 import JiraOkrs from "./pages/JiraOkrs";
 import JiraTasksList from "./pages/JiraTasksList";
+import AdminJira from "./pages/AdminJira";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -168,6 +169,7 @@ const App = () => <BrowserRouter>
             <Route path="/jira-tasks/new" element={<ProtectedRoute><AppLayout><JiraTaskForm /></AppLayout></ProtectedRoute>} />
             <Route path="/jira-tasks/okrs" element={<ProtectedRoute><AppLayout><JiraOkrs /></AppLayout></ProtectedRoute>} />
             <Route path="/jira-tasks/list" element={<ProtectedRoute><AppLayout><JiraTasksList /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/jira" element={<ProtectedRoute><AdminJira /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

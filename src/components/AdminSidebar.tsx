@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, BookOpen, Bot } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, BookOpen, Bot, SquareKanban } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -32,6 +32,11 @@ const menuItems = [
     title: "Assistentes IA",
     url: "/admin/ai-assistants",
     icon: Bot,
+  },
+  {
+    title: "Jira",
+    url: "/admin/jira",
+    icon: SquareKanban,
   },
   {
     title: "Guia de Marca",
