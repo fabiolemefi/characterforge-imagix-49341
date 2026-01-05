@@ -47,6 +47,10 @@ import NotFound from "./pages/NotFound";
 import Metricas from "./pages/Metricas";
 import EfiLink from "./pages/EfiLink";
 import TestReportPublic from "./pages/TestReportPublic";
+import JiraTasksDashboard from "./pages/JiraTasksDashboard";
+import JiraTaskForm from "./pages/JiraTaskForm";
+import JiraOkrs from "./pages/JiraOkrs";
+import JiraTasksList from "./pages/JiraTasksList";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -160,6 +164,10 @@ const App = () => <BrowserRouter>
             <Route path="/briefings/new" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
             <Route path="/briefings/:id/edit" element={<ProtectedRoute><AppLayout><BriefingForm /></AppLayout></ProtectedRoute>} />
             <Route path="/metricas" element={<ProtectedRoute><AppLayout><Metricas /></AppLayout></ProtectedRoute>} />
+            <Route path="/jira-tasks" element={<ProtectedRoute><AppLayout><JiraTasksDashboard /></AppLayout></ProtectedRoute>} />
+            <Route path="/jira-tasks/new" element={<ProtectedRoute><AppLayout><JiraTaskForm /></AppLayout></ProtectedRoute>} />
+            <Route path="/jira-tasks/okrs" element={<ProtectedRoute><AppLayout><JiraOkrs /></AppLayout></ProtectedRoute>} />
+            <Route path="/jira-tasks/list" element={<ProtectedRoute><AppLayout><JiraTasksList /></AppLayout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

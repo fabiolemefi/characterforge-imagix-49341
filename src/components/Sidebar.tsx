@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit, PenTool, BarChart3, ExternalLink } from "lucide-react";
+import { ChevronRight, HomeIcon, ChevronDown, Plug, Book, FileText, Download, FlaskConical, Palette, LayoutGrid, FileEdit, PenTool, BarChart3, ExternalLink, ListTodo, Target, Plus, ClipboardList } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
@@ -33,6 +33,7 @@ export function Sidebar() {
   const [expandedTests, setExpandedTests] = useState(false);
   const [expandedCanva, setExpandedCanva] = useState(false);
   const [expandedBriefings, setExpandedBriefings] = useState(false);
+  const [expandedJiraTasks, setExpandedJiraTasks] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string>("");
 
   // Combinar categorias com páginas
@@ -81,6 +82,11 @@ export function Sidebar() {
     // Auto-expand briefings if on briefings page
     if (currentPath.startsWith('/briefings')) {
       setExpandedBriefings(true);
+    }
+
+    // Auto-expand jira tasks if on jira-tasks page
+    if (currentPath.startsWith('/jira-tasks')) {
+      setExpandedJiraTasks(true);
     }
   }, [location.pathname, categories]);
 
@@ -439,6 +445,76 @@ export function Sidebar() {
                     >
                       <LayoutGrid className="h-3 w-3 mr-2" />
                       <span>Blocos</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
+            </SidebarMenuItem>
+
+            {/* Jira Tasks */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setExpandedJiraTasks(!expandedJiraTasks)}
+                isActive={isPathActive("/jira-tasks")}
+                tooltip="Jira Tasks"
+                className="cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent"
+              >
+                <ListTodo className="h-4 w-4" />
+                <span>Jira Tasks</span>
+                {expandedJiraTasks ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
+              </SidebarMenuButton>
+
+              {expandedJiraTasks && (
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/jira-tasks");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/jira-tasks")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <span>Dashboard</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/jira-tasks/new");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/jira-tasks/new")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <Plus className="h-3 w-3 mr-2" />
+                      <span>Nova Tarefa</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/jira-tasks/okrs");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/jira-tasks/okrs")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <Target className="h-3 w-3 mr-2" />
+                      <span>OKRs</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      onClick={() => {
+                        navigate("/jira-tasks/list");
+                        window.scrollTo({ top: 0, behavior: 'instant' });
+                      }}
+                      isActive={isActive("/jira-tasks/list")}
+                      className="cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground py-0.5 px-6"
+                    >
+                      <ClipboardList className="h-3 w-3 mr-2" />
+                      <span>Histórico</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
