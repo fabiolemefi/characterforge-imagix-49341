@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
                 },
               ],
             },
-            issuetype: { name: "Subtarefa" },
+            issuetype: { id: "10011" },
             labels: [area_label, ...(sprint_label ? [sprint_label] : [])],
           },
         };
