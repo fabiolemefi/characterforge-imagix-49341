@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.pdf-extraction-webhook]
 verify_jwt = false
+
+[functions.create-jira-task]
+verify_jwt = true

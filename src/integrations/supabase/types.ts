@@ -1081,6 +1081,191 @@ export type Database = {
           },
         ]
       }
+      jira_areas: {
+        Row: {
+          created_at: string
+          default_subtasks: Json
+          display_order: number
+          id: string
+          is_active: boolean
+          label: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_subtasks?: Json
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_subtasks?: Json
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      jira_okrs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean
+          jira_epic_key: string | null
+          name: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          jira_epic_key?: string | null
+          name: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          jira_epic_key?: string | null
+          name?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jira_okrs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jira_task_subtasks: {
+        Row: {
+          area_id: string | null
+          created_at: string
+          id: string
+          jira_subtask_key: string | null
+          jira_task_id: string
+          status: string
+          subtask_name: string
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string
+          id?: string
+          jira_subtask_key?: string | null
+          jira_task_id: string
+          status?: string
+          subtask_name: string
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string
+          id?: string
+          jira_subtask_key?: string | null
+          jira_task_id?: string
+          status?: string
+          subtask_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jira_task_subtasks_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "jira_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jira_task_subtasks_jira_task_id_fkey"
+            columns: ["jira_task_id"]
+            isOneToOne: false
+            referencedRelation: "jira_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jira_tasks: {
+        Row: {
+          areas: string[]
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          jira_okr_id: string | null
+          jira_response: Json | null
+          jira_task_key: string | null
+          sprint_label: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          areas?: string[]
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          jira_okr_id?: string | null
+          jira_response?: Json | null
+          jira_task_key?: string | null
+          sprint_label?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          areas?: string[]
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          jira_okr_id?: string | null
+          jira_response?: Json | null
+          jira_task_key?: string | null
+          sprint_label?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jira_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jira_tasks_jira_okr_id_fkey"
+            columns: ["jira_okr_id"]
+            isOneToOne: false
+            referencedRelation: "jira_okrs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdf_extractions: {
         Row: {
           cleaned_markdown: string | null
