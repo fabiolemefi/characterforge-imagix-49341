@@ -32,9 +32,17 @@ Deno.serve(async (req) => {
 
   try {
     const JIRA_API_TOKEN = Deno.env.get("JIRA_API_TOKEN");
+    const JIRA_USER_EMAIL = Deno.env.get("JIRA_USER_EMAIL");
+    
     if (!JIRA_API_TOKEN) {
       throw new Error("JIRA_API_TOKEN não configurado");
     }
+    
+    if (!JIRA_USER_EMAIL) {
+      throw new Error("JIRA_USER_EMAIL não configurado");
+    }
+    
+    const jiraAuth = btoa(`${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -98,7 +106,7 @@ Deno.serve(async (req) => {
     const taskResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue`, {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${btoa(`fabio.leme@gerencianet.com.br:${JIRA_API_TOKEN}`)}`,
+        "Authorization": `Basic ${jiraAuth}`,
         "Content-Type": "application/json",
         "Accept": "application/json",
       },
@@ -171,7 +179,7 @@ Deno.serve(async (req) => {
           const subtaskResponse = await fetch(`${JIRA_BASE_URL}/rest/api/3/issue`, {
             method: "POST",
             headers: {
-              "Authorization": `Basic ${btoa(`fabio.leme@gerencianet.com.br:${JIRA_API_TOKEN}`)}`,
+              "Authorization": `Basic ${jiraAuth}`,
               "Content-Type": "application/json",
               "Accept": "application/json",
             },
