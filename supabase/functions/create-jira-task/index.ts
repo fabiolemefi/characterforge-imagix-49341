@@ -24,6 +24,154 @@ interface CreateTaskRequest {
   user_id: string;
 }
 
+// Convert HTML to Atlassian Document Format (ADF)
+function htmlToAdf(html: string): object {
+  if (!html || !html.trim()) {
+    return {
+      type: "doc",
+      version: 1,
+      content: [{ type: "paragraph", content: [{ type: "text", text: "Tarefa criada via Efi Tools" }] }]
+    };
+  }
+
+  const content: any[] = [];
+  
+  // Split by HTML tags while preserving them
+  const parts = html.split(/(<h1>|<\/h1>|<h2>|<\/h2>|<p>|<\/p>|<ul>|<\/ul>|<ol>|<\/ol>|<li>|<\/li>|<strong>|<\/strong>|<b>|<\/b>|<em>|<\/em>|<i>|<\/i>|<br\s*\/?>)/gi);
+  
+  let currentParagraph: any[] = [];
+  let currentList: any[] = [];
+  let listType: "bulletList" | "orderedList" | null = null;
+  let inHeading: boolean = false;
+  let headingLevel = 1;
+  let isBold = false;
+  let isItalic = false;
+
+  const flushParagraph = (type: string = "paragraph", attrs?: object) => {
+    if (currentParagraph.length > 0) {
+      const node: any = { type, content: currentParagraph };
+      if (attrs) node.attrs = attrs;
+      content.push(node);
+      currentParagraph = [];
+    }
+  };
+
+  const addTextNode = (text: string) => {
+    const cleanText = text
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .trim();
+    
+    if (!cleanText) return;
+    
+    const textNode: any = { type: "text", text: cleanText };
+    const marks: any[] = [];
+    if (isBold) marks.push({ type: "strong" });
+    if (isItalic) marks.push({ type: "em" });
+    if (marks.length > 0) textNode.marks = marks;
+    currentParagraph.push(textNode);
+  };
+
+  for (const part of parts) {
+    const lowerPart = part.toLowerCase();
+    
+    if (lowerPart === "<h1>") { 
+      flushParagraph();
+      inHeading = true; 
+      headingLevel = 1; 
+    }
+    else if (lowerPart === "<h2>") { 
+      flushParagraph();
+      inHeading = true; 
+      headingLevel = 2; 
+    }
+    else if (lowerPart === "</h1>" || lowerPart === "</h2>") {
+      flushParagraph("heading", { level: headingLevel });
+      inHeading = false;
+    }
+    else if (lowerPart === "<p>") { 
+      flushParagraph();
+    }
+    else if (lowerPart === "</p>") {
+      if (listType) {
+        // Inside a list, flush to list item
+        if (currentParagraph.length > 0) {
+          currentList.push({ 
+            type: "listItem", 
+            content: [{ type: "paragraph", content: currentParagraph }] 
+          });
+          currentParagraph = [];
+        }
+      } else {
+        flushParagraph();
+      }
+    }
+    else if (lowerPart === "<ul>") { 
+      flushParagraph();
+      listType = "bulletList"; 
+      currentList = []; 
+    }
+    else if (lowerPart === "<ol>") { 
+      flushParagraph();
+      listType = "orderedList"; 
+      currentList = []; 
+    }
+    else if (lowerPart === "</ul>" || lowerPart === "</ol>") {
+      if (currentList.length > 0 && listType) {
+        content.push({ type: listType, content: currentList });
+      }
+      listType = null;
+      currentList = [];
+    }
+    else if (lowerPart === "<li>") { 
+      currentParagraph = []; 
+    }
+    else if (lowerPart === "</li>") {
+      if (currentParagraph.length > 0) {
+        currentList.push({ 
+          type: "listItem", 
+          content: [{ type: "paragraph", content: currentParagraph }] 
+        });
+        currentParagraph = [];
+      }
+    }
+    else if (lowerPart === "<strong>" || lowerPart === "<b>") { 
+      isBold = true; 
+    }
+    else if (lowerPart === "</strong>" || lowerPart === "</b>") { 
+      isBold = false; 
+    }
+    else if (lowerPart === "<em>" || lowerPart === "<i>") { 
+      isItalic = true; 
+    }
+    else if (lowerPart === "</em>" || lowerPart === "</i>") { 
+      isItalic = false; 
+    }
+    else if (lowerPart.startsWith("<br")) {
+      // Line break - add hard break in ADF
+      if (currentParagraph.length > 0) {
+        currentParagraph.push({ type: "hardBreak" });
+      }
+    }
+    else if (part.trim()) {
+      addTextNode(part);
+    }
+  }
+
+  // Flush any remaining content
+  flushParagraph();
+
+  // Ensure we have at least one paragraph
+  if (content.length === 0) {
+    content.push({ type: "paragraph", content: [] });
+  }
+
+  return { type: "doc", version: 1, content };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -75,21 +223,17 @@ Deno.serve(async (req) => {
 
     // Create main task in Jira
     console.log("Creating main task in Jira...");
+    console.log("Description received:", description);
+    
+    // Convert HTML description to ADF
+    const adfDescription = htmlToAdf(description || "");
+    console.log("ADF Description:", JSON.stringify(adfDescription, null, 2));
     
     const taskPayload: Record<string, unknown> = {
       fields: {
         project: { key: JIRA_PROJECT_KEY },
         summary: title,
-        description: {
-          type: "doc",
-          version: 1,
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: description || "Tarefa criada via Efi Tools" }],
-            },
-          ],
-        },
+        description: adfDescription,
         issuetype: { name: "Esteira" },
         labels: sprint_label ? [sprint_label] : [],
       },
