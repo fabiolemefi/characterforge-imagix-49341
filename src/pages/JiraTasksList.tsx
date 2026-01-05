@@ -379,8 +379,8 @@ export default function JiraTasksList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Deletar tarefa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação irá remover a tarefa e todas as suas subtarefas do sistema.
-              A tarefa no Jira não será afetada.
+              Esta ação irá remover a tarefa e todas as suas subtarefas permanentemente,
+              tanto do sistema quanto do Jira.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -401,8 +401,8 @@ export default function JiraTasksList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Deletar subtarefa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação irá remover a subtarefa do sistema.
-              A subtarefa no Jira não será afetada.
+              Esta ação irá remover a subtarefa permanentemente,
+              tanto do sistema quanto do Jira.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

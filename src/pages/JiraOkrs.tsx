@@ -58,7 +58,6 @@ export default function JiraOkrs() {
   
   const [formData, setFormData] = useState<CreateJiraOkrInput>({
     name: "",
-    jira_epic_key: "",
     description: "",
     start_date: "",
     end_date: "",
@@ -67,7 +66,6 @@ export default function JiraOkrs() {
   const resetForm = () => {
     setFormData({
       name: "",
-      jira_epic_key: "",
       description: "",
       start_date: "",
       end_date: "",
@@ -84,7 +82,6 @@ export default function JiraOkrs() {
     setEditingOkr(okr);
     setFormData({
       name: okr.name,
-      jira_epic_key: okr.jira_epic_key || "",
       description: okr.description || "",
       start_date: okr.start_date || "",
       end_date: okr.end_date || "",
@@ -246,19 +243,11 @@ export default function JiraOkrs() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="jira_epic_key">Chave do Épico no Jira</Label>
-                <Input
-                  id="jira_epic_key"
-                  placeholder="Ex: MAR-123"
-                  value={formData.jira_epic_key}
-                  onChange={(e) => setFormData({ ...formData, jira_epic_key: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Se informado, as tarefas serão vinculadas a este épico
-                </p>
+                {!editingOkr && (
+                  <p className="text-xs text-muted-foreground">
+                    Um épico será criado automaticamente no Jira com este nome
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

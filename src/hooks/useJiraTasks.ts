@@ -36,11 +36,29 @@ export function useCreateJiraOkr() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // 1. Criar épico no Jira via edge function
+      const { data: epicResult, error: epicError } = await supabase.functions.invoke("create-jira-epic", {
+        body: {
+          name: input.name,
+          description: input.description,
+        },
+      });
+
+      if (epicError) {
+        console.error("Error invoking create-jira-epic:", epicError);
+        throw new Error("Erro ao criar épico no Jira");
+      }
+
+      if (!epicResult?.success) {
+        throw new Error(epicResult?.error || "Erro ao criar épico no Jira");
+      }
+
+      // 2. Salvar OKR no banco com a chave do Jira
       const { data, error } = await supabase
         .from("jira_okrs")
         .insert({
           name: input.name,
-          jira_epic_key: input.jira_epic_key || null,
+          jira_epic_key: epicResult.epic_key,
           description: input.description || null,
           start_date: input.start_date || null,
           end_date: input.end_date || null,
@@ -54,11 +72,11 @@ export function useCreateJiraOkr() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-okrs"] });
-      toast.success("OKR criado com sucesso!");
+      toast.success("OKR criado com sucesso! Épico criado no Jira.");
     },
     onError: (error) => {
       console.error("Error creating OKR:", error);
-      toast.error("Erro ao criar OKR");
+      toast.error(`Erro ao criar OKR: ${error.message}`);
     },
   });
 }
@@ -72,7 +90,6 @@ export function useUpdateJiraOkr() {
         .from("jira_okrs")
         .update({
           name: input.name,
-          jira_epic_key: input.jira_epic_key || null,
           description: input.description || null,
           start_date: input.start_date || null,
           end_date: input.end_date || null,
