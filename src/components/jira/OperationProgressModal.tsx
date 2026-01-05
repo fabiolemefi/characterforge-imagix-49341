@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, RefreshCw, AlertTriangle } from "lucide-react";
 
 export interface OperationProgressModalProps {
   isOpen: boolean;
@@ -14,6 +14,8 @@ export interface OperationProgressModalProps {
   status: "loading" | "success" | "error";
   details?: string[];
   onClose?: () => void;
+  onRetry?: () => void;
+  isSessionError?: boolean;
 }
 
 export function OperationProgressModal({
@@ -23,6 +25,8 @@ export function OperationProgressModal({
   status,
   details = [],
   onClose,
+  onRetry,
+  isSessionError = false,
 }: OperationProgressModalProps) {
   const canClose = status !== "loading";
 
@@ -31,6 +35,15 @@ export function OperationProgressModal({
       onClose();
     }
   };
+
+  // Check if error message indicates session issue
+  const hasSessionError = isSessionError || 
+    details.some(d => 
+      d.toLowerCase().includes("sessão") || 
+      d.toLowerCase().includes("session") ||
+      d.toLowerCase().includes("token") ||
+      d.toLowerCase().includes("login")
+    );
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -50,7 +63,10 @@ export function OperationProgressModal({
           {status === "success" && (
             <CheckCircle2 className="h-12 w-12 text-green-500" />
           )}
-          {status === "error" && (
+          {status === "error" && hasSessionError && (
+            <AlertTriangle className="h-12 w-12 text-amber-500" />
+          )}
+          {status === "error" && !hasSessionError && (
             <XCircle className="h-12 w-12 text-destructive" />
           )}
           
@@ -66,10 +82,22 @@ export function OperationProgressModal({
               ))}
             </ul>
           )}
+          
+          {status === "error" && hasSessionError && (
+            <p className="text-sm text-amber-600 text-center">
+              Sua sessão pode ter expirado. Tente novamente ou faça login novamente.
+            </p>
+          )}
         </div>
 
         {canClose && (
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-2">
+            {status === "error" && onRetry && (
+              <Button onClick={onRetry} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar Novamente
+              </Button>
+            )}
             <Button onClick={onClose} variant={status === "error" ? "destructive" : "default"}>
               Fechar
             </Button>
