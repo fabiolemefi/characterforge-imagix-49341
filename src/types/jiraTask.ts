@@ -64,7 +64,6 @@ export interface CreateJiraTaskInput {
 
 export interface CreateJiraOkrInput {
   name: string;
-  jira_epic_key?: string;
   description?: string;
   start_date?: string;
   end_date?: string;

@@ -54,39 +54,24 @@ Deno.serve(async (req) => {
 
       console.log(`Attempting to delete Jira issue: ${issueKey}`);
       
-      try {
-        const response = await fetch(
-          `${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}?deleteSubtasks=true`,
-          {
-            method: "DELETE",
-            headers: jiraHeaders,
-          }
-        );
-
-        if (response.status === 204) {
-          console.log(`Successfully deleted Jira issue: ${issueKey}`);
-          return true;
-        } else if (response.status === 404) {
-          console.log(`Jira issue not found (already deleted?): ${issueKey}`);
-          return true; // Continue with DB deletion
-        } else if (response.status === 503 || response.status === 502 || response.status === 500) {
-          console.warn(`Jira service unavailable (${response.status}), continuing with local deletion: ${issueKey}`);
-          return true; // Continue with DB deletion when Jira is unavailable
-        } else if (response.status === 401 || response.status === 403) {
-          console.warn(`Jira auth error (${response.status}), continuing with local deletion: ${issueKey}`);
-          return true; // Continue with DB deletion on auth issues
-        } else {
-          const errorText = await response.text();
-          console.error(`Failed to delete Jira issue ${issueKey}:`, response.status, errorText);
-          // Still continue with local deletion
-          console.warn("Continuing with local deletion despite Jira error");
-          return true;
+      const response = await fetch(
+        `${JIRA_BASE_URL}/rest/api/3/issue/${issueKey}?deleteSubtasks=true`,
+        {
+          method: "DELETE",
+          headers: jiraHeaders,
         }
-      } catch (error) {
-        console.error(`Network error deleting Jira issue ${issueKey}:`, error);
-        // Continue with local deletion on network errors
-        console.warn("Continuing with local deletion despite network error");
+      );
+
+      if (response.status === 204) {
+        console.log(`Successfully deleted Jira issue: ${issueKey}`);
         return true;
+      } else if (response.status === 404) {
+        console.log(`Jira issue not found (already deleted?): ${issueKey}`);
+        return true; // Continue with DB deletion - issue doesn't exist
+      } else {
+        const errorText = await response.text();
+        console.error(`Failed to delete Jira issue ${issueKey}:`, response.status, errorText);
+        throw new Error(`Falha ao deletar no Jira: ${response.status}`);
       }
     }
 

@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.delete-jira-task]
 verify_jwt = true
+
+[functions.create-jira-epic]
+verify_jwt = true
