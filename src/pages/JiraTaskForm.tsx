@@ -13,6 +13,7 @@ import { ArrowLeft, Plus, X, Loader2, CheckCircle2, ExternalLink, Search, FileTe
 import { useJiraOkrs, useJiraAreas, useCreateJiraTask } from "@/hooks/useJiraTasks";
 import { useBriefings } from "@/hooks/useBriefings";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { OperationProgressModal } from "@/components/jira/OperationProgressModal";
 import { getSprintOptions } from "@/types/jiraTask";
 import { toast } from "sonner";
 import type { Briefing } from "@/types/briefing";
@@ -22,6 +23,13 @@ interface SelectedArea {
   name: string;
   label: string;
   subtasks: string[];
+}
+
+interface OperationStatus {
+  isOpen: boolean;
+  status: "loading" | "success" | "error";
+  message: string;
+  details: string[];
 }
 
 const formatBriefingToHtml = (briefing: Briefing): string => {
@@ -85,6 +93,12 @@ export default function JiraTaskForm() {
   const [selectedAreas, setSelectedAreas] = useState<SelectedArea[]>([]);
   const [newSubtask, setNewSubtask] = useState<Record<string, string>>({});
   const [createdTask, setCreatedTask] = useState<{ key: string; url: string } | null>(null);
+  const [operationStatus, setOperationStatus] = useState<OperationStatus>({
+    isOpen: false,
+    status: "loading",
+    message: "",
+    details: [],
+  });
 
   // Load briefing content when selected
   useEffect(() => {
@@ -178,6 +192,20 @@ export default function JiraTaskForm() {
       return;
     }
 
+    const totalSubtasks = selectedAreas.reduce((acc, a) => acc + a.subtasks.length, 0);
+
+    // Show loading modal
+    setOperationStatus({
+      isOpen: true,
+      status: "loading",
+      message: "Criando tarefa no Jira...",
+      details: [
+        `Tarefa: ${title}`,
+        `${selectedAreas.length} área(s) selecionada(s)`,
+        `${totalSubtasks} subtarefa(s) serão criadas`,
+      ],
+    });
+
     try {
       const result = await createTask.mutateAsync({
         title: title.trim(),
@@ -193,13 +221,33 @@ export default function JiraTaskForm() {
       });
 
       if (result.task) {
-        setCreatedTask({
-          key: result.task.key,
-          url: result.task.url,
+        setOperationStatus({
+          isOpen: true,
+          status: "success",
+          message: "Tarefa criada com sucesso!",
+          details: [
+            `Tarefa: ${result.task.key}`,
+            `Subtarefas criadas: ${result.subtasks?.length || totalSubtasks}`,
+          ],
         });
+
+        // After delay, close modal and show success screen
+        setTimeout(() => {
+          setOperationStatus(prev => ({ ...prev, isOpen: false }));
+          setCreatedTask({
+            key: result.task.key,
+            url: result.task.url,
+          });
+        }, 1500);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating task:", error);
+      setOperationStatus({
+        isOpen: true,
+        status: "error",
+        message: "Erro ao criar tarefa",
+        details: [error?.message || "Ocorreu um erro inesperado"],
+      });
     }
   };
 
@@ -532,6 +580,19 @@ export default function JiraTaskForm() {
           </Button>
         </div>
       </form>
+
+      {/* Operation Progress Modal */}
+      <OperationProgressModal
+        isOpen={operationStatus.isOpen}
+        title={
+          operationStatus.status === "loading" ? "Processando..." :
+          operationStatus.status === "success" ? "Sucesso!" : "Erro"
+        }
+        description={operationStatus.message}
+        status={operationStatus.status}
+        details={operationStatus.details}
+        onClose={() => setOperationStatus(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

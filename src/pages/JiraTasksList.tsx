@@ -41,9 +41,18 @@ import {
   Trash2
 } from "lucide-react";
 import { useJiraTasks, useJiraTaskWithSubtasks, useDeleteJiraTask, useDeleteJiraSubtask } from "@/hooks/useJiraTasks";
+import { OperationProgressModal } from "@/components/jira/OperationProgressModal";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { JiraTask } from "@/types/jiraTask";
+
+interface DeleteProgress {
+  isOpen: boolean;
+  status: "loading" | "success" | "error";
+  type: "task" | "subtask";
+  message: string;
+  details: string[];
+}
 
 const statusConfig = {
   pending: { label: "Pendente", icon: Clock, color: "text-yellow-500" },
@@ -62,6 +71,13 @@ export default function JiraTasksList() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [deleteSubtaskId, setDeleteSubtaskId] = useState<string | null>(null);
+  const [deleteProgress, setDeleteProgress] = useState<DeleteProgress>({
+    isOpen: false,
+    status: "loading",
+    type: "task",
+    message: "",
+    details: [],
+  });
 
   const { data: taskDetails, isLoading: detailsLoading } = useJiraTaskWithSubtasks(
     selectedTaskId || ""
@@ -86,22 +102,82 @@ export default function JiraTasksList() {
 
   const handleDeleteTask = async () => {
     if (!deleteTaskId) return;
+    
+    const taskToDelete = tasks?.find(t => t.id === deleteTaskId);
+    const subtaskCount = taskDetails?.subtasks?.length || 0;
+
+    // Close AlertDialog and open progress modal
+    setDeleteTaskId(null);
+    setDeleteProgress({
+      isOpen: true,
+      status: "loading",
+      type: "task",
+      message: "Deletando tarefa e subtarefas...",
+      details: [
+        `Removendo: ${taskToDelete?.jira_task_key || taskToDelete?.title}`,
+        subtaskCount > 0 ? `Deletando ${subtaskCount} subtarefa(s) do Jira...` : "Sem subtarefas para remover",
+        "Removendo registros do banco de dados...",
+      ],
+    });
+
     try {
       await deleteTask.mutateAsync(deleteTaskId);
-      setDeleteTaskId(null);
+      setDeleteProgress(prev => ({
+        ...prev,
+        status: "success",
+        message: "Tarefa deletada com sucesso!",
+        details: [
+          `Tarefa ${taskToDelete?.jira_task_key || ""} removida`,
+          subtaskCount > 0 ? `${subtaskCount} subtarefa(s) removidas` : "Sem subtarefas",
+          "Dados limpos do sistema",
+        ],
+      }));
       setSelectedTaskId(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting task:", error);
+      setDeleteProgress(prev => ({
+        ...prev,
+        status: "error",
+        message: "Erro ao deletar tarefa",
+        details: [error?.message || "Ocorreu um erro inesperado"],
+      }));
     }
   };
 
   const handleDeleteSubtask = async () => {
     if (!deleteSubtaskId) return;
+    
+    const subtask = taskDetails?.subtasks?.find(s => s.id === deleteSubtaskId);
+
+    // Close AlertDialog and open progress modal
+    setDeleteSubtaskId(null);
+    setDeleteProgress({
+      isOpen: true,
+      status: "loading",
+      type: "subtask",
+      message: "Deletando subtarefa...",
+      details: [
+        `Removendo: ${subtask?.subtask_name || "subtarefa"}`,
+        subtask?.jira_subtask_key ? `Chave Jira: ${subtask.jira_subtask_key}` : "Sem chave no Jira",
+      ],
+    });
+
     try {
       await deleteSubtask.mutateAsync(deleteSubtaskId);
-      setDeleteSubtaskId(null);
-    } catch (error) {
+      setDeleteProgress(prev => ({
+        ...prev,
+        status: "success",
+        message: "Subtarefa deletada!",
+        details: [`${subtask?.subtask_name || "Subtarefa"} foi removida com sucesso`],
+      }));
+    } catch (error: any) {
       console.error("Error deleting subtask:", error);
+      setDeleteProgress(prev => ({
+        ...prev,
+        status: "error",
+        message: "Erro ao deletar subtarefa",
+        details: [error?.message || "Ocorreu um erro inesperado"],
+      }));
     }
   };
 
@@ -416,6 +492,19 @@ export default function JiraTasksList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Progress Modal */}
+      <OperationProgressModal
+        isOpen={deleteProgress.isOpen}
+        title={
+          deleteProgress.status === "loading" ? "Processando..." :
+          deleteProgress.status === "success" ? "Sucesso!" : "Erro"
+        }
+        description={deleteProgress.message}
+        status={deleteProgress.status}
+        details={deleteProgress.details}
+        onClose={() => setDeleteProgress(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
