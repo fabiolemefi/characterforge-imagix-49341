@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.create-jira-task]
 verify_jwt = true
+
+[functions.delete-jira-task]
+verify_jwt = true

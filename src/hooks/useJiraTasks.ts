@@ -241,28 +241,21 @@ export function useDeleteJiraTask() {
 
   return useMutation({
     mutationFn: async (taskId: string) => {
-      // First delete all subtasks
-      const { error: subtasksError } = await supabase
-        .from("jira_task_subtasks")
-        .delete()
-        .eq("jira_task_id", taskId);
+      const { data, error } = await supabase.functions.invoke("delete-jira-task", {
+        body: { taskId },
+      });
 
-      if (subtasksError) throw subtasksError;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      // Then delete the task
-      const { error: taskError } = await supabase
-        .from("jira_tasks")
-        .delete()
-        .eq("id", taskId);
-
-      if (taskError) throw taskError;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["jira-tasks-metrics"] });
-      toast.success("Tarefa deletada com sucesso!");
+      toast.success("Tarefa e subtarefas deletadas com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Error deleting task:", error);
       toast.error("Erro ao deletar tarefa");
     },
@@ -274,18 +267,21 @@ export function useDeleteJiraSubtask() {
 
   return useMutation({
     mutationFn: async (subtaskId: string) => {
-      const { error } = await supabase
-        .from("jira_task_subtasks")
-        .delete()
-        .eq("id", subtaskId);
+      const { data, error } = await supabase.functions.invoke("delete-jira-task", {
+        body: { subtaskId },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jira-task"] });
-      toast.success("Subtarefa deletada!");
+      queryClient.invalidateQueries({ queryKey: ["jira-tasks"] });
+      toast.success("Subtarefa deletada com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Error deleting subtask:", error);
       toast.error("Erro ao deletar subtarefa");
     },
