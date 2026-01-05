@@ -1,18 +1,21 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Plus, X, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, Plus, X, Loader2, CheckCircle2, ExternalLink, Search, FileText } from "lucide-react";
 import { useJiraOkrs, useJiraAreas, useCreateJiraTask } from "@/hooks/useJiraTasks";
+import { useBriefings } from "@/hooks/useBriefings";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { getSprintOptions } from "@/types/jiraTask";
 import { toast } from "sonner";
+import type { Briefing } from "@/types/briefing";
 
 interface SelectedArea {
   id: string;
@@ -21,10 +24,46 @@ interface SelectedArea {
   subtasks: string[];
 }
 
+const formatBriefingToHtml = (briefing: Briefing): string => {
+  const sections = [
+    { label: "Objetivo Final", value: briefing.objetivo_final },
+    { label: "Ação Desejada", value: briefing.acao_desejada },
+    { label: "Tela de Destino", value: briefing.tela_destino },
+    { label: "Motivo da Demanda", value: briefing.motivo_demanda },
+    { label: "Conexão com Estratégia", value: briefing.conexao_com_estrategia },
+    { label: "Métrica de Negócio", value: briefing.metrica_de_negocio },
+    { label: "Desafios Comerciais", value: briefing.desafios_comerciais },
+    { label: "Prioridade/Urgência", value: briefing.prioridade_urgencia },
+    { label: "Tipo de Usuário", value: briefing.tipo_usuario },
+    { label: "Público", value: briefing.publico },
+    { label: "Modalidade da Conta", value: briefing.modalidade_conta },
+    { label: "Base Manual ou Automática", value: briefing.base_manual_ou_automatica },
+    { label: "Volume Estimado", value: briefing.volume_estimado },
+    { label: "Dados Relevantes", value: briefing.dados_relevantes },
+    { label: "Oferta/Incentivo", value: briefing.oferta_incentivo },
+    { label: "Condições Especiais", value: briefing.condicoes_especiais },
+    { label: "Validade/Datas", value: briefing.validade_datas },
+    { label: "Perfil", value: briefing.perfil },
+    { label: "Dores", value: briefing.dores },
+    { label: "Desafios", value: briefing.desafios },
+    { label: "Comportamento", value: briefing.comportamento },
+    { label: "Etapa da Jornada", value: briefing.etapa_jornada },
+    { label: "Conexão com Outras Ações", value: briefing.conexao_com_outras_acoes },
+    { label: "Contexto do Produto", value: briefing.contexto_produto },
+    { label: "Links Figma", value: briefing.links_figma },
+  ];
+
+  return sections
+    .filter(s => s.value)
+    .map(s => `<h2>${s.label}</h2><p>${s.value}</p>`)
+    .join("");
+};
+
 export default function JiraTaskForm() {
   const navigate = useNavigate();
   const { data: okrs, isLoading: okrsLoading } = useJiraOkrs();
   const { data: areas, isLoading: areasLoading } = useJiraAreas();
+  const { data: briefings, isLoading: briefingsLoading } = useBriefings();
   const createTask = useCreateJiraTask();
 
   // Memoize sprint options to avoid recreating on every render
@@ -36,6 +75,9 @@ export default function JiraTaskForm() {
     return currentSprint?.value || "";
   }, [sprintOptions]);
 
+  const [creationType, setCreationType] = useState<"scratch" | "briefing">("scratch");
+  const [selectedBriefingId, setSelectedBriefingId] = useState<string>("");
+  const [briefingSearch, setBriefingSearch] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedOkrId, setSelectedOkrId] = useState<string>("");
@@ -43,6 +85,29 @@ export default function JiraTaskForm() {
   const [selectedAreas, setSelectedAreas] = useState<SelectedArea[]>([]);
   const [newSubtask, setNewSubtask] = useState<Record<string, string>>({});
   const [createdTask, setCreatedTask] = useState<{ key: string; url: string } | null>(null);
+
+  // Load briefing content when selected
+  useEffect(() => {
+    if (selectedBriefingId && briefings) {
+      const briefing = briefings.find(b => b.id === selectedBriefingId);
+      if (briefing) {
+        setTitle(briefing.objetivo_final.substring(0, 100));
+        setDescription(formatBriefingToHtml(briefing));
+      }
+    }
+  }, [selectedBriefingId, briefings]);
+
+  // Filter briefings based on search
+  const filteredBriefings = useMemo(() => {
+    if (!briefings) return [];
+    if (!briefingSearch.trim()) return briefings;
+    
+    const search = briefingSearch.toLowerCase();
+    return briefings.filter(b => 
+      b.objetivo_final.toLowerCase().includes(search) ||
+      b.acao_desejada?.toLowerCase().includes(search)
+    );
+  }, [briefings, briefingSearch]);
 
   const handleAreaToggle = (area: { id: string; name: string; label: string; default_subtasks: string[] }) => {
     const exists = selectedAreas.find(a => a.id === area.id);
@@ -138,6 +203,15 @@ export default function JiraTaskForm() {
     }
   };
 
+  const handleCreationTypeChange = (value: string) => {
+    setCreationType(value as "scratch" | "briefing");
+    if (value === "scratch") {
+      setSelectedBriefingId("");
+      setTitle("");
+      setDescription("");
+    }
+  };
+
   if (createdTask) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-3xl">
@@ -163,6 +237,8 @@ export default function JiraTaskForm() {
                   setTitle("");
                   setDescription("");
                   setSelectedAreas([]);
+                  setCreationType("scratch");
+                  setSelectedBriefingId("");
                 }}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -191,6 +267,84 @@ export default function JiraTaskForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Creation Type Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tipo de Criação</CardTitle>
+            <CardDescription>
+              Escolha como deseja criar a tarefa
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <RadioGroup 
+              value={creationType} 
+              onValueChange={handleCreationTypeChange}
+              className="flex gap-6"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="scratch" id="scratch" />
+                <Label htmlFor="scratch" className="cursor-pointer">Criar do zero</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="briefing" id="briefing" />
+                <Label htmlFor="briefing" className="cursor-pointer">Baseado em briefing</Label>
+              </div>
+            </RadioGroup>
+
+            {creationType === "briefing" && (
+              <div className="mt-4 space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar briefing..."
+                    value={briefingSearch}
+                    onChange={(e) => setBriefingSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <div className="max-h-60 overflow-y-auto border rounded-lg">
+                  {briefingsLoading ? (
+                    <div className="p-3 space-y-2">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : filteredBriefings.length === 0 ? (
+                    <div className="p-6 text-center text-muted-foreground">
+                      <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Nenhum briefing encontrado</p>
+                    </div>
+                  ) : (
+                    filteredBriefings.map(briefing => (
+                      <div
+                        key={briefing.id}
+                        onClick={() => setSelectedBriefingId(briefing.id)}
+                        className={`p-3 border-b cursor-pointer hover:bg-accent transition-colors ${
+                          selectedBriefingId === briefing.id ? "bg-primary/10 border-l-4 border-l-primary" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium line-clamp-1">{briefing.objetivo_final}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-sm text-muted-foreground">
+                            {briefing.profiles?.full_name || "Usuário"} • {new Date(briefing.created_at).toLocaleDateString("pt-BR")}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {briefing.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Basic Info */}
         <Card>
           <CardHeader>
@@ -209,12 +363,10 @@ export default function JiraTaskForm() {
 
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                placeholder="Descreva os detalhes da tarefa..."
+              <RichTextEditor
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
+                onChange={setDescription}
+                placeholder="Descreva os detalhes da tarefa..."
               />
             </div>
 
