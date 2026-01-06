@@ -8,16 +8,14 @@ interface ProtectedRouteProps {
 }
 
 /**
- * ProtectedRoute - Componente simplificado que usa o AuthStore (Zustand)
+ * ProtectedRoute - Verifica sessão on-demand ao montar
  * 
- * Responsabilidades:
- * - Verificar se o store está pronto
- * - Verificar se há usuário autenticado
- * - Verificar se usuário está ativo
- * - Redirecionar para login se necessário
+ * Cada vez que o usuário navega para uma rota protegida,
+ * a sessão é verificada naquele momento.
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isReady, isUserActive } = useAuthStore();
+  const { user, isUserActive, ensureSession } = useAuthStore();
+  const [checking, setChecking] = useState(true);
   const [animationData, setAnimationData] = useState(null);
 
   useEffect(() => {
@@ -27,8 +25,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       .catch(error => console.error('Error loading animation:', error));
   }, []);
 
-  // Enquanto não está pronto, mostrar loading
-  if (!isReady) {
+  useEffect(() => {
+    // Verificar sessão ao montar o componente (on-demand)
+    const checkSession = async () => {
+      console.log('🔐 [ProtectedRoute] Verificando sessão...');
+      await ensureSession();
+      setChecking(false);
+    };
+    
+    checkSession();
+  }, [ensureSession]);
+
+  // Enquanto verifica, mostrar loading
+  if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Lottie
@@ -43,10 +52,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Se não tem usuário ou usuário não está ativo, redirecionar
   if (!user || !isUserActive) {
-    console.log('🚪 [ProtectedRoute] Redirecionando para login:', { 
-      hasUser: !!user, 
-      isUserActive 
-    });
+    console.log('🚪 [ProtectedRoute] Redirecionando para login');
     return <Navigate to="/login" replace />;
   }
 

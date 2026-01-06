@@ -12,9 +12,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
- * AuthProvider - Agora delega para o AuthStore (Zustand)
- * 
- * Mantém a mesma interface para compatibilidade com código existente
+ * AuthProvider - Wrapper fino sobre o AuthStore para compatibilidade
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, session, isReady, isUserActive } = useAuthStore();

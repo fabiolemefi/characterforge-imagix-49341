@@ -1,9 +1,8 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { waitForSessionVerification } from "@/stores/authStore";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -56,62 +55,25 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 
-// Configurar focusManager para aguardar verificação de sessão antes de refetch
-focusManager.setEventListener((handleFocus) => {
-  const onVisibilityChange = async () => {
-    if (document.visibilityState === 'visible') {
-      // Aguardar verificação de sessão antes de disparar refetch
-      await waitForSessionVerification();
-      // Pequeno delay adicional para garantir que o estado foi atualizado
-      setTimeout(() => handleFocus(), 150);
-    }
-  };
-
-  document.addEventListener('visibilitychange', onVisibilityChange);
-  
-  return () => {
-    document.removeEventListener('visibilitychange', onVisibilityChange);
-  };
-});
-
-// Helper para verificar erro de autenticação
-function isAuthError(error: unknown): boolean {
-  if (!error) return false;
-  const err = error as {
-    status?: number;
-    message?: string;
-    code?: string;
-  };
-  return err.status === 401 || err.status === 403 || err.code === 'PGRST301' || err.message?.includes('JWT') || err.message?.includes('token') || err.message?.includes('session');
-}
-
-// Configuração do React Query com tratamento de erros de auth
+// Configuração simplificada do React Query
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10 * 60 * 1000,
-      // 10 minutos
-      gcTime: 60 * 60 * 1000,
-      // 1 hora
-      retry: (failureCount, error) => {
-        // NÃO tentar novamente se for erro de auth
-        if (isAuthError(error)) {
-          console.log('🚫 [QueryClient] Erro de auth, não vai retentar');
-          return false;
-        }
-        return failureCount < 3;
-      },
-      refetchOnWindowFocus: true,
-      refetchOnMount: 'always',
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      gcTime: 30 * 60 * 1000,   // 30 minutos
+      retry: 2,
+      refetchOnWindowFocus: false, // Não refetch automático ao focar
+      refetchOnMount: true,        // Sempre buscar ao montar
       refetchOnReconnect: true,
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000)
     },
     mutations: {
-      retry: false
-    }
-  }
+      retry: false,
+    },
+  },
 });
-const App = () => <BrowserRouter>
+
+const App = () => (
+  <BrowserRouter>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -176,5 +138,7 @@ const App = () => <BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
     </AuthProvider>
-  </BrowserRouter>;
+  </BrowserRouter>
+);
+
 export default App;
