@@ -25,19 +25,50 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       .catch(error => console.error('Error loading animation:', error));
   }, []);
 
+  // Log quando componente monta/desmonta
+  useEffect(() => {
+    console.log('🛡️ [ProtectedRoute] === COMPONENT MOUNTED ===');
+    console.log('🛡️ [ProtectedRoute] Path:', window.location.pathname);
+    console.log('🛡️ [ProtectedRoute] Timestamp:', new Date().toISOString());
+    return () => {
+      console.log('🛡️ [ProtectedRoute] === COMPONENT UNMOUNTED ===');
+      console.log('🛡️ [ProtectedRoute] Path:', window.location.pathname);
+    };
+  }, []);
+
   useEffect(() => {
     // Verificar sessão ao montar o componente (on-demand)
     const checkSession = async () => {
-      console.log('🔐 [ProtectedRoute] Verificando sessão...');
+      console.log('🛡️ [ProtectedRoute] === CHECK SESSION START ===');
+      console.log('🛡️ [ProtectedRoute] Estado atual antes de ensureSession:', {
+        hasUser: !!user,
+        isUserActive,
+        checking
+      });
+      
       await ensureSession();
+      
+      console.log('🛡️ [ProtectedRoute] === CHECK SESSION END ===');
+      console.log('🛡️ [ProtectedRoute] Definindo checking=false');
       setChecking(false);
     };
     
     checkSession();
   }, [ensureSession]);
 
+  // Log de mudanças de estado
+  useEffect(() => {
+    console.log('🛡️ [ProtectedRoute] Estado atualizado:', {
+      checking,
+      hasUser: !!user,
+      isUserActive,
+      userId: user?.id
+    });
+  }, [checking, user, isUserActive]);
+
   // Enquanto verifica, mostrar loading
   if (checking) {
+    console.log('🛡️ [ProtectedRoute] Renderizando loading (checking=true)');
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Lottie
@@ -52,10 +83,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Se não tem usuário ou usuário não está ativo, redirecionar
   if (!user || !isUserActive) {
-    console.log('🚪 [ProtectedRoute] Redirecionando para login');
+    console.log('🚪 [ProtectedRoute] Redirecionando para login:', {
+      hasUser: !!user,
+      isUserActive,
+      reason: !user ? 'Sem usuário' : 'Usuário inativo'
+    });
     return <Navigate to="/login" replace />;
   }
 
   // Usuário autenticado e ativo - renderizar conteúdo
+  console.log('✅ [ProtectedRoute] Renderizando conteúdo protegido');
   return <>{children}</>;
 }

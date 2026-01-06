@@ -7,6 +7,26 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
   return useQuery({
     queryKey: ["tests", filters],
     queryFn: async () => {
+      console.log('📊 [useTests] === FETCH START ===');
+      console.log('📊 [useTests] Timestamp:', new Date().toISOString());
+      console.log('📊 [useTests] Filters:', filters);
+      
+      // Verificar sessão antes de buscar
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('📊 [useTests] Session check:', {
+        hasSession: !!session,
+        sessionError: sessionError?.message,
+        userId: session?.user?.id,
+        expiresAt: session?.expires_at 
+          ? new Date(session.expires_at * 1000).toISOString()
+          : null
+      });
+      
+      if (!session) {
+        console.error('📊 [useTests] ❌ No session - aborting fetch');
+        throw new Error('Sessão não encontrada');
+      }
+      
       let query = supabase
         .from("tests")
         .select(`*, profiles!tests_created_by_fkey(full_name, email, avatar_url)`)
@@ -16,8 +36,17 @@ export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) 
       if (filters?.status) query = query.eq("status", filters.status);
       if (filters?.createdBy) query = query.eq("created_by", filters.createdBy);
 
+      console.log('📊 [useTests] Executando query...');
       const { data, error } = await query;
+      
+      console.log('📊 [useTests] Query result:', {
+        success: !error,
+        dataCount: data?.length || 0,
+        error: error?.message
+      });
+      
       if (error) throw error;
+      console.log('📊 [useTests] === FETCH END (SUCCESS) ===');
       return data as unknown as Test[];
     },
     staleTime: 2 * 60 * 1000,
