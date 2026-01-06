@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Trash2, Upload } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
 
 interface Profile {
   id: string;
@@ -175,9 +176,9 @@ export function EditUserModal({
     setLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = useAuthStore.getState().session;
       
-      if (!session) {
+      if (!session?.access_token) {
         throw new Error("Não autenticado");
       }
 

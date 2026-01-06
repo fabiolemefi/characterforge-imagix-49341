@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuthStore } from "@/stores/authStore";
 
 const Navbar = () => {
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
@@ -27,9 +28,8 @@ const Navbar = () => {
 
   useEffect(() => {
     const checkUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      // Get session from store instead of calling getSession()
+      const session = useAuthStore.getState().session;
       setUser(session?.user ?? null);
 
       if (session?.user) {

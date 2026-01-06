@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BriefingStatus, Briefing } from "@/types/briefing";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/authStore";
 
 interface BriefingsFilter {
   status?: BriefingStatus;
@@ -53,8 +54,8 @@ export const useCreateBriefing = () => {
 
   return useMutation({
     mutationFn: async (data: Partial<Briefing>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       const insertData = { ...data, created_by: user.id } as any;
       delete insertData.profiles;
@@ -85,8 +86,8 @@ export const useUpdateBriefing = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...data }: Partial<Briefing> & { id: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       const { data: result, error } = await supabase
         .from("briefings")
@@ -116,8 +117,8 @@ export const useDeactivateBriefing = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       const { error } = await supabase
         .from("briefings")

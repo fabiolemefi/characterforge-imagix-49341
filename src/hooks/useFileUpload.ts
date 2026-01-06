@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
 
 // Função para criar hash de senha usando Web Crypto API
 async function hashPassword(password: string): Promise<string> {
@@ -75,8 +76,8 @@ export const useFileUpload = () => {
 
       console.log(`[Upload] Iniciando upload: ${file.name} (${file.size} bytes)`);
 
-      // Upload com tracking de progresso usando XMLHttpRequest
-      const { data: { session } } = await supabase.auth.getSession();
+      // Get session from store (already validated by ProtectedRoute)
+      const session = useAuthStore.getState().session;
       if (!session) throw new Error('Usuário não autenticado');
 
       const uploadWithProgress = new Promise<void>((resolve, reject) => {
@@ -171,9 +172,9 @@ export const useFileUpload = () => {
         passwordHash = await hashPassword(metadata.password);
       }
 
-      // Obter usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
+      // Obter usuário do store
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error('Usuário não autenticado');
 
       // Criar registro na tabela
       console.log('[Upload] Criando registro no banco de dados');
