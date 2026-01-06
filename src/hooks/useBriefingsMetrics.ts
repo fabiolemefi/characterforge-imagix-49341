@@ -13,33 +13,11 @@ export const useBriefingsMetrics = () => {
   return useQuery({
     queryKey: ["briefings-metrics"],
     queryFn: async () => {
-      console.log('📈 [useBriefingsMetrics] === FETCH START ===');
-      console.log('📈 [useBriefingsMetrics] Timestamp:', new Date().toISOString());
-      
-      // Verificar sessão antes de buscar
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('📈 [useBriefingsMetrics] Session check:', {
-        hasSession: !!session,
-        sessionError: sessionError?.message,
-        userId: session?.user?.id
-      });
-      
-      if (!session) {
-        console.error('📈 [useBriefingsMetrics] ❌ No session - aborting fetch');
-        throw new Error('Sessão não encontrada');
-      }
-      
       console.log('📈 [useBriefingsMetrics] Executando query...');
       const { data, error } = await supabase
         .from("briefings")
         .select("status")
         .eq("is_active", true);
-
-      console.log('📈 [useBriefingsMetrics] Query result:', {
-        success: !error,
-        dataCount: data?.length || 0,
-        error: error?.message
-      });
 
       if (error) throw error;
 
@@ -65,7 +43,6 @@ export const useBriefingsMetrics = () => {
         }
       });
 
-      console.log('📈 [useBriefingsMetrics] === FETCH END (SUCCESS) ===', metrics);
       return metrics;
     },
     staleTime: 2 * 60 * 1000,
