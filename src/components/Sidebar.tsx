@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import * as LucideIcons from "lucide-react";
 import { usePlugins } from "@/hooks/usePlugins";
 import { useBrandGuideCategories, useBrandGuidePages } from "@/hooks/useBrandGuideData";
+import { usePrefetchBrandGuidePage } from "@/hooks/useBrandGuidePageContent";
 import {
   Sidebar as SidebarUI,
   SidebarContent,
@@ -22,6 +23,7 @@ export function Sidebar() {
   const { open } = useSidebar();
   const navigate = useNavigate();
   const location = useLocation();
+  const prefetchPage = usePrefetchBrandGuidePage();
 
   // React Query hooks (com cache automático)
   const { data: plugins = [], isLoading: loadingPlugins, error: pluginsError } = usePlugins();
@@ -200,6 +202,7 @@ export function Sidebar() {
                             {category.pages.map(page => (
                               <SidebarMenuSubItem key={page.id}>
                                 <SidebarMenuSubButton
+                                  onMouseEnter={() => prefetchPage(category.slug, page.slug)}
                                   onClick={() => {
                                     navigate(`/brand-guide/${category.slug}/${page.slug}`);
                                     window.scrollTo({ top: 0, behavior: 'instant' });
