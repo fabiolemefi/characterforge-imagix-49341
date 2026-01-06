@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Test, TestStatus } from "@/types/test";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/authStore";
 
 export const useTests = (filters?: { status?: TestStatus; createdBy?: string }) => {
   return useQuery({
@@ -42,8 +43,8 @@ export const useCreateTest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (test: Partial<Test>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
       const { data, error } = await supabase.from("tests").insert({ ...test as any, created_by: user.id }).select().single();
       if (error) throw error;
       return data;
@@ -57,8 +58,8 @@ export const useUpdateTest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...test }: Partial<Test> & { id: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
       const { data, error } = await supabase.from("tests").update({ ...test as any, updated_by: user.id }).eq("id", id).select().single();
       if (error) throw error;
       return data;
@@ -72,8 +73,8 @@ export const useDeactivateTest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
       const { error } = await supabase.from("tests").update({ is_active: false, updated_by: user.id }).eq("id", id);
       if (error) throw error;
     },

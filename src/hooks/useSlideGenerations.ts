@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+import { useAuthStore } from '@/stores/authStore';
 
 export type Dimensions = 'fluid' | '16x9' | '4x3';
 
@@ -164,8 +165,8 @@ export function useSlideGenerations() {
 
       if (insertError) throw insertError;
 
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
+      // Get auth token from store (already validated by ProtectedRoute)
+      const session = useAuthStore.getState().session;
       if (!session) throw new Error('No session');
 
       // Call edge function

@@ -9,6 +9,7 @@ import type {
   CreateJiraTaskInput,
   CreateJiraOkrInput 
 } from "@/types/jiraTask";
+import { useAuthStore } from "@/stores/authStore";
 
 // ============ JIRA OKRs ============
 
@@ -33,8 +34,8 @@ export function useCreateJiraOkr() {
 
   return useMutation({
     mutationFn: async (input: CreateJiraOkrInput) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       // 1. Criar épico no Jira via edge function
       const { data: epicResult, error: epicError } = await supabase.functions.invoke("create-jira-epic", {
@@ -220,8 +221,8 @@ export function useCreateJiraTask() {
 
   return useMutation({
     mutationFn: async (input: CreateJiraTaskInput) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = useAuthStore.getState().user;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       // Call edge function to create task in Jira
       const { data, error } = await supabase.functions.invoke("create-jira-task", {

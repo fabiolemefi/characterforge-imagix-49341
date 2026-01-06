@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
+import { useAuthStore } from "@/stores/authStore";
 
 export interface AIAssistantModelConfig {
   model: string;
@@ -139,7 +140,7 @@ export function useCreateAIAssistant() {
 
   return useMutation({
     mutationFn: async (assistant: AIAssistantInsert) => {
-      const { data: user } = await supabase.auth.getUser();
+      const user = useAuthStore.getState().user;
       const { data, error } = await supabase
         .from("ai_assistants")
         .insert({
@@ -154,7 +155,7 @@ export function useCreateAIAssistant() {
           validations: assistant.validations as unknown as Json,
           is_active: assistant.is_active,
           avatar_url: assistant.avatar_url,
-          created_by: user.user?.id,
+          created_by: user?.id,
         })
         .select()
         .single();
@@ -177,10 +178,10 @@ export function useUpdateAIAssistant() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: AIAssistantUpdate) => {
-      const { data: user } = await supabase.auth.getUser();
+      const user = useAuthStore.getState().user;
       
       const updatePayload: Record<string, unknown> = {
-        updated_by: user.user?.id,
+        updated_by: user?.id,
       };
 
       if (updates.name !== undefined) updatePayload.name = updates.name;
