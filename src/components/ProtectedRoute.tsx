@@ -17,6 +17,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isUserActive, ensureSession } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [animationData, setAnimationData] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   useEffect(() => {
     fetch('/loading-outline-default.json')
@@ -24,6 +25,29 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       .then(data => setAnimationData(data))
       .catch(error => console.error('Error loading animation:', error));
   }, []);
+
+  // Feedback visual progressivo quando demora
+  useEffect(() => {
+    if (!checking) return;
+    
+    const timer1 = setTimeout(() => {
+      setLoadingMessage('Reconectando sessão...');
+    }, 2000);
+    
+    const timer2 = setTimeout(() => {
+      setLoadingMessage('Isso está demorando mais que o esperado...');
+    }, 5000);
+    
+    const timer3 = setTimeout(() => {
+      setLoadingMessage('Tentando recuperar conexão...');
+    }, 8000);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [checking]);
 
   // Log quando componente monta/desmonta
   useEffect(() => {
@@ -70,13 +94,18 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (checking) {
     console.log('🛡️ [ProtectedRoute] Renderizando loading (checking=true)');
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Lottie
           animationData={animationData}
           loop={true}
           autoplay={true}
           style={{ width: 100, height: 100 }}
         />
+        {loadingMessage && (
+          <p className="text-muted-foreground text-sm animate-pulse">
+            {loadingMessage}
+          </p>
+        )}
       </div>
     );
   }
