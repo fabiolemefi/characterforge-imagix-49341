@@ -12,6 +12,23 @@ export const useBriefings = (filters?: BriefingsFilter) => {
   return useQuery({
     queryKey: ["briefings", filters],
     queryFn: async () => {
+      console.log('📋 [useBriefings] === FETCH START ===');
+      console.log('📋 [useBriefings] Timestamp:', new Date().toISOString());
+      console.log('📋 [useBriefings] Filters:', filters);
+      
+      // Verificar sessão antes de buscar
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('📋 [useBriefings] Session check:', {
+        hasSession: !!session,
+        sessionError: sessionError?.message,
+        userId: session?.user?.id
+      });
+      
+      if (!session) {
+        console.error('📋 [useBriefings] ❌ No session - aborting fetch');
+        throw new Error('Sessão não encontrada');
+      }
+      
       let query = supabase
         .from("briefings")
         .select("*, profiles!briefings_created_by_fkey(full_name, email, avatar_url)")
@@ -21,8 +38,17 @@ export const useBriefings = (filters?: BriefingsFilter) => {
       if (filters?.status) query = query.eq("status", filters.status);
       if (filters?.createdBy) query = query.eq("created_by", filters.createdBy);
 
+      console.log('📋 [useBriefings] Executando query...');
       const { data, error } = await query;
+      
+      console.log('📋 [useBriefings] Query result:', {
+        success: !error,
+        dataCount: data?.length || 0,
+        error: error?.message
+      });
+      
       if (error) throw error;
+      console.log('📋 [useBriefings] === FETCH END (SUCCESS) ===');
       return data as unknown as Briefing[];
     },
     staleTime: 2 * 60 * 1000,
