@@ -1033,6 +1033,8 @@ export type Database = {
           prompt: string
           request_params: Json | null
           retry_count: number | null
+          seal_type: string | null
+          source: string | null
           status: string | null
           user_id: string | null
         }
@@ -1047,6 +1049,8 @@ export type Database = {
           prompt: string
           request_params?: Json | null
           retry_count?: number | null
+          seal_type?: string | null
+          source?: string | null
           status?: string | null
           user_id?: string | null
         }
@@ -1061,6 +1065,8 @@ export type Database = {
           prompt?: string
           request_params?: Json | null
           retry_count?: number | null
+          seal_type?: string | null
+          source?: string | null
           status?: string | null
           user_id?: string | null
         }

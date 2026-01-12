@@ -51,6 +51,7 @@ import JiraTaskForm from "./pages/JiraTaskForm";
 import JiraOkrs from "./pages/JiraOkrs";
 import JiraTasksList from "./pages/JiraTasksList";
 import AdminJira from "./pages/AdminJira";
+import EfiSelo from "./pages/EfiSelo";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -120,6 +121,7 @@ const App = () => (
             <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
             <Route path="/share/file" element={<ShareDownload />} />
             <Route path="/tests/report" element={<TestReportPublic />} />
+            <Route path="/efi-selo" element={<EfiSelo />} />
             <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
             <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
             <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
