@@ -82,7 +82,7 @@ serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/replicate-webhook`;
     
     const prediction = await replicate.predictions.create({
-      model: "openai/gpt-image-1",
+      model: "openai/gpt-image-1.5",
       input: {
         prompt: "Desenhe a pessoa da imagem 1 em estilo pixar desenho infantil, preservando a pose, penteado e acessórios da imagem 1 e com o logo da imagem 3 estampado na camiseta cinza escuro. NÃO ALTERE EM NADA O LOGO DA IMAGEM 3. IMPORTANTE: com o fundo da quarta imagem atrás do personagem.",
         quality: "low",
