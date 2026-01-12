@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Upload, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import confetti from 'canvas-confetti';
 
 const SEALS = [
   { id: 'selo1', src: '/selo1.png', name: 'Selo 1' },
@@ -25,6 +26,18 @@ export default function EfiSelo() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Trigger confetti when image is ready
+  useEffect(() => {
+    if (finalImageUrl) {
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#F37021', '#FF9500', '#FFD700', '#FFFFFF'],
+      });
+    }
+  }, [finalImageUrl]);
 
   const applySealOverlay = async (baseImageUrl: string, sealId: string) => {
     const canvas = canvasRef.current;
@@ -165,7 +178,7 @@ export default function EfiSelo() {
         style={{ backgroundImage: 'url(/cenario_bg.png)' }}
       >
         <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
-          <img src="/logo.svg" alt="Logo" className="h-10 mx-auto" />
+          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[120px] mx-auto" />
           <p className="text-sm text-white/70 text-center">Digite o código de acesso</p>
           <Input
             type="password"
@@ -182,12 +195,16 @@ export default function EfiSelo() {
 
   return (
     <div 
-      className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat"
+      className={`min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat transition-all duration-500 ${
+        finalImageUrl ? 'backdrop-blur-md' : ''
+      }`}
       style={{ backgroundImage: 'url(/cenario_bg.png)' }}
     >
-      <div className="w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
+      <div className={`w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500 ${
+        finalImageUrl ? 'ring-2 ring-white/30 shadow-2xl' : ''
+      }`}>
         <div className="text-center">
-          <img src="/logo.svg" alt="Logo" className="h-10 mx-auto mb-2" />
+          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[120px] mx-auto mb-2" />
           <p className="text-sm text-white/70">Faça parte desse movimento!</p>
         </div>
 
