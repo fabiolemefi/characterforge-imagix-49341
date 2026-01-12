@@ -121,7 +121,7 @@ const App = () => (
             <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
             <Route path="/share/file" element={<ShareDownload />} />
             <Route path="/tests/report" element={<TestReportPublic />} />
-            <Route path="/efi-selo" element={<EfiSelo />} />
+            <Route path="/selo-estrategia" element={<EfiSelo />} />
             <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
             <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
             <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
