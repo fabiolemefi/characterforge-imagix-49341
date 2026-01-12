@@ -280,8 +280,8 @@ export default function EfiSelo() {
         ) : (
           <>
             {/* Resultado final */}
-            <div className="border border-white/20 rounded-lg p-2 bg-white/5 flex justify-center">
-              <img src={finalImageUrl} alt="Resultado" className="w-1/2 rounded" />
+            <div className="border border-white/20 rounded-lg p-2 bg-white/5">
+              <img src={finalImageUrl} alt="Resultado" className="w-full rounded" />
             </div>
             <Button onClick={handleDownload} className="w-full">
               <Download className="h-4 w-4 mr-2" />
