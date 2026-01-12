@@ -178,7 +178,7 @@ export default function EfiSelo() {
         style={{ backgroundImage: 'url(/cenario_bg.png)' }}
       >
         <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
-          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[120px] mx-auto" />
+          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[80px] mx-auto" />
           <p className="text-sm text-white/70 text-center">Digite o código de acesso</p>
           <Input
             type="password"
@@ -204,7 +204,7 @@ export default function EfiSelo() {
         finalImageUrl ? 'ring-2 ring-white/30 shadow-2xl' : ''
       }`}>
         <div className="text-center">
-          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[120px] mx-auto mb-2" />
+          <img src="/efi-bank-monochrome-orange.svg" alt="Logo" className="w-[80px] mx-auto mb-2" />
           <p className="text-sm text-white/70">Faça parte desse movimento!</p>
         </div>
 
@@ -280,8 +280,8 @@ export default function EfiSelo() {
         ) : (
           <>
             {/* Resultado final */}
-            <div className="border border-white/20 rounded-lg p-2 bg-white/5">
-              <img src={finalImageUrl} alt="Resultado" className="w-full rounded" />
+            <div className="border border-white/20 rounded-lg p-2 bg-white/5 flex justify-center">
+              <img src={finalImageUrl} alt="Resultado" className="w-1/2 rounded" />
             </div>
             <Button onClick={handleDownload} className="w-full">
               <Download className="h-4 w-4 mr-2" />
@@ -291,6 +291,9 @@ export default function EfiSelo() {
         )}
 
         <canvas ref={canvasRef} className="hidden" />
+        
+        {/* Footer */}
+        <p className="text-xs text-white/50 text-center">Boca de Sacola Productions and Tech</p>
       </div>
     </div>
   );
