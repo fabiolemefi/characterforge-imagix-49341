@@ -12,7 +12,7 @@ const SEALS = [
   { id: 'selo3', src: '/selo3.png', name: 'Selo 3' },
 ];
 
-const ACCESS_CODE = 'EFICIENCIA2024';
+const ACCESS_CODE = 'estrategia';
 const FINAL_SIZE = 600;
 
 export default function EfiSelo() {
@@ -80,7 +80,7 @@ export default function EfiSelo() {
 
   const handleAccessCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (accessCode === ACCESS_CODE) {
+    if (accessCode.toLowerCase() === ACCESS_CODE.toLowerCase()) {
       setIsAuthenticated(true);
     } else {
       toast({ title: 'Código inválido', variant: 'destructive' });
