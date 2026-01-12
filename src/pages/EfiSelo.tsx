@@ -55,7 +55,11 @@ export default function EfiSelo() {
         sealImage.onerror = reject;
         sealImage.src = seal.src;
       });
+      
+      // Apply seal with 95% opacity
+      ctx.globalAlpha = 0.95;
       ctx.drawImage(sealImage, 0, 0, FINAL_SIZE, FINAL_SIZE);
+      ctx.globalAlpha = 1.0;
     }
 
     setFinalImageUrl(canvas.toDataURL('image/png'));
@@ -161,7 +165,7 @@ export default function EfiSelo() {
         style={{ backgroundImage: 'url(/cenario_bg.png)' }}
       >
         <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
-          <h1 className="text-xl font-medium text-center text-white">Efi Selo</h1>
+          <img src="/logo.svg" alt="Logo" className="h-10 mx-auto" />
           <p className="text-sm text-white/70 text-center">Digite o código de acesso</p>
           <Input
             type="password"
@@ -183,8 +187,8 @@ export default function EfiSelo() {
     >
       <div className="w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
         <div className="text-center">
-          <h1 className="text-xl font-medium text-white">Efi Selo</h1>
-          <p className="text-sm text-white/70">Transforme sua foto em estilo Pixar</p>
+          <img src="/logo.svg" alt="Logo" className="h-10 mx-auto mb-2" />
+          <p className="text-sm text-white/70">Faça parte desse movimento!</p>
         </div>
 
         {!finalImageUrl ? (
@@ -207,8 +211,9 @@ export default function EfiSelo() {
               
               {/* Loader overlay */}
               {uploadedImage && isGenerating && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center rounded-lg gap-3">
                   <Loader2 className="h-10 w-10 text-white animate-spin" />
+                  <p className="text-sm text-white/80">Isso pode levar até 1 min, aguarde...</p>
                 </div>
               )}
               
