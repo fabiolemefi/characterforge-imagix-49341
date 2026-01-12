@@ -156,16 +156,19 @@ export default function EfiSelo() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4">
-          <h1 className="text-xl font-medium text-center">Efi Selo</h1>
-          <p className="text-sm text-muted-foreground text-center">Digite o código de acesso</p>
+      <div 
+        className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/cenario_bg.png)' }}
+      >
+        <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
+          <h1 className="text-xl font-medium text-center text-white">Efi Selo</h1>
+          <p className="text-sm text-white/70 text-center">Digite o código de acesso</p>
           <Input
             type="password"
             value={accessCode}
             onChange={(e) => setAccessCode(e.target.value)}
             placeholder="Código"
-            className="text-center"
+            className="text-center bg-white/20 border-white/30 text-white placeholder:text-white/50"
           />
           <Button type="submit" className="w-full">Acessar</Button>
         </form>
@@ -174,11 +177,14 @@ export default function EfiSelo() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-6">
+    <div 
+      className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: 'url(/cenario_bg.png)' }}
+    >
+      <div className="w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
         <div className="text-center">
-          <h1 className="text-xl font-medium">Efi Selo</h1>
-          <p className="text-sm text-muted-foreground">Transforme sua foto em estilo Pixar</p>
+          <h1 className="text-xl font-medium text-white">Efi Selo</h1>
+          <p className="text-sm text-white/70">Transforme sua foto em estilo Pixar</p>
         </div>
 
         {!finalImageUrl ? (
@@ -187,15 +193,15 @@ export default function EfiSelo() {
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
-              className="relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              className="relative border-2 border-dashed border-white/30 rounded-lg p-6 text-center cursor-pointer hover:border-white/50 transition-colors bg-white/5"
               onClick={() => !isGenerating && document.getElementById('file-input')?.click()}
             >
               {uploadedImage ? (
                 <img src={uploadedImage} alt="Upload" className="max-h-40 mx-auto rounded" />
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Arraste ou clique para enviar</p>
+                  <Upload className="h-8 w-8 mx-auto text-white/60" />
+                  <p className="text-sm text-white/60">Arraste ou clique para enviar</p>
                 </div>
               )}
               
@@ -222,10 +228,10 @@ export default function EfiSelo() {
                   key={seal.id}
                   onClick={() => setSelectedSeal(seal.id)}
                   disabled={isGenerating}
-                  className={`p-2 border rounded-lg transition-all ${
+                  className={`p-2 border rounded-lg transition-all bg-white/10 ${
                     selectedSeal === seal.id 
-                      ? 'border-primary ring-2 ring-primary/20' 
-                      : 'border-border hover:border-primary/30'
+                      ? 'border-white ring-2 ring-white/30' 
+                      : 'border-white/20 hover:border-white/40'
                   } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <img src={seal.src} alt={seal.name} className="w-full aspect-square object-contain" />
@@ -252,7 +258,7 @@ export default function EfiSelo() {
         ) : (
           <>
             {/* Resultado final */}
-            <div className="border rounded-lg p-2">
+            <div className="border border-white/20 rounded-lg p-2 bg-white/5">
               <img src={finalImageUrl} alt="Resultado" className="w-full rounded" />
             </div>
             <Button onClick={handleDownload} className="w-full">
