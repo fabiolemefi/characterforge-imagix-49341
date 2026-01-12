@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Upload, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { Upload, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,7 +9,6 @@ const SEALS = [
   { id: 'selo1', src: '/selo1.png', name: 'Selo 1' },
   { id: 'selo2', src: '/selo2.png', name: 'Selo 2' },
   { id: 'selo3', src: '/selo3.png', name: 'Selo 3' },
-  { id: 'selo4', src: '/selo4.png', name: 'Selo 4' },
 ];
 
 const ACCESS_CODE = 'EFICIENCIA2024';
@@ -155,14 +154,6 @@ export default function EfiSelo() {
     link.click();
   };
 
-  const handleReset = () => {
-    setUploadedImage(null);
-    setSelectedSeal(null);
-    setGeneratedImageUrl(null);
-    setFinalImageUrl(null);
-    if (pollingRef.current) clearInterval(pollingRef.current);
-  };
-
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -190,80 +181,85 @@ export default function EfiSelo() {
           <p className="text-sm text-muted-foreground">Transforme sua foto em estilo Pixar</p>
         </div>
 
-        {/* Upload */}
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-          onClick={() => document.getElementById('file-input')?.click()}
-        >
-          {uploadedImage ? (
-            <img src={uploadedImage} alt="Upload" className="max-h-40 mx-auto rounded" />
-          ) : (
-            <div className="space-y-2">
-              <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Arraste ou clique para enviar</p>
-            </div>
-          )}
-          <input
-            id="file-input"
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
-
-        {/* Selos */}
-        <div className="grid grid-cols-4 gap-2">
-          {SEALS.map((seal) => (
-            <button
-              key={seal.id}
-              onClick={() => setSelectedSeal(seal.id)}
-              className={`p-2 border rounded-lg transition-all ${
-                selectedSeal === seal.id 
-                  ? 'border-primary ring-2 ring-primary/20' 
-                  : 'border-border hover:border-primary/30'
-              }`}
+        {!finalImageUrl ? (
+          <>
+            {/* Upload */}
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              className="relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => !isGenerating && document.getElementById('file-input')?.click()}
             >
-              <img src={seal.src} alt={seal.name} className="w-full aspect-square object-contain" />
-            </button>
-          ))}
-        </div>
+              {uploadedImage ? (
+                <img src={uploadedImage} alt="Upload" className="max-h-40 mx-auto rounded" />
+              ) : (
+                <div className="space-y-2">
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Arraste ou clique para enviar</p>
+                </div>
+              )}
+              
+              {/* Loader overlay */}
+              {uploadedImage && isGenerating && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                  <Loader2 className="h-10 w-10 text-white animate-spin" />
+                </div>
+              )}
+              
+              <input
+                id="file-input"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
 
-        {/* Gerar */}
-        <Button 
-          onClick={handleGenerate} 
-          disabled={!uploadedImage || !selectedSeal || isGenerating}
-          className="w-full"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Gerando...
-            </>
-          ) : (
-            'Gerar Imagem'
-          )}
-        </Button>
+            {/* Selos */}
+            <div className="grid grid-cols-3 gap-2">
+              {SEALS.map((seal) => (
+                <button
+                  key={seal.id}
+                  onClick={() => setSelectedSeal(seal.id)}
+                  disabled={isGenerating}
+                  className={`p-2 border rounded-lg transition-all ${
+                    selectedSeal === seal.id 
+                      ? 'border-primary ring-2 ring-primary/20' 
+                      : 'border-border hover:border-primary/30'
+                  } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <img src={seal.src} alt={seal.name} className="w-full aspect-square object-contain" />
+                </button>
+              ))}
+            </div>
 
-        {/* Resultado */}
-        {finalImageUrl && (
-          <div className="space-y-4">
+            {/* Gerar */}
+            <Button 
+              onClick={handleGenerate} 
+              disabled={!uploadedImage || !selectedSeal || isGenerating}
+              className="w-full"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                'Gerar Imagem'
+              )}
+            </Button>
+          </>
+        ) : (
+          <>
+            {/* Resultado final */}
             <div className="border rounded-lg p-2">
               <img src={finalImageUrl} alt="Resultado" className="w-full rounded" />
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handleDownload} className="flex-1">
-                <Download className="h-4 w-4 mr-2" />
-                Baixar
-              </Button>
-              <Button onClick={handleReset} variant="outline" className="flex-1">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Nova Imagem
-              </Button>
-            </div>
-          </div>
+            <Button onClick={handleDownload} className="w-full">
+              <Download className="h-4 w-4 mr-2" />
+              Baixar
+            </Button>
+          </>
         )}
 
         <canvas ref={canvasRef} className="hidden" />
