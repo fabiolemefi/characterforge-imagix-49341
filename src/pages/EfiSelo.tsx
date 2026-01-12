@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { toast } from 'sonner';
-import { Upload, Download, Loader2, Lock, CheckCircle, ImageIcon, RefreshCw } from 'lucide-react';
+import { Upload, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 const SEALS = [
@@ -20,271 +19,253 @@ export default function EfiSelo() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessCode, setAccessCode] = useState('');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [selectedSeal, setSelectedSeal] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [finalImage, setFinalImage] = useState<string | null>(null);
-  const [recordId, setRecordId] = useState<string | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [finalImageUrl, setFinalImageUrl] = useState<string | null>(null);
+  const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Apply seal overlay to generated image
-  const applySealOverlay = async (generatedImageUrl: string, sealId: string): Promise<string | null> => {
+  const applySealOverlay = async (baseImageUrl: string, sealId: string) => {
     const canvas = canvasRef.current;
-    if (!canvas) return null;
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+    if (!ctx) return;
 
     canvas.width = FINAL_SIZE;
     canvas.height = FINAL_SIZE;
 
-    return new Promise<string>((resolve) => {
-      const generatedImg = new Image();
-      generatedImg.crossOrigin = 'anonymous';
-      
-      generatedImg.onload = () => {
-        ctx.drawImage(generatedImg, 0, 0, FINAL_SIZE, FINAL_SIZE);
-        
-        const sealImg = new Image();
-        sealImg.onload = () => {
-          ctx.drawImage(sealImg, 0, 0, FINAL_SIZE, FINAL_SIZE);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        sealImg.onerror = () => resolve(canvas.toDataURL('image/png'));
-        
-        const seal = SEALS.find(s => s.id === sealId);
-        sealImg.src = seal?.src || '/selo1.png';
-      };
-      
-      generatedImg.onerror = () => resolve(generatedImageUrl);
-      generatedImg.src = generatedImageUrl;
+    const baseImage = new Image();
+    baseImage.crossOrigin = 'anonymous';
+    
+    await new Promise<void>((resolve, reject) => {
+      baseImage.onload = () => resolve();
+      baseImage.onerror = reject;
+      baseImage.src = baseImageUrl;
     });
+
+    ctx.drawImage(baseImage, 0, 0, FINAL_SIZE, FINAL_SIZE);
+
+    const seal = SEALS.find(s => s.id === sealId);
+    if (seal) {
+      const sealImage = new Image();
+      await new Promise<void>((resolve, reject) => {
+        sealImage.onload = () => resolve();
+        sealImage.onerror = reject;
+        sealImage.src = seal.src;
+      });
+      ctx.drawImage(sealImage, 0, 0, FINAL_SIZE, FINAL_SIZE);
+    }
+
+    setFinalImageUrl(canvas.toDataURL('image/png'));
   };
 
   const handleAccessCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (accessCode.toUpperCase() === ACCESS_CODE) {
+    if (accessCode === ACCESS_CODE) {
       setIsAuthenticated(true);
-      toast.success('Acesso liberado!');
     } else {
-      toast.error('Código de acesso inválido');
+      toast({ title: 'Código inválido', variant: 'destructive' });
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        toast.error('Por favor, selecione uma imagem');
-        return;
-      }
-      setUploadedFile(file);
       const reader = new FileReader();
-      reader.onload = (e) => setUploadedImage(e.target?.result as string);
+      reader.onload = (event) => {
+        setUploadedImage(event.target?.result as string);
+        setGeneratedImageUrl(null);
+        setFinalImageUrl(null);
+      };
       reader.readAsDataURL(file);
-      setGeneratedImage(null);
-      setFinalImage(null);
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setUploadedFile(file);
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (e) => setUploadedImage(e.target?.result as string);
+      reader.onload = (event) => {
+        setUploadedImage(event.target?.result as string);
+        setGeneratedImageUrl(null);
+        setFinalImageUrl(null);
+      };
       reader.readAsDataURL(file);
-      setGeneratedImage(null);
-      setFinalImage(null);
-    } else {
-      toast.error('Por favor, arraste uma imagem válida');
     }
-  }, []);
-
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
-
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
+  };
 
   const handleGenerate = async () => {
-    if (!uploadedFile || !selectedSeal) {
-      toast.error('Selecione uma foto e um selo');
+    if (!uploadedImage || !selectedSeal) {
+      toast({ title: 'Selecione uma foto e um selo', variant: 'destructive' });
       return;
     }
 
     setIsGenerating(true);
-    setGeneratedImage(null);
-    setFinalImage(null);
+    setGeneratedImageUrl(null);
+    setFinalImageUrl(null);
 
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(uploadedFile);
-      });
-
+      const base64Data = uploadedImage.split(',')[1];
+      
       const { data, error } = await supabase.functions.invoke('generate-selo-image', {
-        body: { imageBase64: base64, sealType: selectedSeal },
+        body: { imageBase64: base64Data, sealType: selectedSeal },
       });
 
       if (error) throw error;
 
-      if (data.recordId) {
-        setRecordId(data.recordId);
-        const currentSeal = selectedSeal;
-        
-        pollingRef.current = setInterval(async () => {
-          const { data: record } = await supabase
-            .from('generated_images')
-            .select('*')
-            .eq('id', data.recordId)
-            .single();
+      const recordId = data?.recordId;
+      if (!recordId) throw new Error('Record ID não recebido');
 
-          if (record?.status === 'completed' && record.image_url) {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-            setGeneratedImage(record.image_url);
-            const composite = await applySealOverlay(record.image_url, currentSeal);
-            setFinalImage(composite || record.image_url);
-            setIsGenerating(false);
-            toast.success('Imagem gerada com sucesso!');
-          } else if (record?.status === 'failed') {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-            setIsGenerating(false);
-            toast.error(record.error_message || 'Falha ao gerar imagem');
-          }
-        }, 3000);
-      }
-    } catch (err) {
-      console.error('Generation error:', err);
-      toast.error('Erro ao gerar imagem');
+      pollingRef.current = setInterval(async () => {
+        const { data: record } = await supabase
+          .from('generated_images')
+          .select('status, image_url')
+          .eq('id', recordId)
+          .single();
+
+        if (record?.status === 'completed' && record?.image_url) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setGeneratedImageUrl(record.image_url);
+          await applySealOverlay(record.image_url, selectedSeal);
+          setIsGenerating(false);
+        } else if (record?.status === 'failed') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          toast({ title: 'Erro na geração', variant: 'destructive' });
+          setIsGenerating(false);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Erro:', error);
+      toast({ title: 'Erro ao gerar imagem', variant: 'destructive' });
       setIsGenerating(false);
     }
   };
 
   const handleDownload = () => {
-    const img = finalImage || generatedImage;
-    if (!img) return;
-    const a = document.createElement('a');
-    a.href = img;
-    a.download = `efi-selo-${Date.now()}.png`;
-    a.click();
-    toast.success('Download iniciado!');
+    const url = finalImageUrl || generatedImageUrl;
+    if (!url) return;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `efi-selo-${Date.now()}.png`;
+    link.click();
   };
 
   const handleReset = () => {
     setUploadedImage(null);
-    setUploadedFile(null);
     setSelectedSeal(null);
-    setGeneratedImage(null);
-    setFinalImage(null);
+    setGeneratedImageUrl(null);
+    setFinalImageUrl(null);
     if (pollingRef.current) clearInterval(pollingRef.current);
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
-          <CardContent className="p-8">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-8 h-8 text-orange-500" />
-              </div>
-              <h1 className="text-2xl font-bold text-white mb-2">EfiSelo</h1>
-              <p className="text-slate-400">Digite o código de acesso para continuar</p>
-            </div>
-            <form onSubmit={handleAccessCodeSubmit} className="space-y-4">
-              <Input type="password" placeholder="Código de acesso" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400" />
-              <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600">Acessar</Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4">
+          <h1 className="text-xl font-medium text-center">Efi Selo</h1>
+          <p className="text-sm text-muted-foreground text-center">Digite o código de acesso</p>
+          <Input
+            type="password"
+            value={accessCode}
+            onChange={(e) => setAccessCode(e.target.value)}
+            placeholder="Código"
+            className="text-center"
+          />
+          <Button type="submit" className="w-full">Acessar</Button>
+        </form>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">EfiSelo</h1>
-          <p className="text-slate-400">Transforme sua foto em uma ilustração estilo Pixar com selo personalizado</p>
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-xl font-medium">Efi Selo</h1>
+          <p className="text-sm text-muted-foreground">Transforme sua foto em estilo Pixar</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">1. Envie sua foto</h2>
-                <div onDrop={handleDrop} onDragOver={handleDragOver} className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${uploadedImage ? 'border-green-500 bg-green-500/10' : 'border-slate-600 hover:border-orange-500'}`}>
-                  {uploadedImage ? (
-                    <div className="space-y-4">
-                      <img src={uploadedImage} alt="Preview" className="max-h-48 mx-auto rounded-lg object-cover" />
-                      <div className="flex items-center justify-center gap-2 text-green-400"><CheckCircle className="w-5 h-5" /><span>Imagem carregada</span></div>
-                      <Button variant="outline" size="sm" onClick={() => { setUploadedImage(null); setUploadedFile(null); }} className="text-slate-300 border-slate-600">Trocar imagem</Button>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                      <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                      <p className="text-slate-300 mb-2">Arraste uma imagem ou clique para selecionar</p>
-                      <p className="text-slate-500 text-sm">PNG, JPG até 10MB</p>
-                    </label>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+        {/* Upload */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => document.getElementById('file-input')?.click()}
+        >
+          {uploadedImage ? (
+            <img src={uploadedImage} alt="Upload" className="max-h-40 mx-auto rounded" />
+          ) : (
+            <div className="space-y-2">
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Arraste ou clique para enviar</p>
+            </div>
+          )}
+          <input
+            id="file-input"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
 
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardContent className="p-6">
-                <h2 className="text-lg font-semibold text-white mb-4">2. Escolha o selo</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  {SEALS.map((seal) => (
-                    <button key={seal.id} onClick={() => setSelectedSeal(seal.id)} className={`relative rounded-lg overflow-hidden border-2 transition-all ${selectedSeal === seal.id ? 'border-orange-500 ring-2 ring-orange-500/50' : 'border-slate-600 hover:border-slate-500'}`}>
-                      <img src={seal.src} alt={seal.name} className="w-full aspect-square object-contain bg-slate-700/50 p-2" />
-                      {selectedSeal === seal.id && <div className="absolute top-2 right-2 bg-orange-500 rounded-full p-1"><CheckCircle className="w-4 h-4 text-white" /></div>}
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+        {/* Selos */}
+        <div className="grid grid-cols-4 gap-2">
+          {SEALS.map((seal) => (
+            <button
+              key={seal.id}
+              onClick={() => setSelectedSeal(seal.id)}
+              className={`p-2 border rounded-lg transition-all ${
+                selectedSeal === seal.id 
+                  ? 'border-primary ring-2 ring-primary/20' 
+                  : 'border-border hover:border-primary/30'
+              }`}
+            >
+              <img src={seal.src} alt={seal.name} className="w-full aspect-square object-contain" />
+            </button>
+          ))}
+        </div>
 
-            <Button onClick={handleGenerate} disabled={!uploadedImage || !selectedSeal || isGenerating} className="w-full h-14 text-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50">
-              {isGenerating ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Gerando sua imagem...</> : <><ImageIcon className="w-5 h-5 mr-2" />Gerar Imagem</>}
-            </Button>
+        {/* Gerar */}
+        <Button 
+          onClick={handleGenerate} 
+          disabled={!uploadedImage || !selectedSeal || isGenerating}
+          className="w-full"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Gerando...
+            </>
+          ) : (
+            'Gerar Imagem'
+          )}
+        </Button>
+
+        {/* Resultado */}
+        {finalImageUrl && (
+          <div className="space-y-4">
+            <div className="border rounded-lg p-2">
+              <img src={finalImageUrl} alt="Resultado" className="w-full rounded" />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleDownload} className="flex-1">
+                <Download className="h-4 w-4 mr-2" />
+                Baixar
+              </Button>
+              <Button onClick={handleReset} variant="outline" className="flex-1">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Nova Imagem
+              </Button>
+            </div>
           </div>
+        )}
 
-          <Card className="bg-slate-800/50 border-slate-700 h-full">
-            <CardContent className="p-6 h-full flex flex-col">
-              <h2 className="text-lg font-semibold text-white mb-4">3. Resultado</h2>
-              <div className="flex-1 flex items-center justify-center rounded-lg bg-slate-700/30 min-h-[400px]">
-                {isGenerating ? (
-                  <div className="text-center space-y-4">
-                    <Loader2 className="w-16 h-16 text-orange-500 animate-spin mx-auto" />
-                    <p className="text-white font-medium">Gerando sua imagem...</p>
-                    <p className="text-slate-400 text-sm">Isso pode levar de 30 a 60 segundos</p>
-                  </div>
-                ) : (finalImage || generatedImage) ? (
-                  <div className="w-full space-y-4">
-                    <img src={finalImage || generatedImage || ''} alt="Resultado" className="w-full max-w-md mx-auto rounded-lg shadow-xl" />
-                    <div className="flex gap-3 justify-center">
-                      <Button onClick={handleDownload} className="bg-green-600 hover:bg-green-700"><Download className="w-4 h-4 mr-2" />Baixar Imagem</Button>
-                      <Button onClick={handleReset} variant="outline" className="border-slate-600 text-slate-300"><RefreshCw className="w-4 h-4 mr-2" />Nova Imagem</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center"><ImageIcon className="w-16 h-16 text-slate-600 mx-auto mb-4" /><p className="text-slate-400">Sua imagem aparecerá aqui</p></div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
         <canvas ref={canvasRef} className="hidden" />
       </div>
     </div>
