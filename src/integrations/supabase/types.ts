@@ -1087,6 +1087,106 @@ export type Database = {
           },
         ]
       }
+      image_campaign_assets: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          image_url: string
+          is_visible: boolean
+          name: string
+          position: number
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          is_visible?: boolean
+          name: string
+          position?: number
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_visible?: boolean
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_campaign_assets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "image_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      image_campaigns: {
+        Row: {
+          access_code: string | null
+          background_image_url: string | null
+          created_at: string
+          created_by: string | null
+          customization_mode: string
+          footer_text: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          prompt: string | null
+          seal_opacity: number | null
+          slug: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          access_code?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          customization_mode?: string
+          footer_text?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          prompt?: string | null
+          seal_opacity?: number | null
+          slug: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          access_code?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          customization_mode?: string
+          footer_text?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          prompt?: string | null
+          seal_opacity?: number | null
+          slug?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "image_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jira_areas: {
         Row: {
           created_at: string

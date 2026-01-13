@@ -1,4 +1,4 @@
-import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, BookOpen, Bot, SquareKanban } from "lucide-react";
+import { Users, LayoutDashboard, Megaphone, Puzzle, Home, Book, FileText, FolderOpen, BookOpen, Bot, SquareKanban, ImagePlus } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -37,6 +37,11 @@ const menuItems = [
     title: "Jira",
     url: "/admin/jira",
     icon: SquareKanban,
+  },
+  {
+    title: "Gerar Imagens",
+    url: "/admin/gerar-imagens",
+    icon: ImagePlus,
   },
   {
     title: "Guia de Marca",

@@ -51,7 +51,8 @@ import JiraTaskForm from "./pages/JiraTaskForm";
 import JiraOkrs from "./pages/JiraOkrs";
 import JiraTasksList from "./pages/JiraTasksList";
 import AdminJira from "./pages/AdminJira";
-import EfiSelo from "./pages/EfiSelo";
+import ImageCampaignPublic from "./pages/ImageCampaignPublic";
+import AdminImageCampaigns from "./pages/AdminImageCampaigns";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -121,7 +122,8 @@ const App = () => (
             <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
             <Route path="/share/file" element={<ShareDownload />} />
             <Route path="/tests/report" element={<TestReportPublic />} />
-            <Route path="/selo-estrategia" element={<EfiSelo />} />
+            <Route path="/gerar/:slug" element={<ImageCampaignPublic />} />
+            <Route path="/admin/gerar-imagens" element={<ProtectedRoute><AdminImageCampaigns /></ProtectedRoute>} />
             <Route path="/canva/blocos" element={<ProtectedRoute><AppLayout><CanvaBlocks /></AppLayout></ProtectedRoute>} />
             <Route path="/canva/editor" element={<ProtectedRoute><CanvaEditor /></ProtectedRoute>} />
             <Route path="/briefings" element={<ProtectedRoute><AppLayout><BriefingsDashboard /></AppLayout></ProtectedRoute>} />
