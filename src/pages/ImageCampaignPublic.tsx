@@ -367,8 +367,7 @@ export default function ImageCampaignPublic() {
             {campaign.customization_mode === "user_choice" && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/20">
                 <div className="space-y-0.5">
-                  <Label className="text-sm flex items-center gap-2 text-white">
-                    <Sparkles className="h-4 w-4 text-primary" />
+                  <Label className="text-sm text-white">
                     Customizar com IA
                   </Label>
                   <p className="text-xs text-white/60">
