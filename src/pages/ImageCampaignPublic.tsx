@@ -53,9 +53,17 @@ export default function ImageCampaignPublic() {
     }
   }, [generatedImage]);
 
+  // Normalize text: remove accents and convert to lowercase
+  const normalizeText = (text: string): string => {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  };
+
   const handleAccessCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (campaign && accessCode.toLowerCase() === campaign.access_code?.toLowerCase()) {
+    if (campaign && normalizeText(accessCode) === normalizeText(campaign.access_code || "")) {
       setIsAuthenticated(true);
       toast.success("Acesso liberado!");
     } else {
@@ -261,12 +269,11 @@ export default function ImageCampaignPublic() {
               <p className="text-sm text-white/70">{campaign.subtitle}</p>
             )}
           </div>
-          <p className="text-sm text-white/70 text-center">Digite o código de acesso</p>
           <Input
-            type="password"
+            type="text"
             value={accessCode}
             onChange={(e) => setAccessCode(e.target.value)}
-            placeholder="Código"
+            placeholder="Digite o código de acesso"
             className="text-center bg-white/20 border-white/30 text-white placeholder:text-white/50"
           />
           <Button type="submit" className="w-full">Acessar</Button>
