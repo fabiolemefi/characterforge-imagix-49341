@@ -76,18 +76,50 @@ export default function ImageCampaignPublic() {
     if (file) processFile(file);
   };
 
-  const processFile = (file: File) => {
+  // Crop image to square (center crop)
+  const cropToSquare = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+        
+        // Square size = smaller dimension
+        const size = Math.min(img.width, img.height);
+        
+        // Calculate position to center the crop
+        const offsetX = (img.width - size) / 2;
+        const offsetY = (img.height - size) / 2;
+        
+        // Output canvas 1024x1024
+        canvas.width = 1024;
+        canvas.height = 1024;
+        
+        // Draw the central region of the image
+        ctx.drawImage(
+          img,
+          offsetX, offsetY,  // Source origin
+          size, size,         // Source size
+          0, 0,               // Destination origin
+          1024, 1024          // Destination size
+        );
+        
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const processFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Por favor, selecione uma imagem válida");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setUploadedImage(e.target?.result as string);
-      setGeneratedImage(null);
-    };
-    reader.readAsDataURL(file);
+    // Apply square crop automatically
+    const croppedImage = await cropToSquare(file);
+    setUploadedImage(croppedImage);
+    setGeneratedImage(null);
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
