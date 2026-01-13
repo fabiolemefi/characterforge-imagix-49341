@@ -86,11 +86,28 @@ serve(async (req) => {
         .eq("is_visible", false)
         .order("position", { ascending: true });
 
-      // Add hidden assets to input images
+      // Build campaign images array: logo, background, then hidden assets
+      const campaignImages: string[] = [];
+      
+      if (campaign.logo_url) {
+        campaignImages.push(campaign.logo_url);
+        console.log("Logo added:", campaign.logo_url);
+      }
+      
+      if (campaign.background_image_url) {
+        campaignImages.push(campaign.background_image_url);
+        console.log("Background added:", campaign.background_image_url);
+      }
+      
+      // Add hidden assets
       if (hiddenAssets && hiddenAssets.length > 0) {
-        inputImages = [uploadedImageUrl, ...hiddenAssets.map(a => a.image_url)];
+        campaignImages.push(...hiddenAssets.map(a => a.image_url));
         console.log("Hidden assets added:", hiddenAssets.length);
       }
+
+      // Final input images: [user_photo, logo, background, ...hidden_assets]
+      inputImages = [uploadedImageUrl, ...campaignImages];
+      console.log("Total input images:", inputImages.length, inputImages);
 
       // Use campaign prompt or default
       prompt = campaign.prompt || "Desenhe a pessoa da imagem em estilo artístico, preservando a pose, penteado e acessórios.";
