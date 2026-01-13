@@ -1,9 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import Cropper, { Area } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Loader2, Upload, Download, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -21,6 +31,13 @@ export default function ImageCampaignPublic() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cropper states
+  const [showCropper, setShowCropper] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   const { data: campaign, isLoading: loadingCampaign, error } = useCampaign(slug);
   const { data: assets = [] } = useCampaignAssets(campaign?.id);
@@ -76,38 +93,55 @@ export default function ImageCampaignPublic() {
     if (file) processFile(file);
   };
 
-  // Crop image to square (center crop)
-  const cropToSquare = (file: File): Promise<string> => {
+  // Read file as data URL
+  const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d")!;
-        
-        // Square size = smaller dimension
-        const size = Math.min(img.width, img.height);
-        
-        // Calculate position to center the crop
-        const offsetX = (img.width - size) / 2;
-        const offsetY = (img.height - size) / 2;
-        
-        // Output canvas 1024x1024
-        canvas.width = 1024;
-        canvas.height = 1024;
-        
-        // Draw the central region of the image
-        ctx.drawImage(
-          img,
-          offsetX, offsetY,  // Source origin
-          size, size,         // Source size
-          0, 0,               // Destination origin
-          1024, 1024          // Destination size
-        );
-        
-        resolve(canvas.toDataURL("image/png"));
-      };
-      img.src = URL.createObjectURL(file);
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.readAsDataURL(file);
     });
+  };
+
+  // Get cropped image from canvas
+  const getCroppedImg = async (imageSrc: string, pixelCrop: Area): Promise<string> => {
+    const image = new Image();
+    image.src = imageSrc;
+
+    await new Promise((resolve) => {
+      image.onload = resolve;
+    });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+
+    // Output 1024x1024
+    canvas.width = 1024;
+    canvas.height = 1024;
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      1024,
+      1024
+    );
+
+    return canvas.toDataURL("image/png");
+  };
+
+  // Handle crop completion
+  const handleCropComplete = async () => {
+    if (!imageToCrop || !croppedAreaPixels) return;
+
+    const croppedImage = await getCroppedImg(imageToCrop, croppedAreaPixels);
+    setUploadedImage(croppedImage);
+    setGeneratedImage(null);
+    setShowCropper(false);
+    setImageToCrop(null);
   };
 
   const processFile = async (file: File) => {
@@ -116,10 +150,28 @@ export default function ImageCampaignPublic() {
       return;
     }
 
-    // Apply square crop automatically
-    const croppedImage = await cropToSquare(file);
-    setUploadedImage(croppedImage);
-    setGeneratedImage(null);
+    // Read image as data URL
+    const imageUrl = await readFileAsDataURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      // Check if image is square (1% tolerance)
+      const isSquare = Math.abs(img.width - img.height) / Math.max(img.width, img.height) < 0.01;
+
+      if (isSquare) {
+        // Square image: use directly
+        setUploadedImage(imageUrl);
+        setGeneratedImage(null);
+      } else {
+        // Non-square image: open cropper
+        setImageToCrop(imageUrl);
+        setShowCropper(true);
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
+      }
+    };
+
+    img.src = imageUrl;
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -458,6 +510,56 @@ export default function ImageCampaignPublic() {
           <p className="text-xs text-white/50 text-center">{campaign.footer_text}</p>
         )}
       </div>
+
+      {/* Cropper Modal */}
+      <Dialog open={showCropper} onOpenChange={setShowCropper}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajustar imagem</DialogTitle>
+            <DialogDescription>
+              Arraste e ajuste o zoom para selecionar a área da foto
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative w-full h-80 bg-black rounded-lg overflow-hidden">
+            {imageToCrop && (
+              <Cropper
+                image={imageToCrop}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, croppedAreaPixels) =>
+                  setCroppedAreaPixels(croppedAreaPixels)
+                }
+              />
+            )}
+          </div>
+
+          {/* Zoom slider */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Zoom</span>
+            <Slider
+              value={[zoom]}
+              min={1}
+              max={3}
+              step={0.1}
+              onValueChange={(value) => setZoom(value[0])}
+              className="flex-1"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCropper(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCropComplete}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
