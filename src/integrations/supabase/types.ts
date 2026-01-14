@@ -698,6 +698,57 @@ export type Database = {
           },
         ]
       }
+      efi_code_blocks: {
+        Row: {
+          category: string
+          component_type: string
+          created_at: string
+          created_by: string | null
+          default_props: Json | null
+          description: string | null
+          icon_name: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          thumbnail_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category?: string
+          component_type: string
+          created_at?: string
+          created_by?: string | null
+          default_props?: Json | null
+          description?: string | null
+          icon_name?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          component_type?: string
+          created_at?: string
+          created_by?: string | null
+          default_props?: Json | null
+          description?: string | null
+          icon_name?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       efi_code_sites: {
         Row: {
           content: Json | null
