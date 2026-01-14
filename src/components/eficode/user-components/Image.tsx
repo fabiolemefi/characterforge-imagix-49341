@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNode } from '@craftjs/core';
+import { supabase } from '@/integrations/supabase/client';
+import { Upload, Loader2 } from 'lucide-react';
 
 interface ImageProps {
   src?: string;
@@ -49,9 +51,63 @@ export const ImageSettings = () => {
   const { actions: { setProp }, props } = useNode((node) => ({
     props: node.data.props,
   }));
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('efi-code-assets')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('efi-code-assets')
+        .getPublicUrl(fileName);
+
+      setProp((props: ImageProps) => props.src = urlData.publicUrl);
+    } catch (error) {
+      console.error('Erro no upload:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
+      <div>
+        <label className="text-sm font-medium mb-2 block">Upload de Imagem</label>
+        <label className="flex items-center justify-center gap-2 w-full border-2 border-dashed rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          ) : (
+            <Upload className="h-5 w-5 text-muted-foreground" />
+          )}
+          <span className="text-sm text-muted-foreground">
+            {uploading ? 'Enviando...' : 'Clique para enviar'}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleUpload}
+            className="hidden"
+            disabled={uploading}
+          />
+        </label>
+      </div>
+      <div className="relative">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-muted-foreground/20" />
+        <span className="relative bg-background px-2 text-xs text-muted-foreground flex justify-center">
+          ou
+        </span>
+      </div>
       <div>
         <label className="text-sm font-medium">URL da Imagem</label>
         <input

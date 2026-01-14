@@ -21,7 +21,7 @@ const fontSizes: Record<string, number> = {
 export const Heading = ({
   text = 'Título',
   level = 'h2',
-  color = '#000000',
+  color = '#1d1d1d',
   textAlign = 'left',
 }: HeadingProps) => {
   const { connectors: { connect, drag }, actions: { setProp }, isActive } = useNode((node) => ({
@@ -80,7 +80,7 @@ export const HeadingSettings = () => {
         <label className="text-sm font-medium">Cor do Texto</label>
         <input
           type="color"
-          value={props.color || '#000000'}
+          value={props.color || '#1d1d1d'}
           onChange={(e) => setProp((props: HeadingProps) => props.color = e.target.value)}
           className="w-full h-10 rounded border cursor-pointer"
         />
@@ -106,7 +106,7 @@ Heading.craft = {
   props: {
     text: 'Título',
     level: 'h2',
-    color: '#000000',
+    color: '#1d1d1d',
     textAlign: 'left',
   },
   related: {
