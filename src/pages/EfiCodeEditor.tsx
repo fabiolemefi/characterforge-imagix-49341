@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { useEfiCodeSite, useEfiCodeSites } from '@/hooks/useEfiCodeSites';
+import { useEfiCodeSite, useEfiCodeSites, PageSettings, defaultPageSettings } from '@/hooks/useEfiCodeSites';
 import { Toolbox } from '@/components/eficode/editor/Toolbox';
 import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
 import { 
@@ -78,6 +78,80 @@ ${allChildrenHtml}
   }
 };
 
+// Função para gerar o HTML completo com configurações da página
+const generateFullHtml = (
+  nodes: Record<string, any>, 
+  siteName: string, 
+  pageSettings: PageSettings
+): string => {
+  const bodyContent = generateHtmlFromNodes(nodes, 'ROOT');
+  
+  // Google Analytics script
+  const gaScript = pageSettings.googleAnalyticsId ? `
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=${pageSettings.googleAnalyticsId}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${pageSettings.googleAnalyticsId}');
+  </script>` : '';
+
+  // Facebook Pixel script
+  const fbScript = pageSettings.facebookPixelId ? `
+  <!-- Facebook Pixel -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '${pageSettings.facebookPixelId}');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${pageSettings.facebookPixelId}&ev=PageView&noscript=1"/></noscript>` : '';
+
+  const title = pageSettings.title || siteName;
+  const faviconLink = pageSettings.favicon ? `<link rel="icon" href="${pageSettings.favicon}">` : '';
+  const metaDescription = pageSettings.description ? `<meta name="description" content="${pageSettings.description}">` : '';
+  const metaKeywords = pageSettings.keywords ? `<meta name="keywords" content="${pageSettings.keywords}">` : '';
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  ${metaDescription}
+  ${metaKeywords}
+  ${faviconLink}
+  ${gaScript}
+  ${fbScript}
+  ${pageSettings.customHeadCode || ''}
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      background-color: ${pageSettings.backgroundColor || '#ffffff'};
+    }
+    .page-container {
+      max-width: ${pageSettings.containerMaxWidth || '1200'}px;
+      margin: 0 auto;
+    }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+${bodyContent}
+  </div>
+</body>
+</html>`;
+};
+
 export default function EfiCodeEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -85,12 +159,16 @@ export default function EfiCodeEditor() {
   const { updateSite } = useEfiCodeSites();
   const [siteName, setSiteName] = useState('');
   const [editorState, setEditorState] = useState<string | null>(null);
+  const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
 
   useEffect(() => {
     if (site) {
       setSiteName(site.name);
       if (site.content && Object.keys(site.content).length > 0) {
         setEditorState(JSON.stringify(site.content));
+      }
+      if (site.page_settings) {
+        setPageSettings(site.page_settings);
       }
     }
   }, [site]);
@@ -105,36 +183,20 @@ export default function EfiCodeEditor() {
         id,
         name: siteName,
         content: JSON.parse(serialized),
+        page_settings: pageSettings,
       });
       toast.success('Site salvo com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar:', error);
     }
-  }, [id, siteName, updateSite]);
+  }, [id, siteName, pageSettings, updateSite]);
 
   const handleExport = useCallback((query: any) => {
     const serialized = query.serialize();
     const nodes = JSON.parse(serialized);
     
-    // Gera HTML real a partir dos componentes
-    const bodyContent = generateHtmlFromNodes(nodes, 'ROOT');
-    
-    const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${siteName}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; }
-    img { max-width: 100%; }
-  </style>
-</head>
-<body>
-${bodyContent}
-</body>
-</html>`;
+    // Gera HTML completo com todas as configurações
+    const html = generateFullHtml(nodes, siteName, pageSettings);
     
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -147,7 +209,7 @@ ${bodyContent}
     URL.revokeObjectURL(url);
     
     toast.success('HTML exportado!');
-  }, [siteName]);
+  }, [siteName, pageSettings]);
 
   if (isLoading) {
     return (
@@ -213,12 +275,15 @@ ${bodyContent}
           </aside>
 
           {/* Center - Viewport */}
-          <main className="flex-1 overflow-auto bg-muted/30 p-8">
+          <main 
+            className="flex-1 overflow-auto p-8"
+            style={{ backgroundColor: pageSettings.backgroundColor }}
+          >
             <div
               className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
               style={{ 
                 minHeight: '600px',
-                maxWidth: '1200px',
+                maxWidth: `${pageSettings.containerMaxWidth}px`,
               }}
             >
               <EditorFrame editorState={editorState} />
@@ -227,7 +292,10 @@ ${bodyContent}
 
           {/* Right Sidebar - Settings */}
           <aside className="w-72 border-l bg-background overflow-hidden">
-            <SettingsPanel />
+            <SettingsPanel 
+              pageSettings={pageSettings}
+              onPageSettingsChange={setPageSettings}
+            />
           </aside>
         </div>
       </div>

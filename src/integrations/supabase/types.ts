@@ -709,6 +709,7 @@ export type Database = {
           id: string
           is_published: boolean | null
           name: string
+          page_settings: Json | null
           slug: string | null
           thumbnail_url: string | null
           updated_at: string | null
@@ -723,6 +724,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           name: string
+          page_settings?: Json | null
           slug?: string | null
           thumbnail_url?: string | null
           updated_at?: string | null
@@ -737,6 +739,7 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           name?: string
+          page_settings?: Json | null
           slug?: string | null
           thumbnail_url?: string | null
           updated_at?: string | null

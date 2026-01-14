@@ -2,6 +2,31 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Json } from '@/integrations/supabase/types';
+
+export interface PageSettings {
+  containerMaxWidth: string;
+  title: string;
+  description: string;
+  keywords: string;
+  favicon: string;
+  backgroundColor: string;
+  googleAnalyticsId: string;
+  facebookPixelId: string;
+  customHeadCode: string;
+}
+
+export const defaultPageSettings: PageSettings = {
+  containerMaxWidth: '1200',
+  title: '',
+  description: '',
+  keywords: '',
+  favicon: '',
+  backgroundColor: '#ffffff',
+  googleAnalyticsId: '',
+  facebookPixelId: '',
+  customHeadCode: '',
+};
 
 export interface EfiCodeSite {
   id: string;
@@ -16,7 +41,14 @@ export interface EfiCodeSite {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  page_settings: PageSettings | null;
 }
+
+// Helper to convert DB row to EfiCodeSite
+const toEfiCodeSite = (row: any): EfiCodeSite => ({
+  ...row,
+  page_settings: row.page_settings as PageSettings | null,
+});
 
 export const useEfiCodeSites = () => {
   const { user } = useAuth();
@@ -31,7 +63,7 @@ export const useEfiCodeSites = () => {
         .order('updated_at', { ascending: false });
       
       if (error) throw error;
-      return data as EfiCodeSite[];
+      return (data || []).map(toEfiCodeSite);
     },
     enabled: !!user,
   });
@@ -45,12 +77,13 @@ export const useEfiCodeSites = () => {
           description: site.description || null,
           created_by: user?.id,
           content: {},
+          page_settings: defaultPageSettings as unknown as Json,
         })
         .select()
         .single();
       
       if (error) throw error;
-      return data as EfiCodeSite;
+      return toEfiCodeSite(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['efi-code-sites'] });
@@ -62,16 +95,21 @@ export const useEfiCodeSites = () => {
   });
 
   const updateSite = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<EfiCodeSite> & { id: string }) => {
+    mutationFn: async ({ id, page_settings, ...updates }: Partial<EfiCodeSite> & { id: string }) => {
+      const updateData: Record<string, any> = { ...updates };
+      if (page_settings) {
+        updateData.page_settings = page_settings as unknown as Json;
+      }
+      
       const { data, error } = await supabase
         .from('efi_code_sites')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
       
       if (error) throw error;
-      return data as EfiCodeSite;
+      return toEfiCodeSite(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['efi-code-sites'] });
@@ -106,16 +144,17 @@ export const useEfiCodeSites = () => {
         .insert({
           name: `${site.name} (cópia)`,
           description: site.description,
-          content: site.content,
+          content: site.content as Json,
           html_content: site.html_content,
           css_content: site.css_content,
+          page_settings: (site.page_settings || defaultPageSettings) as unknown as Json,
           created_by: user?.id,
         })
         .select()
         .single();
       
       if (error) throw error;
-      return data as EfiCodeSite;
+      return toEfiCodeSite(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['efi-code-sites'] });
@@ -149,7 +188,7 @@ export const useEfiCodeSite = (id: string | undefined) => {
         .single();
       
       if (error) throw error;
-      return data as EfiCodeSite;
+      return toEfiCodeSite(data);
     },
     enabled: !!id,
   });
