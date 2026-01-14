@@ -16,7 +16,7 @@ interface ButtonProps {
 
 export const Button = ({
   text = 'Clique Aqui',
-  backgroundColor = '#3b82f6',
+  backgroundColor = '#00809d',
   textColor = '#ffffff',
   borderRadius = 8,
   paddingX = 24,
@@ -93,7 +93,7 @@ export const ButtonSettings = () => {
         <label className="text-sm font-medium">Cor de Fundo</label>
         <input
           type="color"
-          value={props.backgroundColor || '#3b82f6'}
+          value={props.backgroundColor || '#00809d'}
           onChange={(e) => setProp((props: ButtonProps) => props.backgroundColor = e.target.value)}
           className="w-full h-10 rounded border cursor-pointer"
         />
@@ -172,7 +172,7 @@ Button.craft = {
   displayName: 'Botão',
   props: {
     text: 'Clique Aqui',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#00809d',
     textColor: '#ffffff',
     borderRadius: 8,
     paddingX: 24,
