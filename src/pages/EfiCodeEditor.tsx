@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Editor, Frame, Element } from '@craftjs/core';
+import { Editor, Frame, Element, useEditor } from '@craftjs/core';
 import { ArrowLeft, Save, Download, Eye, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
