@@ -192,24 +192,9 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
     return 1;
   }, [selectedNodeId]);
 
-  // Handle engine stop to freeze physics
-  const handleEngineStop = useCallback(() => {
-    if (graphRef.current) {
-      graphRef.current.pauseAnimation();
-    }
-  }, []);
-
-  // Handle node drag end to re-freeze after dragging
-  const handleNodeDragEnd = useCallback(() => {
-    setTimeout(() => {
-      if (graphRef.current) {
-        graphRef.current.pauseAnimation();
-      }
-    }, 1000);
-  }, []);
-
   return (
     <ForceGraph2D
+      key={filterDepartment || 'all'}
       ref={graphRef}
       graphData={graphData}
       width={width}
@@ -231,13 +216,15 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
       linkCurvature={0.1}
       onNodeClick={handleNodeClick}
       onNodeHover={handleNodeHover}
-      onEngineStop={handleEngineStop}
-      onNodeDragEnd={handleNodeDragEnd}
+      enableNodeDrag={false}
+      enablePanInteraction={true}
+      enableZoomInteraction={true}
       backgroundColor="transparent"
-      d3AlphaDecay={0.01}
-      d3VelocityDecay={0.3}
-      warmupTicks={200}
-      cooldownTicks={200}
+      d3AlphaDecay={0.05}
+      d3VelocityDecay={0.4}
+      warmupTicks={300}
+      cooldownTicks={0}
+      cooldownTime={2000}
     />
   );
 };
