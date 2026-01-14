@@ -54,10 +54,16 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
     links: filteredLinks,
   };
 
-  // Center graph on mount
+  // Configure forces and center graph on mount
   useEffect(() => {
     const timer = setTimeout(() => {
       if (graphRef.current) {
+        // Configure forces for better spacing
+        const fg = graphRef.current as any;
+        if (fg.d3Force) {
+          fg.d3Force('charge')?.strength(-300);
+          fg.d3Force('link')?.distance(150);
+        }
         graphRef.current.zoomToFit(400, 50);
       }
     }, 500);
@@ -112,7 +118,8 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
     const baseSize = 8 + graphNode.level * 6;
     const isSelected = selectedNodeId === graphNode.id;
     const isHovered = hoveredNodeId === graphNode.id;
-    const size = isSelected || isHovered ? baseSize * 1.2 : baseSize;
+    // Keep size fixed to prevent physics recalculation on hover
+    const size = baseSize;
     
     const color = departmentColors[graphNode.department] || '#888888';
 
@@ -185,6 +192,22 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
     return 1;
   }, [selectedNodeId]);
 
+  // Handle engine stop to freeze physics
+  const handleEngineStop = useCallback(() => {
+    if (graphRef.current) {
+      graphRef.current.pauseAnimation();
+    }
+  }, []);
+
+  // Handle node drag end to re-freeze after dragging
+  const handleNodeDragEnd = useCallback(() => {
+    setTimeout(() => {
+      if (graphRef.current) {
+        graphRef.current.pauseAnimation();
+      }
+    }, 1000);
+  }, []);
+
   return (
     <ForceGraph2D
       ref={graphRef}
@@ -208,11 +231,13 @@ export const CareerGraph: React.FC<CareerGraphProps> = ({
       linkCurvature={0.1}
       onNodeClick={handleNodeClick}
       onNodeHover={handleNodeHover}
+      onEngineStop={handleEngineStop}
+      onNodeDragEnd={handleNodeDragEnd}
       backgroundColor="transparent"
-      d3AlphaDecay={0.02}
+      d3AlphaDecay={0.01}
       d3VelocityDecay={0.3}
-      warmupTicks={100}
-      cooldownTicks={100}
+      warmupTicks={200}
+      cooldownTicks={200}
     />
   );
 };
