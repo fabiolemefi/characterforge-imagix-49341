@@ -1,6 +1,8 @@
 import React from 'react';
 import { useEditor, Element } from '@craftjs/core';
 import { Container, Text, Heading, Button, Image, Divider, Spacer } from '../user-components';
+import { useEfiCodeBlocks } from '@/hooks/useEfiCodeBlocks';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   SquareDashed, 
   Type, 
@@ -9,21 +11,26 @@ import {
   ImageIcon,
   Minus,
   MoveVertical,
+  Video,
+  Columns,
+  FormInput,
+  LayoutGrid,
+  Link,
+  List,
+  Quote,
+  Table,
+  Code,
+  LucideIcon,
 } from 'lucide-react';
 
 interface ToolboxItemProps {
   icon: React.ReactNode;
   label: string;
-  onDragStart: () => void;
 }
 
-const ToolboxItem = ({ icon, label, onDragStart }: ToolboxItemProps) => {
+const ToolboxItem = ({ icon, label }: ToolboxItemProps) => {
   return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      className="flex flex-col items-center justify-center p-3 rounded-lg border bg-card hover:bg-accent cursor-grab active:cursor-grabbing transition-colors"
-    >
+    <div className="flex flex-col items-center justify-center p-3 rounded-lg border bg-card hover:bg-accent cursor-grab active:cursor-grabbing transition-colors">
       <div className="text-muted-foreground mb-1">
         {icon}
       </div>
@@ -32,46 +39,62 @@ const ToolboxItem = ({ icon, label, onDragStart }: ToolboxItemProps) => {
   );
 };
 
+const ICON_MAP: Record<string, LucideIcon> = {
+  SquareDashed,
+  Type,
+  Heading: HeadingIcon,
+  MousePointerClick,
+  ImageIcon,
+  Minus,
+  MoveVertical,
+  Video,
+  Columns,
+  FormInput,
+  LayoutGrid,
+  Link,
+  List,
+  Quote,
+  Table,
+  Code,
+};
+
+const COMPONENT_MAP: Record<string, React.ReactElement> = {
+  Container: <Element is={Container} canvas />,
+  Heading: <Heading />,
+  Text: <Text />,
+  Button: <Button />,
+  Image: <Image />,
+  Divider: <Divider />,
+  Spacer: <Spacer />,
+};
+
 export const Toolbox = () => {
   const { connectors } = useEditor();
+  const { blocks, isLoading } = useEfiCodeBlocks(true);
 
-  const components = [
-    {
-      icon: <SquareDashed className="h-5 w-5" />,
-      label: 'Container',
-      element: <Element is={Container} canvas />,
-    },
-    {
-      icon: <HeadingIcon className="h-5 w-5" />,
-      label: 'Título',
-      element: <Heading />,
-    },
-    {
-      icon: <Type className="h-5 w-5" />,
-      label: 'Texto',
-      element: <Text />,
-    },
-    {
-      icon: <MousePointerClick className="h-5 w-5" />,
-      label: 'Botão',
-      element: <Button />,
-    },
-    {
-      icon: <ImageIcon className="h-5 w-5" />,
-      label: 'Imagem',
-      element: <Image />,
-    },
-    {
-      icon: <Minus className="h-5 w-5" />,
-      label: 'Separador',
-      element: <Divider />,
-    },
-    {
-      icon: <MoveVertical className="h-5 w-5" />,
-      label: 'Espaçador',
-      element: <Spacer />,
-    },
-  ];
+  const getIcon = (iconName: string) => {
+    const IconComponent = ICON_MAP[iconName];
+    return IconComponent ? <IconComponent className="h-5 w-5" /> : <SquareDashed className="h-5 w-5" />;
+  };
+
+  const getComponent = (componentType: string) => {
+    return COMPONENT_MAP[componentType] || <Element is={Container} canvas />;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-4">
+        <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
+          Componentes
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4">
@@ -79,15 +102,14 @@ export const Toolbox = () => {
         Componentes
       </h3>
       <div className="grid grid-cols-2 gap-2">
-        {components.map((component, index) => (
+        {blocks.map((block) => (
           <div
-            key={index}
-            ref={(ref) => ref && connectors.create(ref, component.element)}
+            key={block.id}
+            ref={(ref) => ref && connectors.create(ref, getComponent(block.component_type))}
           >
             <ToolboxItem
-              icon={component.icon}
-              label={component.label}
-              onDragStart={() => {}}
+              icon={getIcon(block.icon_name)}
+              label={block.name}
             />
           </div>
         ))}

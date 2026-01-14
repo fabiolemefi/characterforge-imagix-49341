@@ -55,6 +55,7 @@ import ImageCampaignPublic from "./pages/ImageCampaignPublic";
 import AdminImageCampaigns from "./pages/AdminImageCampaigns";
 import EfiCode from "./pages/EfiCode";
 import EfiCodeEditor from "./pages/EfiCodeEditor";
+import AdminEfiCodeBlocks from "./pages/AdminEfiCodeBlocks";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -140,6 +141,7 @@ const App = () => (
             <Route path="/admin/jira" element={<ProtectedRoute><AdminJira /></ProtectedRoute>} />
             <Route path="/efi-code" element={<ProtectedRoute><AppLayout><EfiCode /></AppLayout></ProtectedRoute>} />
             <Route path="/efi-code/:id" element={<ProtectedRoute><EfiCodeEditor /></ProtectedRoute>} />
+            <Route path="/admin/efi-code-blocks" element={<ProtectedRoute><AdminEfiCodeBlocks /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

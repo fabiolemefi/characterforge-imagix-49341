@@ -481,6 +481,16 @@ export default function AdminPlugins() {
                                 <Settings className="h-4 w-4" />
                               </Button>
                             )}
+                            {plugin.name === 'Efi Code' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate('/admin/efi-code-blocks')}
+                                title="Gerenciar blocos"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
