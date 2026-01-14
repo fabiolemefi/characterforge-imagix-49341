@@ -56,6 +56,7 @@ import AdminImageCampaigns from "./pages/AdminImageCampaigns";
 import EfiCode from "./pages/EfiCode";
 import EfiCodeEditor from "./pages/EfiCodeEditor";
 import AdminEfiCodeBlocks from "./pages/AdminEfiCodeBlocks";
+import Trilhas from "./pages/Trilhas";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -124,6 +125,7 @@ const App = () => (
             <Route path="/downloads" element={<ProtectedRoute><AppLayout><Downloads /></AppLayout></ProtectedRoute>} />
             <Route path="/admin/downloads" element={<ProtectedRoute><Downloads /></ProtectedRoute>} />
             <Route path="/share/file" element={<ShareDownload />} />
+            <Route path="/trilhas" element={<Trilhas />} />
             <Route path="/tests/report" element={<TestReportPublic />} />
             <Route path="/gerar/:slug" element={<ImageCampaignPublic />} />
             <Route path="/admin/gerar-imagens" element={<ProtectedRoute><AdminImageCampaigns /></ProtectedRoute>} />
