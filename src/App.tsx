@@ -53,6 +53,8 @@ import JiraTasksList from "./pages/JiraTasksList";
 import AdminJira from "./pages/AdminJira";
 import ImageCampaignPublic from "./pages/ImageCampaignPublic";
 import AdminImageCampaigns from "./pages/AdminImageCampaigns";
+import EfiCode from "./pages/EfiCode";
+import EfiCodeEditor from "./pages/EfiCodeEditor";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AppLayout } from "./components/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -136,6 +138,8 @@ const App = () => (
             <Route path="/jira-tasks/okrs" element={<ProtectedRoute><AppLayout><JiraOkrs /></AppLayout></ProtectedRoute>} />
             <Route path="/jira-tasks/list" element={<ProtectedRoute><AppLayout><JiraTasksList /></AppLayout></ProtectedRoute>} />
             <Route path="/admin/jira" element={<ProtectedRoute><AdminJira /></ProtectedRoute>} />
+            <Route path="/efi-code" element={<ProtectedRoute><AppLayout><EfiCode /></AppLayout></ProtectedRoute>} />
+            <Route path="/efi-code/:id" element={<ProtectedRoute><EfiCodeEditor /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
