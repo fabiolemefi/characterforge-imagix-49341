@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminSidebar } from '@/components/AdminSidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -216,27 +217,29 @@ export default function AdminEfiCodeBlocks() {
   if (!isAdmin) return null;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/admin/plugins')}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">Blocos do Efi Code</h1>
-                <p className="text-muted-foreground">
-                  Gerencie os componentes disponíveis no editor
-                </p>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-background">
+        <AdminSidebar />
+        <main className="flex-1 p-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <SidebarTrigger />
+                <Button variant="ghost" size="icon" onClick={() => navigate('/admin/plugins')}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <h1 className="text-2xl font-bold">Blocos do Efi Code</h1>
+                  <p className="text-muted-foreground">
+                    Gerencie os componentes disponíveis no editor
+                  </p>
+                </div>
               </div>
+              <Button onClick={() => handleOpenDialog()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Bloco
+              </Button>
             </div>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Bloco
-            </Button>
-          </div>
 
           <div className="border rounded-lg">
             <Table>
@@ -440,7 +443,8 @@ export default function AdminEfiCodeBlocks() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }
