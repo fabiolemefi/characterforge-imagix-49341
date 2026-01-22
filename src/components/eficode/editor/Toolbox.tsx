@@ -180,7 +180,14 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
     // Se tem html_content, usar HtmlBlock com template + props dinâmicas
     if (block.html_content) {
       const dynamicProps = (block.default_props as Record<string, any>) || {};
-      return <HtmlBlock htmlTemplate={block.html_content} {...dynamicProps} />;
+      // Usar Element wrapper para registro correto no Craft.js
+      return (
+        <Element 
+          is={HtmlBlock} 
+          htmlTemplate={block.html_content} 
+          {...dynamicProps} 
+        />
+      );
     }
     
     // Caso contrário, usar componente padrão (compatibilidade)
@@ -201,7 +208,8 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
       case 'Spacer':
         return <Spacer {...defaultProps} />;
       case 'HtmlBlock':
-        return <HtmlBlock htmlTemplate="" {...defaultProps} />;
+        // Também usar Element wrapper para o case padrão
+        return <Element is={HtmlBlock} htmlTemplate="" {...defaultProps} />;
       default:
         return <Element is={Container} canvas {...defaultProps} />;
     }
