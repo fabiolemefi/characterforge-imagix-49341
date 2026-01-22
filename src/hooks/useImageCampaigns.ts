@@ -280,11 +280,28 @@ export function useDeleteAsset() {
   });
 }
 
+// Função para sanitizar nome de arquivo
+const sanitizeFileName = (name: string): string => {
+  const lastDot = name.lastIndexOf('.');
+  const baseName = lastDot > 0 ? name.substring(0, lastDot) : name;
+  const extension = lastDot > 0 ? name.substring(lastDot) : '';
+  
+  const sanitizedBase = baseName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  
+  return sanitizedBase + extension.toLowerCase();
+};
+
 // Hook para upload de imagem para storage
 export function useUploadCampaignImage() {
   return useMutation({
     mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
-      const fileName = `${folder}/${crypto.randomUUID()}-${file.name}`;
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${folder}/${crypto.randomUUID()}-${sanitizedName}`;
       
       const { data, error } = await supabase.storage
         .from("image-campaigns")
