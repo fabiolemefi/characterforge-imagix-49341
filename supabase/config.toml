@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.og-metadata]
 verify_jwt = false
+
+[functions.og-site-metadata]
+verify_jwt = false
