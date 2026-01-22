@@ -13,6 +13,7 @@ export interface EfiCodeBlock {
   thumbnail_url: string | null;
   position: number;
   is_active: boolean;
+  html_content: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,11 +23,12 @@ export interface EfiCodeBlockFormData {
   description?: string | null;
   category: string;
   icon_name: string;
-  component_type: string;
+  component_type?: string;
   default_props?: Record<string, unknown>;
   thumbnail_url?: string | null;
   position?: number;
   is_active?: boolean;
+  html_content?: string | null;
 }
 
 const toEfiCodeBlock = (row: Record<string, unknown>): EfiCodeBlock => ({
@@ -40,6 +42,7 @@ const toEfiCodeBlock = (row: Record<string, unknown>): EfiCodeBlock => ({
   thumbnail_url: row.thumbnail_url as string | null,
   position: row.position as number,
   is_active: row.is_active as boolean,
+  html_content: row.html_content as string | null,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });
@@ -76,11 +79,12 @@ export const useEfiCodeBlocks = (onlyActive = false) => {
           description: formData.description || null,
           category: formData.category,
           icon_name: formData.icon_name,
-          component_type: formData.component_type,
+          component_type: formData.component_type || 'HtmlBlock',
           default_props: (formData.default_props || {}) as Json,
           thumbnail_url: formData.thumbnail_url || null,
           position: formData.position ?? 0,
           is_active: formData.is_active ?? true,
+          html_content: formData.html_content || null,
           created_by: user?.id,
         })
         .select()
@@ -105,11 +109,12 @@ export const useEfiCodeBlocks = (onlyActive = false) => {
           description: formData.description || null,
           category: formData.category,
           icon_name: formData.icon_name,
-          component_type: formData.component_type,
+          component_type: formData.component_type || 'HtmlBlock',
           default_props: (formData.default_props || {}) as Json,
           thumbnail_url: formData.thumbnail_url || null,
           position: formData.position ?? 0,
           is_active: formData.is_active ?? true,
+          html_content: formData.html_content || null,
           updated_by: user?.id,
         })
         .eq('id', id)

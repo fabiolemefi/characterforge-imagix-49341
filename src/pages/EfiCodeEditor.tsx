@@ -26,7 +26,8 @@ import {
   Button as CraftButton, 
   Image, 
   Divider, 
-  Spacer 
+  Spacer,
+  HtmlBlock,
 } from '@/components/eficode/user-components';
 
 const resolvers = {
@@ -37,6 +38,7 @@ const resolvers = {
   Image,
   Divider,
   Spacer,
+  HtmlBlock,
 };
 
 type ViewMode = 'visual' | 'code';
