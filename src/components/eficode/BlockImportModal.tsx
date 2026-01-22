@@ -19,6 +19,7 @@ interface BlockImportData {
   category?: string;
   icon_name?: string;
   html_content: string;
+  default_props?: Record<string, any>;
 }
 
 interface BlockImportModalProps {
@@ -239,18 +240,18 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
       const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, '').trim();
       
       if (cleanHtml) {
-        let props = {};
+        let props: Record<string, any> = {};
         try {
           props = JSON.parse(json);
         } catch {}
         
-        const finalHtml = replacePlaceholders(cleanHtml, props);
-        
+        // PRESERVE template with [placeholders], save props separately
         blocks.push({
           name: detectNameFromHtml(cleanHtml, blocks.length + 1),
           category: detectCategoryFromHtml(cleanHtml),
           icon_name: detectIconFromHtml(cleanHtml),
-          html_content: finalHtml,
+          html_content: cleanHtml,  // Keep template with [placeholders]
+          default_props: props,     // Save props separately
         });
       }
     }
@@ -291,13 +292,13 @@ const parseMultipleBlocks = (content: string): BlockImportData[] => {
     const { html, props } = extractHtmlAndJson(blockContent);
     if (!html) continue;
     
-    const finalHtml = replacePlaceholders(html, props);
-    
+    // PRESERVE template with [placeholders], save props separately
     blocks.push({
       name: formatBlockName(rawName),
       category: detectCategory(rawName),
       icon_name: detectIcon(rawName),
-      html_content: finalHtml,
+      html_content: html,       // Keep template with [placeholders]
+      default_props: props,     // Save props separately
     });
   }
   

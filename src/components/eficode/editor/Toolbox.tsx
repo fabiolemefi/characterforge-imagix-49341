@@ -177,9 +177,10 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
   };
 
   const getComponent = (block: EfiCodeBlock) => {
-    // Se tem html_content, usar HtmlBlock
+    // Se tem html_content, usar HtmlBlock com template + props dinâmicas
     if (block.html_content) {
-      return <HtmlBlock html={block.html_content} />;
+      const dynamicProps = (block.default_props as Record<string, any>) || {};
+      return <HtmlBlock htmlTemplate={block.html_content} {...dynamicProps} />;
     }
     
     // Caso contrário, usar componente padrão (compatibilidade)
@@ -200,7 +201,7 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
       case 'Spacer':
         return <Spacer {...defaultProps} />;
       case 'HtmlBlock':
-        return <HtmlBlock html="" {...defaultProps} />;
+        return <HtmlBlock htmlTemplate="" {...defaultProps} />;
       default:
         return <Element is={Container} canvas {...defaultProps} />;
     }
