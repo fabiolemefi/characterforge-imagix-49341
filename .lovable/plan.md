@@ -1,45 +1,87 @@
 
 
-## Plano: Configuração de Meta Tags Global e por Campanha
+## Plano: CSS Global para Efi Code
 
 ### Objetivo
 
-Criar controle administrativo sobre as meta tags do site em dois níveis:
-1. **Global**: Meta tags da página principal (Index) - afeta links do domínio raiz
-2. **Por Campanha**: Meta tags específicas para cada campanha de geração de imagens (`/gerar/:slug`)
+Adicionar um botão "CSS Global" na página `/admin/efi-code-blocks` que permite definir estilos CSS que serão automaticamente incluídos em todos os sites criados no editor `/efi-code/[hash]` ao exportar HTML.
+
+---
+
+### Fluxo Visual
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│  Admin: /admin/efi-code-blocks                                     │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  Blocos do Efi Code                    [CSS Global] [+ Novo Bloco] │
+│  Gerencie os componentes disponíveis                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Pos │ Ícone │ Nome │ Categoria │ Componente │ Ativo │ Ações  │  │
+│  │ ... │ ...   │ ...  │ ...       │ ...        │ ...   │ ...    │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼ (Ao clicar em "CSS Global")
+┌────────────────────────────────────────────────────────────────────┐
+│  Modal: CSS Global                                                 │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  Este CSS será incluído em todos os sites do Efi Code              │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ /* Reset e estilos globais */                                │  │
+│  │ body {                                                       │  │
+│  │   font-family: 'Inter', sans-serif;                          │  │
+│  │ }                                                            │  │
+│  │                                                              │  │
+│  │ .btn-primary {                                               │  │
+│  │   background: linear-gradient(135deg, #00809d, #005f74);    │  │
+│  │   transition: all 0.3s ease;                                 │  │
+│  │ }                                                            │  │
+│  │ ...                                                          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│                              [Cancelar]  [Salvar CSS]              │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ### Estrutura do Banco de Dados
 
-#### 1. Nova Tabela: `site_settings`
-Armazena configurações globais do site (meta tags da index).
+#### Nova Tabela: `efi_code_config`
+
+Armazena configurações globais do Efi Code, incluindo o CSS global.
 
 ```sql
-CREATE TABLE public.site_settings (
+CREATE TABLE public.efi_code_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  og_title TEXT,
-  og_description TEXT,
-  og_image_url TEXT,
-  twitter_card TEXT DEFAULT 'summary_large_image',
-  favicon_url TEXT,
+  global_css TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Inserir registro único
-INSERT INTO site_settings (og_title, og_description) 
-VALUES ('Martech Efí Bank', 'Martech Efi Bank');
-```
+-- Inserir registro único inicial
+INSERT INTO public.efi_code_config (global_css) VALUES ('');
 
-#### 2. Alteração na Tabela: `image_campaigns`
-Adicionar campos para SEO específico por campanha.
+-- RLS
+ALTER TABLE public.efi_code_config ENABLE ROW LEVEL SECURITY;
 
-```sql
-ALTER TABLE public.image_campaigns
-ADD COLUMN og_title TEXT,
-ADD COLUMN og_description TEXT,
-ADD COLUMN og_image_url TEXT;
+-- Política: admins podem ler/atualizar
+CREATE POLICY "Admins can manage efi_code_config"
+  ON public.efi_code_config
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+    )
+  );
 ```
 
 ---
@@ -48,182 +90,148 @@ ADD COLUMN og_image_url TEXT;
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/AdminSiteSettings.tsx` | Página admin para configuração geral |
-| `src/hooks/useSiteSettings.ts` | Hook para gerenciar configurações do site |
+| `src/hooks/useEfiCodeConfig.ts` | Hook para gerenciar configurações globais do Efi Code |
 
 ---
 
 ### Alterações em Arquivos Existentes
 
-#### 1. `src/components/AdminSidebar.tsx`
-Adicionar novo item de menu "Configuração Geral".
+#### 1. `src/pages/AdminEfiCodeBlocks.tsx`
 
+**Adicionar:**
+- Estado para controlar o modal de CSS global (`isCssDialogOpen`)
+- Estado para o conteúdo CSS (`globalCss`)
+- Botão "CSS Global" ao lado do botão "+ Novo Bloco"
+- Modal/Dialog para editar o CSS global com Textarea de altura grande
+- Lógica para carregar e salvar o CSS usando o novo hook
+
+**Layout do header atualizado:**
 ```typescript
-{
-  title: "Configuração Geral",
-  url: "/admin/configuracao",
-  icon: Settings,  // lucide-react
-}
+<div className="flex items-center gap-2">
+  <Button variant="outline" onClick={() => setIsCssDialogOpen(true)}>
+    <Code className="h-4 w-4 mr-2" />
+    CSS Global
+  </Button>
+  <Button onClick={() => handleOpenDialog()}>
+    <Plus className="h-4 w-4 mr-2" />
+    Novo Bloco
+  </Button>
+</div>
 ```
 
-#### 2. `src/App.tsx`
-Adicionar rota para a nova página.
+#### 2. `src/pages/EfiCodeEditor.tsx`
+
+**Modificar a função `generateFullHtml`:**
+
+Adicionar o CSS global na seção `<style>` do HTML exportado:
 
 ```typescript
-<Route path="/admin/configuracao" element={<AdminSiteSettings />} />
+const generateFullHtml = (
+  nodes: Record<string, any>, 
+  siteName: string, 
+  pageSettings: PageSettings,
+  globalCss: string  // NOVO PARÂMETRO
+): string => {
+  // ... código existente ...
+  
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <!-- ... meta tags ... -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      background-color: ${pageSettings.backgroundColor || '#ffffff'};
+    }
+    .page-container {
+      max-width: ${pageSettings.containerMaxWidth || '1200'}px;
+      margin: 0 auto;
+    }
+    img { max-width: 100%; }
+    
+    /* CSS Global do Efi Code */
+    ${globalCss}
+  </style>
+</head>
+<!-- ... resto do HTML ... -->
+`;
+};
 ```
 
-#### 3. `src/hooks/useImageCampaigns.ts`
-Atualizar interfaces para incluir campos de SEO.
-
-```typescript
-export interface ImageCampaign {
-  // ... campos existentes
-  og_title: string | null;
-  og_description: string | null;
-  og_image_url: string | null;
-}
-
-export interface CreateCampaignData {
-  // ... campos existentes
-  og_title?: string;
-  og_description?: string;
-  og_image_url?: string;
-}
-```
-
-#### 4. `src/components/campaigns/CampaignFormDialog.tsx`
-Adicionar seção "SEO & Compartilhamento" no formulário.
-
-Nova seção com campos:
-- **Título para compartilhamento** (og_title)
-- **Descrição para compartilhamento** (og_description)
-- **Imagem de preview** (og_image_url) - upload de imagem
-
-#### 5. `src/pages/ImageCampaignPublic.tsx`
-Usar `react-helmet` para injetar meta tags dinâmicas.
-
-```typescript
-import { Helmet } from "react-helmet";
-
-// Dentro do componente, após carregar a campanha:
-<Helmet>
-  <title>{campaign.og_title || campaign.title}</title>
-  <meta property="og:title" content={campaign.og_title || campaign.title} />
-  <meta property="og:description" content={campaign.og_description || campaign.subtitle || ''} />
-  {campaign.og_image_url && (
-    <meta property="og:image" content={campaign.og_image_url} />
-  )}
-</Helmet>
-```
+**Adicionar:**
+- Import do novo hook `useEfiCodeConfig`
+- Buscar o CSS global ao carregar o editor
+- Passar o CSS global para `generateFullHtml` no export
 
 ---
 
-### Nova Página: Configuração Geral
-
-```
-┌────────────────────────────────────────────────────────────┐
-│  Configuração Geral                                        │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  META TAGS DO SITE (Open Graph)                            │
-│  ─────────────────────────────────                         │
-│                                                            │
-│  Título (og:title):                                        │
-│  ┌──────────────────────────────────────────┐              │
-│  │ Martech Efí Bank                         │              │
-│  └──────────────────────────────────────────┘              │
-│                                                            │
-│  Descrição (og:description):                               │
-│  ┌──────────────────────────────────────────┐              │
-│  │ Plataforma de marketing digital          │              │
-│  │ do Efí Bank                              │              │
-│  └──────────────────────────────────────────┘              │
-│                                                            │
-│  Imagem de Preview:                                        │
-│  ┌───────────────────┐                                     │
-│  │    [Imagem]       │  [Trocar Imagem]                    │
-│  │                   │                                     │
-│  └───────────────────┘                                     │
-│  Recomendado: 1200x630px                                   │
-│                                                            │
-│  Favicon:                                                  │
-│  ┌───────┐                                                 │
-│  │ [ico] │  [Trocar Favicon]                               │
-│  └───────┘                                                 │
-│                                                            │
-│                            [Salvar Configurações]          │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Seção SEO no Formulário de Campanha
-
-Adicionar ao `CampaignFormDialog.tsx`:
-
-```
-┌────────────────────────────────────────────────────────────┐
-│  SEO & COMPARTILHAMENTO                                    │
-│  ─────────────────────                                     │
-│                                                            │
-│  Título para compartilhamento:                             │
-│  ┌──────────────────────────────────────────┐              │
-│  │ Gere seu selo exclusivo!                 │              │
-│  └──────────────────────────────────────────┘              │
-│  Se vazio, usa o título da campanha                        │
-│                                                            │
-│  Descrição para compartilhamento:                          │
-│  ┌──────────────────────────────────────────┐              │
-│  │ Personalize sua foto com o selo          │              │
-│  │ da campanha Selo Estratégia              │              │
-│  └──────────────────────────────────────────┘              │
-│                                                            │
-│  Imagem de Preview:                                        │
-│  ┌───────────────────┐                                     │
-│  │    [Imagem]       │  [Upload]                           │
-│  │  1200x630px       │                                     │
-│  └───────────────────┘                                     │
-│  Imagem mostrada ao compartilhar o link                    │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Hook: `useSiteSettings.ts`
+### Hook: `useEfiCodeConfig.ts`
 
 ```typescript
-export interface SiteSettings {
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export interface EfiCodeConfig {
   id: string;
-  og_title: string | null;
-  og_description: string | null;
-  og_image_url: string | null;
-  twitter_card: string;
-  favicon_url: string | null;
+  global_css: string;
   created_at: string;
   updated_at: string;
 }
 
-export function useSiteSettings() {
-  // Query para buscar configurações
-  // Mutation para atualizar
-  // Função para upload de imagem
-}
+export const useEfiCodeConfig = () => {
+  const queryClient = useQueryClient();
+
+  const configQuery = useQuery({
+    queryKey: ['efi-code-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('efi_code_config')
+        .select('*')
+        .limit(1)
+        .single();
+      
+      if (error) throw error;
+      return data as EfiCodeConfig;
+    },
+  });
+
+  const updateConfig = useMutation({
+    mutationFn: async (updates: { global_css: string }) => {
+      const config = configQuery.data;
+      if (!config) throw new Error('Config not found');
+      
+      const { data, error } = await supabase
+        .from('efi_code_config')
+        .update({
+          global_css: updates.global_css,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', config.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as EfiCodeConfig;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['efi-code-config'] });
+      toast.success('CSS global salvo!');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao salvar CSS: ' + error.message);
+    },
+  });
+
+  return {
+    config: configQuery.data,
+    isLoading: configQuery.isLoading,
+    globalCss: configQuery.data?.global_css || '',
+    updateConfig,
+  };
+};
 ```
-
----
-
-### Limitação Importante
-
-As meta tags da `index.html` (página raiz) são estáticas e definidas em build time. Para que as configurações do admin reflitam no `index.html`, seria necessário:
-
-**Opção A (Recomendada)**: Usar `react-helmet` na página Index para sobrescrever as tags dinamicamente quando o JavaScript carrega.
-
-**Opção B**: Server-side rendering (não disponível no Lovable).
-
-A Opção A será implementada, mas crawlers que não executam JavaScript podem não ver as tags atualizadas.
 
 ---
 
@@ -231,25 +239,18 @@ A Opção A será implementada, mas crawlers que não executam JavaScript podem 
 
 | Tipo | Arquivo/Recurso | Descrição |
 |------|-----------------|-----------|
-| SQL | Migration | Criar `site_settings` + adicionar colunas em `image_campaigns` |
-| Novo | `src/pages/AdminSiteSettings.tsx` | Página de configuração geral |
-| Novo | `src/hooks/useSiteSettings.ts` | Hook para configurações do site |
-| Edição | `src/components/AdminSidebar.tsx` | Adicionar menu "Configuração Geral" |
-| Edição | `src/App.tsx` | Adicionar rota `/admin/configuracao` |
-| Edição | `src/hooks/useImageCampaigns.ts` | Adicionar campos og_* nas interfaces |
-| Edição | `src/components/campaigns/CampaignFormDialog.tsx` | Adicionar seção SEO |
-| Edição | `src/pages/ImageCampaignPublic.tsx` | Injetar meta tags via Helmet |
-| Edição | `src/pages/Index.tsx` | Injetar meta tags via Helmet |
+| SQL | Migration | Criar tabela `efi_code_config` |
+| Novo | `src/hooks/useEfiCodeConfig.ts` | Hook para gerenciar config global |
+| Edição | `src/pages/AdminEfiCodeBlocks.tsx` | Adicionar botão e modal de CSS |
+| Edição | `src/pages/EfiCodeEditor.tsx` | Injetar CSS global no export HTML |
 
 ---
 
-### Fluxo de Funcionamento
+### Comportamento Final
 
-1. Admin acessa `/admin/configuracao` e define meta tags globais
-2. Admin cria/edita campanha e define meta tags específicas (opcional)
-3. Quando usuário acessa `/gerar/selo-estrategia`:
-   - Helmet injeta as meta tags da campanha
-   - Se og_title não definido, usa título da campanha
-   - Se og_image não definido, pode usar logo ou background como fallback
-4. Quando usuário compartilha o link, a preview mostra as informações corretas
+1. Admin acessa `/admin/efi-code-blocks`
+2. Clica no botão "CSS Global"
+3. Edita o CSS em um textarea grande
+4. Salva - CSS é persistido no banco
+5. Ao exportar qualquer site no `/efi-code/[hash]`, o CSS global é automaticamente incluído
 
