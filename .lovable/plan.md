@@ -1,93 +1,127 @@
 
 
-## Plano: Corrigir Parser para Não Quebrar HTML Interno
+## Plano: Corrigir Falso Positivo na Detecção de JSON
 
-### Problema Identificado
+### Problema Real Identificado
 
-O parser atual usa `split(@container)` que **corta o HTML interno** do bloco:
+A regex `/[=]\s*["'][^"']*$/i` na linha 175 está causando **falsos positivos**. 
 
-```text
-Entrada:
-<section class="...">
-  <div class="@container">    ← @container está DENTRO do HTML!
-    ...
-  </div>
+Quando o HTML contém `[sectionBg]` (ou qualquer texto com colchetes) antes do JSON, a regex pode interpretar incorretamente que o `{` está dentro de um atributo HTML.
+
+**Exemplo do problema:**
+
+```html
+<section class="w-full py-16 [sectionBg]">
+  ...
 </section>
-{ json }
-
-O que o split faz:
-Parte 1: <section class="..."> <div class="
-Parte 2: ">...              ← HTML quebrado!
+{
+  "sectionBg": "bg-gray-800"
+}
 ```
 
-O `@container` é uma classe CSS de Container Queries, não um delimitador entre blocos!
+Os últimos 100 caracteres antes do `{` do JSON podem conter fragmentos que parecem atributos HTML incompletos, fazendo a regex retornar `true` e **pular** o JSON válido.
 
 ---
 
-### Solução: Detectar JSON como Delimitador
+### Diagnóstico com Logs
 
-Em vez de usar `@container` como separador, o parser deve:
-1. Encontrar todos os objetos JSON de nível superior
-2. Usar o texto **antes** de cada JSON como o HTML do bloco
+Para confirmar, precisamos adicionar logs temporários ou mudar a lógica de detecção.
+
+A verificação atual olha apenas os últimos 100 caracteres:
+```typescript
+const before = content.slice(Math.max(0, i - 100), i);
+const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
+```
+
+Mas isso não é suficiente para detectar corretamente se estamos dentro de uma string ou atributo.
 
 ---
 
-### Novo Algoritmo
+### Solução Proposta: Melhorar a Detecção de JSON Top-Level
+
+Em vez de usar uma heurística baseada em "olhar para trás", devemos:
+
+1. **Verificar se o `{` está no início de uma nova linha** (após whitespace/newlines)
+2. **OU** se o `{` vem logo após o fechamento de uma tag HTML (`>`)
 
 ```typescript
 const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
-  
-  // Encontrar todos os objetos JSON de nível superior no conteúdo
-  // Um JSON de nível superior começa com { no início de uma linha (ou após fechar >)
   const jsonPositions: { start: number; end: number; json: string }[] = [];
   
   let i = 0;
   while (i < content.length) {
-    // Procurar por { que não está dentro de uma string ou tag HTML
     if (content[i] === '{') {
-      // Verificar se é início de JSON (não dentro de class="..." ou style="...")
-      const before = content.slice(Math.max(0, i - 50), i);
-      const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
+      // Check if this looks like a top-level JSON object
+      const before = content.slice(Math.max(0, i - 20), i);
       
-      if (!isInsideAttribute) {
-        // Contar chaves para encontrar o fim do JSON
+      // A top-level JSON typically:
+      // 1. Is preceded by whitespace/newlines only (after HTML ends)
+      // 2. Or comes right after a closing tag >
+      // 3. Or is at the start of the content
+      const isLikelyTopLevelJson = 
+        i === 0 || 
+        /^[\s\n\r]*$/.test(before.slice(-10)) ||  // Only whitespace before
+        />\s*$/.test(before);  // Ends with > and optional whitespace
+      
+      if (isLikelyTopLevelJson) {
+        // Count braces to find the complete JSON object
         let braceCount = 0;
         let jsonEnd = i;
+        let inString = false;
+        let escapeNext = false;
         
         for (let j = i; j < content.length; j++) {
-          if (content[j] === '{') braceCount++;
-          if (content[j] === '}') braceCount--;
+          const char = content[j];
           
-          if (braceCount === 0) {
-            jsonEnd = j + 1;
-            break;
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\' && inString) {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') braceCount++;
+            if (char === '}') braceCount--;
+            
+            if (braceCount === 0) {
+              jsonEnd = j + 1;
+              break;
+            }
           }
         }
         
         const jsonStr = content.slice(i, jsonEnd);
         
-        // Validar se é JSON válido
+        // Validate if it's valid JSON
         try {
           JSON.parse(jsonStr);
           jsonPositions.push({ start: i, end: jsonEnd, json: jsonStr });
           i = jsonEnd;
           continue;
         } catch {
-          // Não é JSON válido, continuar
+          // Not valid JSON, continue
         }
       }
     }
     i++;
   }
   
-  // Agora processar: HTML antes de cada JSON
+  // Process: HTML before each JSON becomes a block
   let lastEnd = 0;
   for (const { start, end, json } of jsonPositions) {
     const html = content.slice(lastEnd, start).trim();
     
     if (html && html.includes('<')) {
-      // Limpar comentários HTML
       const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, '').trim();
       
       if (cleanHtml) {
@@ -110,7 +144,7 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
     lastEnd = end;
   }
   
-  // Verificar se sobrou HTML após o último JSON
+  // Handle remaining HTML after last JSON
   const remaining = content.slice(lastEnd).trim();
   if (remaining && remaining.includes('<')) {
     const cleanHtml = remaining.replace(/<!--[\s\S]*?-->/g, '').trim();
@@ -130,82 +164,64 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
 
 ---
 
-### Fluxo de Processamento Corrigido
+### Mudança Chave
 
-```text
-Entrada:
-┌──────────────────────────────────────────────────────────────────┐
-│ <section class="...">                                           │
-│   <div class="@container">                                       │
-│     ...                                                          │
-│   </div>                                                         │
-│ </section>                                                       │
-│ {                                                                │
-│   "sectionBg": "bg-gradient-to-b...",                           │
-│   ...                                                            │
-│ }                                                                │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ Encontrar posições de JSON
-┌──────────────────────────────────────────────────────────────────┐
-│ JSON encontrado: posição 150-400                                │
-│ → HTML é tudo de 0 até 150                                      │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ Processar
-┌──────────────────────────────────────────────────────────────────┐
-│ 1. HTML = conteúdo antes do JSON (0-150)                        │
-│ 2. Props = JSON parseado                                         │
-│ 3. Substituir [placeholders] no HTML                            │
-│ 4. Criar bloco                                                   │
-└──────────────────────────────────────────────────────────────────┘
+**Antes** (problemático):
+```typescript
+const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
+if (!isInsideAttribute && !isTemplateExpression) {
+```
+
+**Depois** (corrigido):
+```typescript
+const isLikelyTopLevelJson = 
+  i === 0 || 
+  /^[\s\n\r]*$/.test(before.slice(-10)) ||  // Only whitespace before
+  />\s*$/.test(before);  // Ends with > and optional whitespace
+
+if (isLikelyTopLevelJson) {
 ```
 
 ---
 
-### Diferencial da Verificação
+### Por que funciona
 
-A chave é esta verificação:
+O JSON do bloco sempre vem:
+- Após o fechamento do HTML (`</section>` ou similar)
+- Separado por quebras de linha/espaços
 
-```typescript
-const before = content.slice(Math.max(0, i - 50), i);
-const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
-```
-
-Isso detecta se a `{` está dentro de um atributo HTML como:
-- `class="{...}"` → Ignorar (não é JSON)
-- `style="{...}"` → Ignorar (não é JSON)
-- `{...}` sozinho após `>` ou após fechar tag → É JSON!
+A nova lógica detecta isso verificando se os últimos 10 caracteres antes do `{` são apenas whitespace, ou se termina com `>`.
 
 ---
 
 ### Arquivo a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/eficode/BlockImportModal.tsx` | Reescrever `parseHtmlWithTrailingJson` para usar detecção de JSON em vez de split por `@container` |
+| Arquivo | Linhas | Alteração |
+|---------|--------|-----------|
+| `src/components/eficode/BlockImportModal.tsx` | 166-227 | Substituir lógica de detecção de JSON |
 
 ---
 
-### Testes que Devem Passar
+### Teste Esperado
 
-| Caso | Entrada | Resultado |
-|------|---------|-----------|
-| 1 bloco com @container interno | Seu exemplo atual | 1 bloco detectado |
-| 2 blocos separados | `<section>...</section>{json}<div>...</div>{json}` | 2 blocos |
-| HTML com chaves em class | `class="grid-{cols}"` | Não confunde com JSON |
-| JSON com HTML interno | `{ "content": "<p>...</p>" }` | JSON parseado corretamente |
+Após essa correção, seu bloco:
 
----
+```html
+<section class="w-full py-16 lg:py-24 px-6 lg:px-[4.688rem] [sectionBg]">
+  <div class="@container">
+    ...
+  </div>
+</section>
+{
+  "sectionBg": "bg-gradient-to-b from-gray-800 to-gray-900",
+  ...
+}
+```
 
-### Resultado Esperado
-
-Após essa correção:
+Deve resultar em:
 
 ```text
 📦 Detectados: 1 bloco
    • Bloco 1 (layout)
 ```
-
-O HTML completo (incluindo `<div class="@container">`) será preservado e os placeholders `[sectionBg]`, `[mainTitle]`, etc. serão substituídos pelos valores do JSON.
 
