@@ -1,255 +1,268 @@
 
 
-## Plano: Campo HTML para Blocos Efi Code + Importação
+## Plano: Adaptar Parser de Importação para Formato HTML + JSON
 
 ### Objetivo
 
-Adicionar suporte a **blocos com HTML personalizado** no Efi Code:
-1. Novo campo `html_content` na tabela de blocos
-2. Editor de código com tema escuro (estilo HTML) no formulário de criação/edição
-3. Botão de "Importar" ao lado do "Novo Bloco" para importar blocos via JSON/código
-4. Novo componente `HtmlBlock` que renderiza HTML customizado no editor
-
----
-
-### 1. Estrutura do Banco de Dados
-
-Adicionar nova coluna à tabela `efi_code_blocks`:
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `html_content` | text | Código HTML personalizado do bloco (opcional) |
-
-Quando `html_content` está preenchido, o bloco usará o novo componente `HtmlBlock` ao invés dos componentes padrão (Container, Heading, etc).
-
----
-
-### 2. Interface do Formulário de Bloco
-
-Transformar o botão "Novo Bloco" em um dropdown com duas opções:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Blocos do Efi Code                                                     │
-│                                                                         │
-│  [CSS Global] [Biblioteca] [+ Novo Bloco ▾]                            │
-│                                    ├─────────────────┤                  │
-│                                    │ ✨ Criar Bloco  │                  │
-│                                    │ 📥 Importar     │                  │
-│                                    └─────────────────┘                  │
-└─────────────────────────────────────────────────────────────────────────┘
+Adaptar o parser do `BlockImportModal` para reconhecer o formato:
+```
+<!-- BLOCO X: NOME DO BLOCO -->
+<section>...HTML com [placeholders]...</section>
+{ "prop": "valor" }
 ```
 
-### 3. Formulário de Criação/Edição (atualizado)
+---
+
+### 1. Estrutura do Formato Esperado
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Novo Bloco                                                       [X]   │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  Nome: [________________]     Categoria: [Layout ▾]    Posição: [0]     │
-│                                                                          │
-│  Descrição: [________________________________________________]           │
-│                                                                          │
-│  Ícone: [SquareDashed ▾]                                                │
-│                                                                          │
-│  ═══════════════════════════════════════════════════════════════════════ │
-│                                                                          │
-│  Código HTML                                                             │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ <div class="hero-section">                                       │   │
-│  │   <h1>Título Principal</h1>                                      │   │
-│  │   <p>Subtítulo descritivo</p>                                    │   │
-│  │   <a href="#" class="btn">Saiba mais</a>                         │   │
-│  │ </div>                                                           │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│         ↑ Fundo escuro (#1e1e1e), syntax highlight HTML                 │
-│                                                                          │
-│  ☐ Bloco ativo                                                          │
-│                                                                          │
-│                                              [Cancelar] [Criar Bloco]   │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+<!-- ===== BLOCO 1: HERO SECTION ===== -->
+<section class="[sectionClass]">
+  <h1>[title]</h1>
+  <p>[description]</p>
+</section>
+{
+  "sectionClass": "bg-white",
+  "title": "Título Principal",
+  "description": "Descrição aqui"
+}
 
-**Mudanças principais:**
-- Campo `component_type` removido (não é mais necessário para blocos HTML)
-- Campo `default_props` removido (as props agora estão dentro do HTML)
-- Novo campo `html_content` com editor de código estilizado
+<!-- ===== BLOCO 2: FEATURE GRID ===== -->
+<section>...</section>
+{ "prop": "valor" }
+```
 
 ---
 
-### 4. Modal de Importação
+### 2. Lógica de Parsing Atualizada
 
-Ao clicar em "Importar", abre um modal para colar JSON ou código:
+```typescript
+const parseContent = (raw: string): BlockImportData[] => {
+  const trimmed = raw.trim();
+  
+  // 1. Tentar JSON puro primeiro (mantém compatibilidade)
+  try {
+    const parsed = JSON.parse(trimmed);
+    // ... lógica atual para JSON
+  } catch {}
+  
+  // 2. Novo: Detectar formato HTML + JSON com comentários
+  const blockPattern = /<!--\s*=*\s*BLOCO\s+\d+:\s*(.+?)\s*=*\s*-->/gi;
+  const hasBlockComments = blockPattern.test(trimmed);
+  
+  if (hasBlockComments) {
+    return parseMultipleBlocks(trimmed);
+  }
+  
+  // 3. HTML puro sem JSON (mantém compatibilidade)
+  if (trimmed.startsWith('<')) {
+    return [{ name: 'Bloco HTML Importado', html_content: trimmed, ... }];
+  }
+  
+  // 4. Tentar HTML + JSON único (sem comentário)
+  return parseSingleHtmlWithJson(trimmed);
+};
+```
+
+---
+
+### 3. Função: parseMultipleBlocks
+
+Divide o conteúdo em blocos individuais baseado nos comentários:
+
+```typescript
+const parseMultipleBlocks = (content: string): BlockImportData[] => {
+  const blocks: BlockImportData[] = [];
+  
+  // Regex para encontrar cada bloco
+  const blockRegex = /<!--\s*=*\s*BLOCO\s+\d+:\s*(.+?)\s*=*\s*-->([\s\S]*?)(?=<!--\s*=*\s*BLOCO|$)/gi;
+  
+  let match;
+  while ((match = blockRegex.exec(content)) !== null) {
+    const blockName = match[1].trim(); // "HERO SECTION"
+    const blockContent = match[2].trim();
+    
+    // Separar HTML e JSON
+    const { html, props } = extractHtmlAndJson(blockContent);
+    
+    // Substituir placeholders [key] pelos valores do JSON
+    const finalHtml = replacePlaceholders(html, props);
+    
+    blocks.push({
+      name: formatBlockName(blockName), // "Hero Section"
+      category: detectCategory(blockName),
+      icon_name: detectIcon(blockName),
+      html_content: finalHtml,
+    });
+  }
+  
+  return blocks;
+};
+```
+
+---
+
+### 4. Função: extractHtmlAndJson
+
+Separa o HTML do JSON no conteúdo de cada bloco:
+
+```typescript
+const extractHtmlAndJson = (content: string): { html: string; props: Record<string, any> } => {
+  // Encontrar o último JSON no conteúdo
+  // O JSON geralmente vem após o HTML, começando com {
+  
+  const jsonMatch = content.match(/\{[\s\S]*\}$/);
+  
+  if (jsonMatch) {
+    const jsonStr = jsonMatch[0];
+    const html = content.slice(0, content.lastIndexOf(jsonStr)).trim();
+    
+    try {
+      const props = JSON.parse(jsonStr);
+      return { html, props };
+    } catch {
+      // JSON inválido, retorna HTML completo
+      return { html: content, props: {} };
+    }
+  }
+  
+  return { html: content, props: {} };
+};
+```
+
+---
+
+### 5. Função: replacePlaceholders
+
+Substitui `[key]` pelos valores do JSON:
+
+```typescript
+const replacePlaceholders = (html: string, props: Record<string, any>): string => {
+  let result = html;
+  
+  for (const [key, value] of Object.entries(props)) {
+    // Substituir [key] pelo valor
+    const placeholder = new RegExp(`\\[${key}\\]`, 'g');
+    result = result.replace(placeholder, String(value || ''));
+  }
+  
+  // Limpar placeholders não substituídos (opcional)
+  // result = result.replace(/\[[a-zA-Z_]+\]/g, '');
+  
+  return result;
+};
+```
+
+---
+
+### 6. Funções Auxiliares
+
+```typescript
+// Formatar nome do bloco: "HERO SECTION" → "Hero Section"
+const formatBlockName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/[()]/g, '')
+    .trim();
+};
+
+// Detectar categoria baseado no nome
+const detectCategory = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('hero') || lower.includes('header')) return 'layout';
+  if (lower.includes('text') || lower.includes('title')) return 'text';
+  if (lower.includes('image') || lower.includes('gallery')) return 'media';
+  if (lower.includes('button') || lower.includes('form')) return 'interactive';
+  return 'layout';
+};
+
+// Detectar ícone baseado no nome
+const detectIcon = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('hero')) return 'LayoutTemplate';
+  if (lower.includes('text')) return 'Type';
+  if (lower.includes('image')) return 'Image';
+  if (lower.includes('button')) return 'MousePointer';
+  if (lower.includes('grid')) return 'Grid3x3';
+  if (lower.includes('section')) return 'Layers';
+  return 'Code';
+};
+```
+
+---
+
+### 7. Prévia da Importação
+
+Adicionar contagem de blocos detectados antes de importar:
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
 │  Importar Bloco                                          [X]  │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                │
-│  Cole o JSON ou HTML do bloco:                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ {                                                        │  │
-│  │   "name": "Hero Section",                                │  │
-│  │   "category": "layout",                                  │  │
-│  │   "icon_name": "LayoutGrid",                             │  │
-│  │   "html_content": "<div class='hero'>...</div>"          │  │
-│  │ }                                                        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│         ↑ Fundo escuro, syntax highlight JSON/HTML             │
+│  [Textarea com código colado...]                              │
 │                                                                │
-│  ☐ Substituir se já existir (mesmo nome)                      │
+│  ─────────────────────────────────────────────────────────────  │
+│  📦 Detectados: 2 blocos                                       │
+│     • Hero Section (layout)                                    │
+│     • Content Split (layout)                                   │
 │                                                                │
-│                              [Cancelar] [Importar]             │
+│                              [Cancelar] [Importar 2 blocos]   │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-**Formatos aceitos:**
-1. **JSON completo**: Objeto com todas as propriedades do bloco
-2. **HTML puro**: Apenas o código HTML (nome será solicitado em seguida)
-3. **JSON com múltiplos blocos**: Array de objetos para importação em lote
-
 ---
 
-### 5. Novo Componente: HtmlBlock
-
-Criar componente Craft.js que renderiza HTML personalizado:
-
-```typescript
-// src/components/eficode/user-components/HtmlBlock.tsx
-
-interface HtmlBlockProps {
-  html: string;
-  className?: string;
-}
-
-export const HtmlBlock = ({ html, className }: HtmlBlockProps) => {
-  // Renderiza HTML customizado de forma segura
-  // Editável via contentEditable no editor
-};
-
-HtmlBlock.craft = {
-  displayName: 'Bloco HTML',
-  props: { html: '', className: '' },
-  related: { settings: HtmlBlockSettings },
-};
-```
-
-**Características:**
-- Renderiza HTML usando `dangerouslySetInnerHTML` (conteúdo controlado pelo admin)
-- Editável inline no canvas (contentEditable)
-- Painel de configurações permite editar o HTML diretamente
-
----
-
-### 6. Atualização do Toolbox
-
-Modificar a função `getComponent` para suportar blocos HTML:
-
-```typescript
-const getComponent = (block: EfiCodeBlock) => {
-  // Se tem html_content, usar HtmlBlock
-  if (block.html_content) {
-    return <HtmlBlock html={block.html_content} />;
-  }
-  
-  // Caso contrário, usar componente padrão (compatibilidade)
-  switch (block.component_type) {
-    case 'Container':
-      return <Element is={Container} canvas {...block.default_props} />;
-    // ... outros casos
-  }
-};
-```
-
----
-
-### 7. Estilo do Editor de Código
-
-Criar estilo CSS para o campo de código com tema escuro:
-
-```css
-.code-editor {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-family: 'Fira Code', 'Monaco', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  padding: 12px;
-  border-radius: 6px;
-  min-height: 200px;
-}
-
-/* Destaque de sintaxe básico via textarea */
-.code-editor::placeholder {
-  color: #666;
-}
-```
-
-**Nota técnica:** Para syntax highlight completo, seria necessário uma biblioteca como CodeMirror ou Monaco Editor. A implementação inicial usará um Textarea estilizado que já fornece a experiência visual desejada (fundo escuro, fonte monospace).
-
----
-
-### 8. Arquivos a Criar/Modificar
+### 8. Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/migrations/xxx.sql` | Adicionar coluna `html_content` |
-| `src/hooks/useEfiCodeBlocks.ts` | Incluir campo `html_content` no tipo e operações |
-| `src/pages/AdminEfiCodeBlocks.tsx` | Refatorar formulário com dropdown e campo HTML |
-| `src/components/eficode/user-components/HtmlBlock.tsx` | **Novo** - Componente para renderizar HTML |
-| `src/components/eficode/user-components/index.ts` | Exportar HtmlBlock |
-| `src/components/eficode/editor/Toolbox.tsx` | Atualizar `getComponent` para suportar HtmlBlock |
-| `src/components/eficode/BlockImportModal.tsx` | **Novo** - Modal de importação |
+| `src/components/eficode/BlockImportModal.tsx` | Atualizar `parseContent` com nova lógica |
 
 ---
 
-### 9. Fluxo de Uso
+### 9. Fluxo de Importação Atualizado
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│  1. Admin acessa /admin/efi-code-blocks                                │
-└──────────────────────────────┬─────────────────────────────────────────┘
-                               │
-              ┌────────────────┴────────────────┐
-              │                                 │
-              ▼                                 ▼
-┌─────────────────────────┐     ┌─────────────────────────────────────┐
-│  Clica em "Criar Bloco" │     │  Clica em "Importar"                │
-└───────────┬─────────────┘     └──────────────┬──────────────────────┘
-            │                                  │
-            ▼                                  ▼
-┌─────────────────────────┐     ┌─────────────────────────────────────┐
-│  Preenche formulário:   │     │  Cola JSON/HTML do bloco            │
-│  - Nome                 │     │  - Valida estrutura                 │
-│  - HTML (editor escuro) │     │  - Preenche campos automaticamente  │
-│  - Categoria            │     └──────────────┬──────────────────────┘
-│  - Ícone                │                    │
-└───────────┬─────────────┘                    │
-            │                                  │
-            └────────────────┬─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Usuário cola conteúdo com múltiplos blocos                 │
+└────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  2. Bloco salvo no banco com html_content                              │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  3. Usuário abre editor /efi-code/:id                                  │
-│     - Toolbox carrega blocos do banco                                  │
-│     - Blocos com html_content usam HtmlBlock                           │
-│     - Arrasta bloco para canvas → HTML renderizado                     │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  2. Parser detecta padrão de comentários                        │
+│     <!-- BLOCO X: NOME -->                                      │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. Para cada bloco:                                            │
+│     a. Extrai nome do comentário                               │
+│     b. Separa HTML do JSON                                     │
+│     c. Substitui [placeholders] pelos valores                   │
+│     d. Detecta categoria e ícone pelo nome                     │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. Exibe prévia dos blocos detectados                         │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  5. Usuário confirma → Salva todos os blocos no banco          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ### 10. Resultado Final
 
-1. **Campo HTML** no formulário de criação/edição de blocos com tema escuro
-2. **Dropdown** no botão "Novo Bloco" com opções Criar e Importar
-3. **Modal de Importação** para colar JSON ou HTML de blocos
-4. **Componente HtmlBlock** que renderiza HTML customizado no canvas
-5. **Retrocompatibilidade** com blocos existentes que usam component_type
+1. **Parser inteligente** que detecta o formato HTML + JSON com comentários
+2. **Extração automática** do nome do bloco do comentário
+3. **Substituição de placeholders** `[key]` pelos valores do JSON
+4. **Detecção automática** de categoria e ícone baseado no nome
+5. **Prévia visual** dos blocos antes de importar
+6. **Retrocompatibilidade** com JSON puro e HTML simples
 
