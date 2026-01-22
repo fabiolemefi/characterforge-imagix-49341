@@ -42,6 +42,26 @@ export default function ImageCampaignPublic() {
   const { data: campaign, isLoading: loadingCampaign, error } = useCampaign(slug);
   const { data: assets = [] } = useCampaignAssets(campaign?.id);
 
+  // Timeout detection for loading state
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  useEffect(() => {
+    if (loadingCampaign) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 10000); // 10 seconds
+      
+      return () => clearTimeout(timer);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [loadingCampaign]);
+
+  const handleRetry = () => {
+    localStorage.removeItem('sb-dbxaamdirxjrbolsegwz-auth-token');
+    window.location.reload();
+  };
+
   const visibleAssets = assets.filter((a) => a.is_visible);
 
   // Auto-authenticate if no access code required
@@ -306,8 +326,18 @@ export default function ImageCampaignPublic() {
   // Loading state
   if (loadingCampaign) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {loadingTimeout && (
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              O carregamento está demorando mais que o esperado
+            </p>
+            <Button variant="outline" size="sm" onClick={handleRetry}>
+              Tentar novamente
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
