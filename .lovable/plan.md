@@ -1,98 +1,223 @@
 
 
-## Plano: Corrigir Erro de Hoisting - parseContent
+# Plano: Preservar Props Dinâmicas em Blocos HTML
 
-### Problema Identificado
+## Diagnóstico
 
-```typescript
-// Linha 313 - useMemo é definido PRIMEIRO
-const detectedBlocks = useMemo(() => {
-  return parseContent(content);  // ❌ parseContent ainda não existe!
-}, [content]);
+O sistema atual "achata" as props na hora da importação, substituindo placeholders `[key]` diretamente no HTML. Isso causa dois problemas:
 
-// Linha 324 - parseContent é definida DEPOIS
-const parseContent = (raw: string) => { ... };
-```
+1. **Na importação**: `replacePlaceholders()` substitui `[sectionBg]` → `"bg-gray-800"` no HTML
+2. **No Toolbox**: `getComponent()` ignora `default_props` ao criar HtmlBlocks
 
-Em JavaScript, `const` não sofre hoisting como `function`. Quando o componente renderiza, o `useMemo` tenta acessar `parseContent` antes dela ser inicializada.
+Resultado: o bloco funciona visualmente, mas não é configurável no painel de Settings.
 
 ---
 
-### Solução: Mover parseContent para ANTES do useMemo
+## Solução Proposta
 
-A correção é simples: mover a definição de `parseContent` para **antes** do `useMemo` que a utiliza.
+### Opção A: Preservar template + props separados (Recomendado)
 
----
-
-### Alteração no Arquivo
+Manter o HTML com placeholders como "template" e salvar as props separadamente para edição posterior.
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/BlockImportModal.tsx` | Mover `parseContent` (linhas 324-405) para antes do `useMemo` (linha 313) |
+| `BlockImportModal.tsx` | Salvar `html_content` COM placeholders, salvar props em `default_props` |
+| `Toolbox.tsx` | Passar `default_props` para o HtmlBlock |
+| `HtmlBlock.tsx` | Aceitar props dinâmicas e substituir placeholders em runtime |
+| `HtmlBlockSettings.tsx` | Gerar campos de edição baseados nas props |
 
 ---
 
-### Código Corrigido
+### Fluxo Corrigido
+
+```text
+1. IMPORTAÇÃO
+   Input: HTML + JSON
+   ┌─────────────────────────────────────────┐
+   │ <section class="[sectionBg]">...</section>
+   │ { "sectionBg": "bg-gray-800" }
+   └─────────────────────────────────────────┘
+   
+   Salvar no banco:
+   - html_content: <section class="[sectionBg]">...</section>  (com placeholders)
+   - default_props: { "sectionBg": "bg-gray-800" }
+
+2. TOOLBOX
+   Ao arrastar, criar com props:
+   <HtmlBlock 
+     html={block.html_content} 
+     dynamicProps={block.default_props}
+   />
+
+3. RENDERIZAÇÃO (HtmlBlock)
+   Substituir placeholders em runtime:
+   html.replace(/\[sectionBg\]/g, props.sectionBg)
+
+4. SETTINGS
+   Gerar inputs dinamicamente baseado nas props
+```
+
+---
+
+## Arquivos a Modificar
+
+### 1. `src/components/eficode/BlockImportModal.tsx`
+
+**Alteração**: NÃO substituir placeholders na importação
 
 ```typescript
-export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportModalProps) => {
-  const [content, setContent] = useState('');
-  const [replaceExisting, setReplaceExisting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
+// ANTES (linha 294)
+const finalHtml = replacePlaceholders(html, props);
+blocks.push({
+  html_content: finalHtml,  // Props já substituídas
+});
 
-  // ✅ PRIMEIRO: Definir parseContent
-  const parseContent = (raw: string): BlockImportData[] => {
-    const trimmed = raw.trim();
-    
-    console.log('[BlockImport] === Starting parse ===');
-    // ... resto da função
-  };
+// DEPOIS
+blocks.push({
+  html_content: html,        // Manter template com [placeholders]
+  default_props: props,      // Salvar props separadamente
+});
+```
 
-  // ✅ DEPOIS: Usar no useMemo
-  const detectedBlocks = useMemo((): BlockImportData[] | null => {
-    if (!content.trim()) return null;
-    
-    try {
-      return parseContent(content);
-    } catch (error) {
-      console.error('[BlockImport] Parse error:', error);
-      return null;
+### 2. `src/components/eficode/editor/Toolbox.tsx`
+
+**Alteração**: Passar props para HtmlBlock
+
+```typescript
+// ANTES (linha 181-182)
+if (block.html_content) {
+  return <HtmlBlock html={block.html_content} />;
+}
+
+// DEPOIS
+if (block.html_content) {
+  return <HtmlBlock 
+    htmlTemplate={block.html_content} 
+    {...(block.default_props || {})} 
+  />;
+}
+```
+
+### 3. `src/components/eficode/user-components/HtmlBlock.tsx`
+
+**Alteração**: Aceitar props dinâmicas e substituir em runtime
+
+```typescript
+interface HtmlBlockProps {
+  htmlTemplate: string;      // Template com [placeholders]
+  className?: string;
+  [key: string]: any;        // Props dinâmicas
+}
+
+export const HtmlBlock = ({ htmlTemplate, className = '', ...dynamicProps }: HtmlBlockProps) => {
+  // Substituir placeholders em runtime
+  const renderedHtml = useMemo(() => {
+    let result = htmlTemplate;
+    for (const [key, value] of Object.entries(dynamicProps)) {
+      if (key !== 'className') {
+        result = result.replace(new RegExp(`\\[${key}\\]`, 'g'), String(value ?? ''));
+      }
     }
-  }, [content]);
+    return result;
+  }, [htmlTemplate, dynamicProps]);
 
-  // ... resto do componente
+  return (
+    <div
+      ref={...}
+      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+    />
+  );
+};
+
+HtmlBlock.craft = {
+  displayName: 'Bloco HTML',
+  props: {
+    htmlTemplate: '<div>Seu HTML</div>',
+    className: '',
+  },
+  related: {
+    settings: HtmlBlockSettings,
+  },
+};
+```
+
+### 4. `src/components/eficode/user-components/HtmlBlock.tsx` (Settings)
+
+**Alteração**: Gerar campos dinamicamente
+
+```typescript
+export const HtmlBlockSettings = () => {
+  const { actions: { setProp }, ...nodeProps } = useNode((node) => ({
+    ...node.data.props,
+  }));
+
+  // Extrair placeholders do template
+  const placeholders = useMemo(() => {
+    const matches = nodeProps.htmlTemplate?.match(/\[([^\]]+)\]/g) || [];
+    return [...new Set(matches.map(m => m.slice(1, -1)))];
+  }, [nodeProps.htmlTemplate]);
+
+  return (
+    <div className="space-y-4">
+      {/* Campo para editar o template */}
+      <div className="space-y-2">
+        <Label>Código HTML</Label>
+        <Textarea
+          value={nodeProps.htmlTemplate}
+          onChange={(e) => setProp((props: any) => props.htmlTemplate = e.target.value)}
+        />
+      </div>
+
+      {/* Campos dinâmicos para cada placeholder */}
+      {placeholders.map((key) => (
+        <div key={key} className="space-y-2">
+          <Label>{key}</Label>
+          <Input
+            value={nodeProps[key] || ''}
+            onChange={(e) => setProp((props: any) => props[key] = e.target.value)}
+          />
+        </div>
+      ))}
+
+      {/* Campo de classes */}
+      <div className="space-y-2">
+        <Label>Classes CSS</Label>
+        <Input
+          value={nodeProps.className}
+          onChange={(e) => setProp((props: any) => props.className = e.target.value)}
+        />
+      </div>
+    </div>
+  );
 };
 ```
 
 ---
 
-### Alternativa: Usar useCallback
+## Migração de Dados Existentes
 
-Outra opção seria envolver `parseContent` em `useCallback` para garantir estabilidade:
+Blocos já salvos no banco têm HTML com placeholders já substituídos. Para preservar compatibilidade:
 
 ```typescript
-const parseContent = useCallback((raw: string): BlockImportData[] => {
-  // ... implementação
-}, []);
-
-const detectedBlocks = useMemo(() => {
-  if (!content.trim()) return null;
-  try {
-    return parseContent(content);
-  } catch (error) {
-    console.error('[BlockImport] Parse error:', error);
-    return null;
-  }
-}, [content, parseContent]);
+// Em HtmlBlock, aceitar tanto 'html' quanto 'htmlTemplate'
+const template = htmlTemplate || html;  // Fallback para formato antigo
 ```
 
 ---
 
-### Resultado Esperado
+## Resultado Esperado
 
-Após mover `parseContent` para antes do `useMemo`:
+1. **Importação**: HTML mantém `[placeholders]`, props são salvas em `default_props`
+2. **Toolbox**: Ao arrastar, bloco recebe template + props dinâmicas
+3. **Editor**: Clicar no bloco mostra campos para editar cada prop
+4. **Preview/Export**: Placeholders são substituídos em runtime para gerar HTML final
 
-1. O erro "Cannot access 'parseContent' before initialization" desaparece
-2. Os logs de diagnóstico começam a aparecer no console
-3. Podemos finalmente ver onde o parser está falhando (ou se está funcionando)
+---
+
+## Considerações Técnicas
+
+- **Performance**: `useMemo` garante que substituição só ocorre quando props mudam
+- **Flexibilidade**: Novos placeholders são detectados automaticamente do template
+- **Compatibilidade**: Formato antigo (`html` sem placeholders) continua funcionando
+- **UX**: Settings mostra campos intuitivos para cada variável do template
 
