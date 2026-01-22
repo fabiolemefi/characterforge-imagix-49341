@@ -1,110 +1,124 @@
 
 
-## Plano: Corrigir displayName do HtmlBlock
+# Plano: Corrigir Upload de Imagens com Caracteres Especiais
 
-### Problema Identificado
+## Problema Identificado
 
-O Craft.js usa o `displayName` do componente para identificar nós durante serialização/deserialização. Há uma **inconsistência**:
+O erro `StorageApiError: Invalid key` ocorre porque o nome do arquivo contém caracteres não permitidos pelo Supabase Storage:
 
-| Componente | displayName | Chave no Resolver |
-|------------|-------------|-------------------|
-| Container | `'Container'` | `Container` ✅ |
-| Text | `'Text'` | `Text` ✅ |
-| **HtmlBlock** | `'Bloco HTML'` | `HtmlBlock` ❌ |
+```
+assets/577ba0fb-5247-4d33-b885-dabef5e436af-Eu faço a estratégia - profile frames - 1.png
+```
 
-Quando você arrasta ou move um HtmlBlock:
-1. O Craft.js serializa o nó com o tipo `'Bloco HTML'`
-2. Ao deserializar/mover, procura `resolvers['Bloco HTML']`
-3. Não encontra, pois a chave é `HtmlBlock`
-4. Lança o erro: "The component type specified for this node (HtmlBlock) does not exist in the resolver"
+Caracteres problemáticos:
+- Espaços (` `)
+- Caracteres acentuados (`ç`, `é`, etc.)
+- Hífens consecutivos podem causar problemas
+
+## Solução
+
+Sanitizar o nome do arquivo antes do upload, removendo ou substituindo caracteres especiais.
 
 ---
 
-### Solução
+## Arquivo a Modificar
 
-Alterar o `displayName` no arquivo `HtmlBlock.tsx` para coincidir com a chave do resolver:
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useImageCampaigns.ts` | Criar função de sanitização e aplicar ao nome do arquivo |
 
+---
+
+## Código Atual vs Corrigido
+
+### Antes (linha 286-287):
 ```typescript
-HtmlBlock.craft = {
-  displayName: 'HtmlBlock',  // Era: 'Bloco HTML'
-  props: { ... },
-  related: { ... },
+mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
+  const fileName = `${folder}/${crypto.randomUUID()}-${file.name}`;
+```
+
+### Depois:
+```typescript
+// Função para sanitizar nome de arquivo
+const sanitizeFileName = (name: string): string => {
+  return name
+    .normalize('NFD')                    // Decompõe caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '')     // Remove acentos
+    .replace(/[^a-zA-Z0-9.-]/g, '_')     // Substitui caracteres especiais por _
+    .replace(/_+/g, '_')                 // Remove underscores duplicados
+    .replace(/^_|_$/g, '');              // Remove underscores no início/fim
 };
+
+mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
+  const sanitizedName = sanitizeFileName(file.name);
+  const fileName = `${folder}/${crypto.randomUUID()}-${sanitizedName}`;
 ```
 
 ---
 
-### Arquivo a Modificar
+## Exemplo de Transformação
 
-| Arquivo | Linha | Alteração |
-|---------|-------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | 112 | Mudar `displayName: 'Bloco HTML'` para `displayName: 'HtmlBlock'` |
+| Original | Sanitizado |
+|----------|------------|
+| `Eu faço a estratégia - profile frames - 1.png` | `Eu_faco_a_estrategia_profile_frames_1.png` |
+| `Imagem (cópia).jpg` | `Imagem_copia.jpg` |
+| `foto@2x.png` | `foto_2x.png` |
 
 ---
 
-### Código Atual vs Corrigido
+## Implementação Completa
 
 ```typescript
-// ANTES (linha 111-121)
-HtmlBlock.craft = {
-  displayName: 'Bloco HTML',  // ❌ Não corresponde à chave do resolver
-  props: {
-    html: '',
-    htmlTemplate: '<div class="p-4 bg-gray-100 rounded"><p>Bloco HTML personalizado</p></div>',
-    className: '',
-  },
-  related: {
-    settings: HtmlBlockSettings,
-  },
+// Função para sanitizar nome de arquivo (adicionar no início do arquivo)
+const sanitizeFileName = (name: string): string => {
+  // Separa nome e extensão
+  const lastDot = name.lastIndexOf('.');
+  const baseName = lastDot > 0 ? name.substring(0, lastDot) : name;
+  const extension = lastDot > 0 ? name.substring(lastDot) : '';
+  
+  // Sanitiza apenas o nome, mantendo a extensão
+  const sanitizedBase = baseName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  
+  return sanitizedBase + extension.toLowerCase();
 };
 
-// DEPOIS
-HtmlBlock.craft = {
-  displayName: 'HtmlBlock',  // ✅ Corresponde à chave do resolver
-  props: {
-    html: '',
-    htmlTemplate: '<div class="p-4 bg-gray-100 rounded"><p>Bloco HTML personalizado</p></div>',
-    className: '',
-  },
-  related: {
-    settings: HtmlBlockSettings,
-  },
-};
+// Hook para upload de imagem para storage
+export function useUploadCampaignImage() {
+  return useMutation({
+    mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${folder}/${crypto.randomUUID()}-${sanitizedName}`;
+      
+      const { data, error } = await supabase.storage
+        .from("image-campaigns")
+        .upload(fileName, file, { upsert: true });
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("image-campaigns")
+        .getPublicUrl(data.path);
+
+      return publicUrlData.publicUrl;
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao fazer upload: ${error.message}`);
+    },
+  });
+}
 ```
 
 ---
 
-### Resultado Esperado
+## Resultado Esperado
 
-1. Arrastar blocos HTML do Toolbox para o canvas funciona
-2. Mover blocos HTML dentro do canvas funciona
-3. Salvar e recarregar sites com blocos HTML funciona
-4. Não há mais erro "does not exist in the resolver"
-
----
-
-### Nota sobre Sites Existentes
-
-Se houver sites já salvos com o `displayName` antigo (`'Bloco HTML'`), eles podem apresentar o mesmo erro ao serem carregados. Nesse caso, seria necessário:
-
-1. **Opção A**: Adicionar ambos os nomes ao resolver (compatibilidade temporária)
-2. **Opção B**: Migrar manualmente os dados salvos
-
-Para a Opção A, o resolver ficaria:
-
-```typescript
-const resolvers = {
-  Container,
-  Text,
-  Heading,
-  Button: CraftButton,
-  Image,
-  Divider,
-  Spacer,
-  HtmlBlock,
-  'Bloco HTML': HtmlBlock,  // Alias para compatibilidade
-};
-```
-
-Recomendo implementar a Opção A junto com a correção do displayName para garantir retrocompatibilidade.
+1. Uploads de imagens com qualquer nome funcionam corretamente
+2. Caracteres especiais são automaticamente convertidos
+3. A extensão do arquivo é preservada
+4. O UUID garante unicidade mesmo com nomes sanitizados iguais
 
