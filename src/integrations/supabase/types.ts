@@ -854,6 +854,39 @@ export type Database = {
         }
         Relationships: []
       }
+      efi_library_icons: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          filename: string
+          group_prefix: string
+          id: string
+          is_active: boolean
+          name: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          filename: string
+          group_prefix?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          filename?: string
+          group_prefix?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          url?: string
+        }
+        Relationships: []
+      }
       efi_library_images: {
         Row: {
           alt_text: string | null
