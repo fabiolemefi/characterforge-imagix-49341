@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, CloudUpload, Download, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
+import { Loader2, CloudUpload, Download, ArrowLeft, Sparkles, ImageIcon, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { useCampaign, useCampaignAssets, ImageCampaignAsset } from "@/hooks/useImageCampaigns";
@@ -324,6 +324,12 @@ export default function ImageCampaignPublic() {
     link.click();
   };
 
+  const handleRepeat = () => {
+    setGeneratedImage(null);
+    setUploadedImage(null);
+    setSelectedAsset(null);
+  };
+
   // Loading state
   if (loadingCampaign) {
     return (
@@ -547,10 +553,22 @@ export default function ImageCampaignPublic() {
             <div className="border border-white/20 rounded-lg p-2 bg-white/5">
               <img src={generatedImage} alt="Resultado" className="w-full rounded" />
             </div>
-            <Button onClick={handleDownload} className="w-full">
-              <Download className="h-4 w-4 mr-2" />
-              Baixar
-            </Button>
+            
+            {/* Botões: Repetir | Baixar */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleRepeat}
+                className="w-full border-white/30 text-white hover:bg-white/10"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Repetir
+              </Button>
+              <Button onClick={handleDownload} className="w-full">
+                <Download className="h-4 w-4 mr-2" />
+                Baixar
+              </Button>
+            </div>
           </>
         )}
 
