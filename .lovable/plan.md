@@ -1,131 +1,110 @@
 
 
-## Plano: Corrigir Renderização do HtmlBlock no Canvas
+## Plano: Corrigir displayName do HtmlBlock
 
 ### Problema Identificado
 
-Quando você arrasta um bloco HTML do Toolbox, o Craft.js não consegue renderizá-lo no canvas. O erro indica:
+O Craft.js usa o `displayName` do componente para identificar nós durante serialização/deserialização. Há uma **inconsistência**:
 
-```
-Invariant failed: The component type specified for this node (HtmlBlock) does not exist in the resolver
-```
+| Componente | displayName | Chave no Resolver |
+|------------|-------------|-------------------|
+| Container | `'Container'` | `Container` ✅ |
+| Text | `'Text'` | `Text` ✅ |
+| **HtmlBlock** | `'Bloco HTML'` | `HtmlBlock` ❌ |
 
-**Causa raiz**: No arquivo `Toolbox.tsx`, na linha 183, o `HtmlBlock` é criado diretamente sem o wrapper `Element` do Craft.js:
-
-```typescript
-// ❌ PROBLEMA - Linha 183
-if (block.html_content) {
-  return <HtmlBlock htmlTemplate={block.html_content} {...dynamicProps} />;
-}
-```
-
-Compare com outros componentes que funcionam corretamente:
-
-```typescript
-// ✅ Container usa Element wrapper - funciona
-case 'Container':
-  return <Element is={Container} canvas {...defaultProps} />;
-
-// ❌ HtmlBlock direto - não funciona
-case 'HtmlBlock':
-  return <HtmlBlock htmlTemplate="" {...defaultProps} />;
-```
-
-O `Element` wrapper é necessário para que o Craft.js consiga resolver o tipo do componente e registrar no editor.
+Quando você arrasta ou move um HtmlBlock:
+1. O Craft.js serializa o nó com o tipo `'Bloco HTML'`
+2. Ao deserializar/mover, procura `resolvers['Bloco HTML']`
+3. Não encontra, pois a chave é `HtmlBlock`
+4. Lança o erro: "The component type specified for this node (HtmlBlock) does not exist in the resolver"
 
 ---
 
 ### Solução
 
-Envelopar o `HtmlBlock` com o componente `Element` do Craft.js, igual aos outros componentes:
+Alterar o `displayName` no arquivo `HtmlBlock.tsx` para coincidir com a chave do resolver:
 
 ```typescript
-// ✅ CORREÇÃO
-if (block.html_content) {
-  const dynamicProps = (block.default_props as Record<string, any>) || {};
-  return <Element is={HtmlBlock} htmlTemplate={block.html_content} {...dynamicProps} />;
-}
-```
-
-E também corrigir o case 'HtmlBlock' padrão:
-
-```typescript
-case 'HtmlBlock':
-  return <Element is={HtmlBlock} htmlTemplate="" {...defaultProps} />;
+HtmlBlock.craft = {
+  displayName: 'HtmlBlock',  // Era: 'Bloco HTML'
+  props: { ... },
+  related: { ... },
+};
 ```
 
 ---
 
 ### Arquivo a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/eficode/editor/Toolbox.tsx` | Envelopar HtmlBlock com `<Element is={HtmlBlock}>` |
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| `src/components/eficode/user-components/HtmlBlock.tsx` | 112 | Mudar `displayName: 'Bloco HTML'` para `displayName: 'HtmlBlock'` |
 
 ---
 
-### Código Corrigido
+### Código Atual vs Corrigido
 
 ```typescript
-// Linha 179-208 - getComponent function
-const getComponent = (block: EfiCodeBlock) => {
-  // Se tem html_content, usar HtmlBlock com template + props dinâmicas
-  if (block.html_content) {
-    const dynamicProps = (block.default_props as Record<string, any>) || {};
-    // ✅ Usar Element wrapper para registro correto no Craft.js
-    return (
-      <Element 
-        is={HtmlBlock} 
-        htmlTemplate={block.html_content} 
-        {...dynamicProps} 
-      />
-    );
-  }
-  
-  // Caso contrário, usar componente padrão (compatibilidade)
-  const defaultProps = block.default_props || {};
-  switch (block.component_type) {
-    case 'Container':
-      return <Element is={Container} canvas {...defaultProps} />;
-    case 'Heading':
-      return <Heading {...defaultProps} />;
-    case 'Text':
-      return <Text {...defaultProps} />;
-    case 'Button':
-      return <Button {...defaultProps} />;
-    case 'Image':
-      return <Image {...defaultProps} />;
-    case 'Divider':
-      return <Divider {...defaultProps} />;
-    case 'Spacer':
-      return <Spacer {...defaultProps} />;
-    case 'HtmlBlock':
-      // ✅ Também corrigir o case padrão
-      return <Element is={HtmlBlock} htmlTemplate="" {...defaultProps} />;
-    default:
-      return <Element is={Container} canvas {...defaultProps} />;
-  }
+// ANTES (linha 111-121)
+HtmlBlock.craft = {
+  displayName: 'Bloco HTML',  // ❌ Não corresponde à chave do resolver
+  props: {
+    html: '',
+    htmlTemplate: '<div class="p-4 bg-gray-100 rounded"><p>Bloco HTML personalizado</p></div>',
+    className: '',
+  },
+  related: {
+    settings: HtmlBlockSettings,
+  },
+};
+
+// DEPOIS
+HtmlBlock.craft = {
+  displayName: 'HtmlBlock',  // ✅ Corresponde à chave do resolver
+  props: {
+    html: '',
+    htmlTemplate: '<div class="p-4 bg-gray-100 rounded"><p>Bloco HTML personalizado</p></div>',
+    className: '',
+  },
+  related: {
+    settings: HtmlBlockSettings,
+  },
 };
 ```
 
 ---
 
-### Por que isso funciona?
+### Resultado Esperado
 
-1. **`Element` é o wrapper do Craft.js**: Ele registra o componente no sistema interno do editor, permitindo drag-and-drop, seleção e serialização.
-
-2. **`is={HtmlBlock}` vincula ao resolver**: O Craft.js usa isso para encontrar `HtmlBlock` no objeto `resolvers` definido em `EfiCodeEditor.tsx`.
-
-3. **Props são passadas normalmente**: `htmlTemplate` e `dynamicProps` continuam funcionando como antes.
+1. Arrastar blocos HTML do Toolbox para o canvas funciona
+2. Mover blocos HTML dentro do canvas funciona
+3. Salvar e recarregar sites com blocos HTML funciona
+4. Não há mais erro "does not exist in the resolver"
 
 ---
 
-### Resultado Esperado
+### Nota sobre Sites Existentes
 
-Após a correção:
+Se houver sites já salvos com o `displayName` antigo (`'Bloco HTML'`), eles podem apresentar o mesmo erro ao serem carregados. Nesse caso, seria necessário:
 
-1. Arrastar blocos HTML do Toolbox funciona igual aos outros componentes
-2. O bloco aparece no canvas com a renderização correta do HTML
-3. Clicar no bloco abre o painel de Settings com os campos de edição
-4. Salvar e exportar funcionam normalmente
+1. **Opção A**: Adicionar ambos os nomes ao resolver (compatibilidade temporária)
+2. **Opção B**: Migrar manualmente os dados salvos
+
+Para a Opção A, o resolver ficaria:
+
+```typescript
+const resolvers = {
+  Container,
+  Text,
+  Heading,
+  Button: CraftButton,
+  Image,
+  Divider,
+  Spacer,
+  HtmlBlock,
+  'Bloco HTML': HtmlBlock,  // Alias para compatibilidade
+};
+```
+
+Recomendo implementar a Opção A junto com a correção do displayName para garantir retrocompatibilidade.
 
