@@ -309,18 +309,7 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  // Preview detected blocks
-  const detectedBlocks = useMemo((): BlockImportData[] | null => {
-    if (!content.trim()) return null;
-    
-    try {
-      return parseContent(content);
-    } catch (error) {
-      console.error('[BlockImport] Parse error:', error);
-      return null;
-    }
-  }, [content]);
-
+  // ✅ FIRST: Define parseContent before useMemo
   const parseContent = (raw: string): BlockImportData[] => {
     const trimmed = raw.trim();
     
@@ -403,6 +392,18 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
     console.log('[BlockImport] No path matched!');
     throw new Error('Formato não reconhecido. Cole HTML ou JSON válido.');
   };
+
+  // ✅ THEN: Use parseContent in useMemo
+  const detectedBlocks = useMemo((): BlockImportData[] | null => {
+    if (!content.trim()) return null;
+    
+    try {
+      return parseContent(content);
+    } catch (error) {
+      console.error('[BlockImport] Parse error:', error);
+      return null;
+    }
+  }, [content]);
 
   const handleImport = async () => {
     if (!content.trim()) {
