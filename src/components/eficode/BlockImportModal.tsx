@@ -154,89 +154,122 @@ const detectNameFromHtml = (html: string, index: number): string => {
   return `Bloco ${index}`;
 };
 
-// NEW: Parse HTML + JSON with @container"> delimiter
+// NEW: Parse HTML + JSON using JSON objects as delimiters (not @container)
+// This approach finds all top-level JSON objects and uses the HTML before each as a block
 const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Split by @container"> delimiter (and variations)
-  // This handles: @container">, @container" >, @container (without quotes)
-  const rawSegments = content.split(/@container[^<\n]*(?:>|\s|$)/i);
+  // Find all top-level JSON objects in the content
+  const jsonPositions: { start: number; end: number; json: string }[] = [];
   
-  for (const segment of rawSegments) {
-    const trimmed = segment.trim();
-    if (!trimmed) continue;
-    
-    // Find the last closing brace for JSON extraction
-    const lastBraceIndex = trimmed.lastIndexOf('}');
-    if (lastBraceIndex === -1) {
-      // No JSON, check if it's just HTML
-      if (trimmed.includes('<')) {
-        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
-        if (cleanHtml) {
-          blocks.push({
-            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
-            category: detectCategoryFromHtml(cleanHtml),
-            icon_name: detectIconFromHtml(cleanHtml),
-            html_content: cleanHtml,
-          });
-        }
-      }
-      continue;
-    }
-    
-    // Find the matching opening brace for the JSON by counting braces
-    let braceCount = 0;
-    let jsonStartIndex = -1;
-    
-    for (let i = lastBraceIndex; i >= 0; i--) {
-      if (trimmed[i] === '}') braceCount++;
-      if (trimmed[i] === '{') braceCount--;
+  let i = 0;
+  while (i < content.length) {
+    if (content[i] === '{') {
+      // Check if this { is the start of a top-level JSON object
+      // Not inside an HTML attribute like class="{...}" or style="{...}"
+      const before = content.slice(Math.max(0, i - 100), i);
       
-      if (braceCount === 0) {
-        jsonStartIndex = i;
-        break;
-      }
-    }
-    
-    if (jsonStartIndex === -1) {
-      // No valid JSON structure found, treat as HTML only
-      if (trimmed.includes('<')) {
-        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
-        if (cleanHtml) {
-          blocks.push({
-            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
-            category: detectCategoryFromHtml(cleanHtml),
-            icon_name: detectIconFromHtml(cleanHtml),
-            html_content: cleanHtml,
-          });
+      // Patterns that indicate we're inside an HTML attribute:
+      // - ends with =" or ='
+      // - ends with ="{something (incomplete string)
+      const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
+      
+      // Also check if we're inside a JSX/template expression like ${...}
+      const isTemplateExpression = before.endsWith('$');
+      
+      if (!isInsideAttribute && !isTemplateExpression) {
+        // Count braces to find the complete JSON object
+        let braceCount = 0;
+        let jsonEnd = i;
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let j = i; j < content.length; j++) {
+          const char = content[j];
+          
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\' && inString) {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') braceCount++;
+            if (char === '}') braceCount--;
+            
+            if (braceCount === 0) {
+              jsonEnd = j + 1;
+              break;
+            }
+          }
+        }
+        
+        const jsonStr = content.slice(i, jsonEnd);
+        
+        // Validate if it's a valid JSON object
+        try {
+          JSON.parse(jsonStr);
+          jsonPositions.push({ start: i, end: jsonEnd, json: jsonStr });
+          i = jsonEnd;
+          continue;
+        } catch {
+          // Not valid JSON, continue searching
         }
       }
-      continue;
+    }
+    i++;
+  }
+  
+  // Now process: HTML before each JSON becomes a block
+  let lastEnd = 0;
+  for (const { start, end, json } of jsonPositions) {
+    const html = content.slice(lastEnd, start).trim();
+    
+    if (html && html.includes('<')) {
+      // Clean HTML comments
+      const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, '').trim();
+      
+      if (cleanHtml) {
+        let props = {};
+        try {
+          props = JSON.parse(json);
+        } catch {}
+        
+        const finalHtml = replacePlaceholders(cleanHtml, props);
+        
+        blocks.push({
+          name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+          category: detectCategoryFromHtml(cleanHtml),
+          icon_name: detectIconFromHtml(cleanHtml),
+          html_content: finalHtml,
+        });
+      }
     }
     
-    const jsonStr = trimmed.slice(jsonStartIndex, lastBraceIndex + 1);
-    let html = trimmed.slice(0, jsonStartIndex).trim();
-    
-    // Clean HTML comments
-    html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
-    
-    if (!html || !html.includes('<')) continue;
-    
-    let props = {};
-    try {
-      props = JSON.parse(jsonStr);
-    } catch {
-      // Invalid JSON, keep HTML without replacement
+    lastEnd = end;
+  }
+  
+  // Check if there's remaining HTML after the last JSON
+  const remaining = content.slice(lastEnd).trim();
+  if (remaining && remaining.includes('<')) {
+    const cleanHtml = remaining.replace(/<!--[\s\S]*?-->/g, '').trim();
+    if (cleanHtml) {
+      blocks.push({
+        name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+        category: detectCategoryFromHtml(cleanHtml),
+        icon_name: detectIconFromHtml(cleanHtml),
+        html_content: cleanHtml,
+      });
     }
-    
-    const finalHtml = replacePlaceholders(html, props);
-    
-    blocks.push({
-      name: detectNameFromHtml(html, blocks.length + 1),
-      category: detectCategoryFromHtml(html),
-      icon_name: detectIconFromHtml(html),
-      html_content: finalHtml,
-    });
   }
   
   return blocks;
