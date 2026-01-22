@@ -214,7 +214,7 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
 
   return (
     <div className="p-4">
-      <Accordion type="multiple" defaultValue={["components", "page-settings"]} className="w-full">
+      <Accordion type="multiple" defaultValue={["components"]} className="w-full">
         {/* Componentes */}
         <AccordionItem value="components" className="border-none">
           <AccordionTrigger className="text-sm font-semibold text-muted-foreground uppercase tracking-wide py-2 hover:no-underline">
@@ -246,7 +246,7 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <Accordion type="multiple" defaultValue={["layout"]} className="w-full">
+            <Accordion type="multiple" defaultValue={[]} className="w-full">
               {/* Layout */}
               <AccordionItem value="layout" className="border-b">
                 <AccordionTrigger className="text-xs font-medium py-2 hover:no-underline">
