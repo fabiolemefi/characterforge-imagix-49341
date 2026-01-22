@@ -53,6 +53,7 @@ import JiraTasksList from "./pages/JiraTasksList";
 import AdminJira from "./pages/AdminJira";
 import ImageCampaignPublic from "./pages/ImageCampaignPublic";
 import AdminImageCampaigns from "./pages/AdminImageCampaigns";
+import AdminSiteSettings from "./pages/AdminSiteSettings";
 import EfiCode from "./pages/EfiCode";
 import EfiCodeEditor from "./pages/EfiCodeEditor";
 import AdminEfiCodeBlocks from "./pages/AdminEfiCodeBlocks";
@@ -116,6 +117,7 @@ const App = () => (
             <Route path="/tests/new" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
             <Route path="/tests/:id/edit" element={<ProtectedRoute><AppLayout><TestForm /></AppLayout></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/configuracao" element={<ProtectedRoute><AdminSiteSettings /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
             <Route path="/admin/plugins" element={<ProtectedRoute><AdminPlugins /></ProtectedRoute>} />

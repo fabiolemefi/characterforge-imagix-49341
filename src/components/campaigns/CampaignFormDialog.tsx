@@ -47,6 +47,8 @@ const formSchema = z.object({
   customization_mode: z.enum(["always", "never", "user_choice"]).default("always"),
   seal_opacity: z.number().min(0).max(1).default(0.95),
   footer_text: z.string().optional(),
+  og_title: z.string().optional(),
+  og_description: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -64,6 +66,7 @@ export function CampaignFormDialog({
 }: CampaignFormDialogProps) {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [logoImage, setLogoImage] = useState<string | null>(null);
+  const [ogImage, setOgImage] = useState<string | null>(null);
 
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
@@ -84,6 +87,8 @@ export function CampaignFormDialog({
       customization_mode: "always",
       seal_opacity: 0.95,
       footer_text: "",
+      og_title: "",
+      og_description: "",
     },
   });
 
@@ -99,9 +104,12 @@ export function CampaignFormDialog({
         customization_mode: campaign.customization_mode,
         seal_opacity: campaign.seal_opacity || 0.95,
         footer_text: campaign.footer_text || "",
+        og_title: campaign.og_title || "",
+        og_description: campaign.og_description || "",
       });
       setBackgroundImage(campaign.background_image_url);
       setLogoImage(campaign.logo_url);
+      setOgImage(campaign.og_image_url);
     } else {
       form.reset({
         title: "",
@@ -113,9 +121,12 @@ export function CampaignFormDialog({
         customization_mode: "always",
         seal_opacity: 0.95,
         footer_text: "",
+        og_title: "",
+        og_description: "",
       });
       setBackgroundImage(null);
       setLogoImage(null);
+      setOgImage(null);
     }
   }, [campaign, form]);
 
@@ -135,7 +146,7 @@ export function CampaignFormDialog({
 
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "background" | "logo"
+    type: "background" | "logo" | "og_image"
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -144,8 +155,10 @@ export function CampaignFormDialog({
       const url = await uploadImage.mutateAsync({ file, folder: type });
       if (type === "background") {
         setBackgroundImage(url);
-      } else {
+      } else if (type === "logo") {
         setLogoImage(url);
+      } else {
+        setOgImage(url);
       }
     } catch (error) {
       console.error("Upload error:", error);
@@ -160,6 +173,7 @@ export function CampaignFormDialog({
           ...data,
           background_image_url: backgroundImage || undefined,
           logo_url: logoImage || undefined,
+          og_image_url: ogImage || undefined,
         });
       } else {
         await createCampaign.mutateAsync({
@@ -172,8 +186,11 @@ export function CampaignFormDialog({
           customization_mode: data.customization_mode,
           seal_opacity: data.seal_opacity,
           footer_text: data.footer_text,
+          og_title: data.og_title,
+          og_description: data.og_description,
           background_image_url: backgroundImage || undefined,
           logo_url: logoImage || undefined,
+          og_image_url: ogImage || undefined,
         });
       }
       onOpenChange(false);
@@ -461,6 +478,93 @@ export function CampaignFormDialog({
                 </FormItem>
               )}
             />
+
+            {/* SEO & Compartilhamento Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-lg font-semibold">SEO & Compartilhamento</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure como a campanha aparece quando compartilhada em redes sociais
+              </p>
+
+              <FormField
+                control={form.control}
+                name="og_title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título para compartilhamento</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Se vazio, usa o título da campanha"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Aparece como título na preview de compartilhamento
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="og_description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição para compartilhamento</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Se vazio, usa o subtítulo da campanha"
+                        className="min-h-[80px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* OG Image Upload */}
+              <div className="space-y-2">
+                <FormLabel>Imagem de Preview</FormLabel>
+                <div className="border-2 border-dashed rounded-lg p-4">
+                  {ogImage ? (
+                    <div className="relative">
+                      <img
+                        src={ogImage}
+                        alt="OG Image"
+                        className="w-full h-32 object-cover rounded"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        onClick={() => setOgImage(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center cursor-pointer py-4">
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground mt-2">
+                        Upload (1200x630px recomendado)
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageUpload(e, "og_image")}
+                      />
+                    </label>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Imagem mostrada ao compartilhar o link da campanha
+                </p>
+              </div>
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button
