@@ -559,7 +559,7 @@ export default function ImageCampaignPublic() {
               <Button 
                 variant="outline" 
                 onClick={handleRepeat}
-                className="w-full border-white/30 text-white hover:bg-white/10"
+                className="w-full bg-transparent border-white/50 text-white hover:bg-white/10"
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Repetir
