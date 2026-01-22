@@ -315,7 +315,8 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
     
     try {
       return parseContent(content);
-    } catch {
+    } catch (error) {
+      console.error('[BlockImport] Parse error:', error);
       return null;
     }
   }, [content]);
@@ -323,9 +324,16 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
   const parseContent = (raw: string): BlockImportData[] => {
     const trimmed = raw.trim();
     
+    console.log('[BlockImport] === Starting parse ===');
+    console.log('[BlockImport] Length:', trimmed.length);
+    console.log('[BlockImport] First 100 chars:', trimmed.slice(0, 100));
+    console.log('[BlockImport] startsWith(<):', trimmed.startsWith('<'));
+    console.log('[BlockImport] includes({):', trimmed.includes('{'));
+    
     // 1. Try JSON first (backwards compatibility)
     try {
       const parsed = JSON.parse(trimmed);
+      console.log('[BlockImport] ✓ Parsed as JSON');
       
       if (Array.isArray(parsed)) {
         return parsed.map((item) => ({
@@ -347,12 +355,14 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
         }];
       }
     } catch {
-      // Not JSON, continue to other formats
+      console.log('[BlockImport] ✗ Not valid JSON');
     }
     
     // 2. NEW: Try HTML + JSON interleaved format (priority - simpler format)
     if (trimmed.includes('<') && trimmed.includes('{')) {
+      console.log('[BlockImport] Trying HTML+JSON path');
       const blocks = parseHtmlWithTrailingJson(trimmed);
+      console.log('[BlockImport] HTML+JSON found:', blocks.length, 'blocks');
       if (blocks.length > 0) {
         return blocks;
       }
@@ -360,26 +370,37 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
     
     // 3. Check for block comments pattern <!-- BLOCO X: NAME --> (legacy support)
     const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
+    console.log('[BlockImport] Has block comments:', hasBlockComments);
     if (hasBlockComments) {
       const blocks = parseMultipleBlocks(trimmed);
+      console.log('[BlockImport] Comment blocks found:', blocks.length);
       if (blocks.length > 0) {
         return blocks;
       }
     }
     
     // 4. Raw HTML without JSON
+    console.log('[BlockImport] Trying raw HTML path');
     if (trimmed.startsWith('<')) {
       const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+      console.log('[BlockImport] Clean HTML length:', cleanHtml.length);
+      
       if (cleanHtml) {
+        const name = detectNameFromHtml(cleanHtml, 1);
+        const category = detectCategoryFromHtml(cleanHtml);
+        const icon = detectIconFromHtml(cleanHtml);
+        console.log('[BlockImport] Detected:', { name, category, icon });
+        
         return [{
-          name: detectNameFromHtml(cleanHtml, 1),
-          category: detectCategoryFromHtml(cleanHtml),
-          icon_name: detectIconFromHtml(cleanHtml),
+          name,
+          category,
+          icon_name: icon,
           html_content: cleanHtml,
         }];
       }
     }
     
+    console.log('[BlockImport] No path matched!');
     throw new Error('Formato não reconhecido. Cole HTML ou JSON válido.');
   };
 
