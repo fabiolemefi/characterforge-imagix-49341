@@ -41,3 +41,6 @@ verify_jwt = true
 
 [functions.create-jira-epic]
 verify_jwt = true
+
+[functions.og-metadata]
+verify_jwt = false
