@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useEfiImageLibrary, EfiImageCategory, EfiLibraryImage } from '@/hooks/useEfiImageLibrary';
 import { useEfiLibraryIcons, EfiLibraryIcon, extractGroupPrefix } from '@/hooks/useEfiLibraryIcons';
 import { IconImportModal } from './IconImportModal';
+import { ImageImportModal } from './ImageImportModal';
 import { Plus, Pencil, Trash2, Search, X, ImageIcon, Upload, ChevronDown, FileIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -242,6 +243,7 @@ const CategoriesTab = () => {
 const ImagesTab = () => {
   const { categories, images, isLoadingImages, createImage, updateImage, deleteImage, uploadImage } = useEfiImageLibrary();
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingImage, setEditingImage] = useState<EfiLibraryImage | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -472,6 +474,11 @@ const ImagesTab = () => {
           />
         </div>
         
+        <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+          <Upload className="h-4 w-4 mr-2" />
+          Importar
+        </Button>
+        
         <Button onClick={() => handleOpenForm()}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Imagem
@@ -518,6 +525,8 @@ const ImagesTab = () => {
           ))}
         </div>
       )}
+
+      <ImageImportModal open={isImportOpen} onOpenChange={setIsImportOpen} />
     </div>
   );
 };
