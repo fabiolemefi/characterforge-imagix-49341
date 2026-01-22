@@ -23,6 +23,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Table,
   TableBody,
   TableCell,
@@ -53,9 +59,13 @@ import {
   Code,
   FileCode,
   Images,
+  Upload,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { useEfiCodeBlocks, EfiCodeBlockFormData } from '@/hooks/useEfiCodeBlocks';
 import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
+import { BlockImportModal } from '@/components/eficode/BlockImportModal';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageLibraryDialog } from '@/components/eficode/ImageLibraryDialog';
@@ -65,16 +75,6 @@ const CATEGORIES = [
   { value: 'texto', label: 'Texto' },
   { value: 'midia', label: 'Mídia' },
   { value: 'interativo', label: 'Interativo' },
-];
-
-const COMPONENT_TYPES = [
-  { value: 'Container', label: 'Container' },
-  { value: 'Heading', label: 'Heading (Título)' },
-  { value: 'Text', label: 'Text (Texto)' },
-  { value: 'Button', label: 'Button (Botão)' },
-  { value: 'Image', label: 'Image (Imagem)' },
-  { value: 'Divider', label: 'Divider (Separador)' },
-  { value: 'Spacer', label: 'Spacer (Espaçador)' },
 ];
 
 const ICON_OPTIONS = [
@@ -100,10 +100,8 @@ const defaultFormData: EfiCodeBlockFormData = {
   name: '',
   description: '',
   category: 'layout',
-  icon_name: 'SquareDashed',
-  component_type: 'Container',
-  default_props: {},
-  thumbnail_url: '',
+  icon_name: 'Code',
+  html_content: '',
   position: 0,
   is_active: true,
 };
@@ -115,9 +113,9 @@ export default function AdminEfiCodeBlocks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCssDialogOpen, setIsCssDialogOpen] = useState(false);
   const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<EfiCodeBlockFormData>(defaultFormData);
-  const [defaultPropsJson, setDefaultPropsJson] = useState('{}');
   const [cssContent, setCssContent] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -150,7 +148,7 @@ export default function AdminEfiCodeBlocks() {
       const IconComp = iconOption.icon;
       return <IconComp className="h-4 w-4" />;
     }
-    return <SquareDashed className="h-4 w-4" />;
+    return <Code className="h-4 w-4" />;
   };
 
   const handleOpenDialog = (block?: typeof blocks[0]) => {
@@ -161,38 +159,30 @@ export default function AdminEfiCodeBlocks() {
         description: block.description,
         category: block.category,
         icon_name: block.icon_name,
-        component_type: block.component_type,
-        default_props: block.default_props,
+        html_content: block.html_content || '',
         thumbnail_url: block.thumbnail_url,
         position: block.position,
         is_active: block.is_active,
       });
-      setDefaultPropsJson(JSON.stringify(block.default_props, null, 2));
     } else {
       setEditingId(null);
       setFormData(defaultFormData);
-      setDefaultPropsJson('{}');
     }
     setIsDialogOpen(true);
   };
 
   const handleSubmit = async () => {
     try {
-      let parsedProps = {};
-      try {
-        parsedProps = JSON.parse(defaultPropsJson);
-      } catch {
-        toast.error('JSON de props padrão inválido');
+      if (!formData.name) {
+        toast.error('Nome é obrigatório');
         return;
       }
 
-      const data = { ...formData, default_props: parsedProps };
-
       if (editingId) {
-        await updateBlock.mutateAsync({ id: editingId, ...data });
+        await updateBlock.mutateAsync({ id: editingId, ...formData });
         toast.success('Bloco atualizado com sucesso');
       } else {
-        await createBlock.mutateAsync(data);
+        await createBlock.mutateAsync(formData);
         toast.success('Bloco criado com sucesso');
       }
       setIsDialogOpen(false);
@@ -220,6 +210,26 @@ export default function AdminEfiCodeBlocks() {
     } catch (error) {
       toast.error('Erro ao alterar status');
       console.error(error);
+    }
+  };
+
+  const handleImportBlocks = async (importedBlocks: Array<{
+    name: string;
+    description?: string;
+    category?: string;
+    icon_name?: string;
+    html_content: string;
+  }>) => {
+    for (const block of importedBlocks) {
+      await createBlock.mutateAsync({
+        name: block.name,
+        description: block.description || null,
+        category: block.category || 'layout',
+        icon_name: block.icon_name || 'Code',
+        html_content: block.html_content,
+        position: blocks.length,
+        is_active: true,
+      });
     }
   };
 
@@ -260,12 +270,29 @@ export default function AdminEfiCodeBlocks() {
                   onClick={() => setIsImageLibraryOpen(true)}
                 >
                   <Images className="h-4 w-4 mr-2" />
-                  Biblioteca de Imagens
+                  Biblioteca
                 </Button>
-                <Button onClick={() => handleOpenDialog()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Bloco
-                </Button>
+                
+                {/* Dropdown para Novo Bloco */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Bloco
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleOpenDialog()}>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Criar Bloco
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsImportModalOpen(true)}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Importar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -277,7 +304,7 @@ export default function AdminEfiCodeBlocks() {
                   <TableHead className="w-12">Ícone</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead>Componente</TableHead>
+                  <TableHead>HTML</TableHead>
                   <TableHead className="w-20">Ativo</TableHead>
                   <TableHead className="w-24">Ações</TableHead>
                 </TableRow>
@@ -302,7 +329,15 @@ export default function AdminEfiCodeBlocks() {
                       <TableCell>{getIconComponent(block.icon_name)}</TableCell>
                       <TableCell className="font-medium">{block.name}</TableCell>
                       <TableCell className="capitalize">{block.category}</TableCell>
-                      <TableCell className="font-mono text-sm">{block.component_type}</TableCell>
+                      <TableCell>
+                        {block.html_content ? (
+                          <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px] block">
+                            {block.html_content.substring(0, 50)}...
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Switch
                           checked={block.is_active}
@@ -327,35 +362,28 @@ export default function AdminEfiCodeBlocks() {
           </div>
         </div>
 
+        {/* Dialog de Criar/Editar Bloco */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Editar Bloco' : 'Novo Bloco'}</DialogTitle>
+              <DialogDescription>
+                {editingId ? 'Atualize as informações do bloco HTML.' : 'Crie um novo bloco HTML personalizado.'}
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Container, Título, Botão..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Descrição do bloco..."
-                  rows={2}
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Hero Section, Card..."
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label>Categoria</Label>
                   <Select
@@ -374,6 +402,33 @@ export default function AdminEfiCodeBlocks() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Ícone</Label>
+                  <Select
+                    value={formData.icon_name}
+                    onValueChange={(value) => setFormData({ ...formData, icon_name: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ICON_OPTIONS.map((icon) => {
+                        const IconComp = icon.icon;
+                        return (
+                          <SelectItem key={icon.value} value={icon.value}>
+                            <div className="flex items-center gap-2">
+                              <IconComp className="h-4 w-4" />
+                              {icon.label}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="space-y-2">
                   <Label>Posição</Label>
@@ -386,69 +441,37 @@ export default function AdminEfiCodeBlocks() {
               </div>
 
               <div className="space-y-2">
-                <Label>Ícone</Label>
-                <Select
-                  value={formData.icon_name}
-                  onValueChange={(value) => setFormData({ ...formData, icon_name: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ICON_OPTIONS.map((icon) => {
-                      const IconComp = icon.icon;
-                      return (
-                        <SelectItem key={icon.value} value={icon.value}>
-                          <div className="flex items-center gap-2">
-                            <IconComp className="h-4 w-4" />
-                            {icon.label}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tipo do Componente</Label>
-                <Select
-                  value={formData.component_type}
-                  onValueChange={(value) => setFormData({ ...formData, component_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COMPONENT_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="default_props">Props Padrão (JSON)</Label>
+                <Label htmlFor="description">Descrição</Label>
                 <Textarea
-                  id="default_props"
-                  value={defaultPropsJson}
-                  onChange={(e) => setDefaultPropsJson(e.target.value)}
-                  placeholder="{}"
-                  rows={4}
-                  className="font-mono text-sm"
+                  id="description"
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descrição do bloco..."
+                  rows={2}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="thumbnail_url">URL da Thumbnail</Label>
-                <Input
-                  id="thumbnail_url"
-                  value={formData.thumbnail_url || ''}
-                  onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                  placeholder="https://..."
+                <Label htmlFor="html_content" className="flex items-center gap-2">
+                  <Code className="h-4 w-4" />
+                  Código HTML
+                </Label>
+                <textarea
+                  id="html_content"
+                  value={formData.html_content || ''}
+                  onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
+                  placeholder={`<div class="hero-section">
+  <h1>Título Principal</h1>
+  <p>Subtítulo descritivo</p>
+  <a href="#" class="btn">Saiba mais</a>
+</div>`}
+                  rows={12}
+                  className="w-full px-3 py-2 rounded-md border bg-[#1e1e1e] text-[#d4d4d4] font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  style={{ tabSize: 2 }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Este HTML será renderizado quando o bloco for arrastado para o editor.
+                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -465,8 +488,8 @@ export default function AdminEfiCodeBlocks() {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSubmit} disabled={!formData.name || !formData.component_type}>
-                {editingId ? 'Salvar' : 'Criar'}
+              <Button onClick={handleSubmit} disabled={!formData.name}>
+                {editingId ? 'Salvar' : 'Criar Bloco'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -516,6 +539,13 @@ body {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import Modal */}
+        <BlockImportModal
+          open={isImportModalOpen}
+          onOpenChange={setIsImportModalOpen}
+          onImport={handleImportBlocks}
+        />
 
         {/* Image Library Dialog */}
         <ImageLibraryDialog 

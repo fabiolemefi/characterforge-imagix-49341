@@ -706,6 +706,7 @@ export type Database = {
           created_by: string | null
           default_props: Json | null
           description: string | null
+          html_content: string | null
           icon_name: string
           id: string
           is_active: boolean
@@ -722,6 +723,7 @@ export type Database = {
           created_by?: string | null
           default_props?: Json | null
           description?: string | null
+          html_content?: string | null
           icon_name?: string
           id?: string
           is_active?: boolean
@@ -738,6 +740,7 @@ export type Database = {
           created_by?: string | null
           default_props?: Json | null
           description?: string | null
+          html_content?: string | null
           icon_name?: string
           id?: string
           is_active?: boolean

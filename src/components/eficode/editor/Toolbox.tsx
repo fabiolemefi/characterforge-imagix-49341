@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useEditor, Element } from '@craftjs/core';
-import { Container, Text, Heading, Button, Image, Divider, Spacer } from '../user-components';
-import { useEfiCodeBlocks } from '@/hooks/useEfiCodeBlocks';
+import { Container, Text, Heading, Button, Image, Divider, Spacer, HtmlBlock } from '../user-components';
+import { useEfiCodeBlocks, EfiCodeBlock } from '@/hooks/useEfiCodeBlocks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -176,8 +176,15 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
     return IconComponent ? <IconComponent className="h-5 w-5" /> : <SquareDashed className="h-5 w-5" />;
   };
 
-  const getComponent = (componentType: string, defaultProps: Record<string, any> = {}) => {
-    switch (componentType) {
+  const getComponent = (block: EfiCodeBlock) => {
+    // Se tem html_content, usar HtmlBlock
+    if (block.html_content) {
+      return <HtmlBlock html={block.html_content} />;
+    }
+    
+    // Caso contrário, usar componente padrão (compatibilidade)
+    const defaultProps = block.default_props || {};
+    switch (block.component_type) {
       case 'Container':
         return <Element is={Container} canvas {...defaultProps} />;
       case 'Heading':
@@ -192,6 +199,8 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
         return <Divider {...defaultProps} />;
       case 'Spacer':
         return <Spacer {...defaultProps} />;
+      case 'HtmlBlock':
+        return <HtmlBlock html="" {...defaultProps} />;
       default:
         return <Element is={Container} canvas {...defaultProps} />;
     }
@@ -225,7 +234,7 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
               {blocks.map((block) => (
                 <div
                   key={block.id}
-                  ref={(ref) => ref && connectors.create(ref, getComponent(block.component_type, block.default_props || {}))}
+                  ref={(ref) => ref && connectors.create(ref, getComponent(block))}
                 >
                   <ToolboxItem
                     icon={getIcon(block.icon_name)}
