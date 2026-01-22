@@ -1,124 +1,110 @@
 
 
-# Plano: Corrigir Upload de Imagens com Caracteres Especiais
+## Plano: Adicionar Botão "Repetir" na Tela de Resultado
 
-## Problema Identificado
+### Objetivo
 
-O erro `StorageApiError: Invalid key` ocorre porque o nome do arquivo contém caracteres não permitidos pelo Supabase Storage:
-
-```
-assets/577ba0fb-5247-4d33-b885-dabef5e436af-Eu faço a estratégia - profile frames - 1.png
-```
-
-Caracteres problemáticos:
-- Espaços (` `)
-- Caracteres acentuados (`ç`, `é`, etc.)
-- Hífens consecutivos podem causar problemas
-
-## Solução
-
-Sanitizar o nome do arquivo antes do upload, removendo ou substituindo caracteres especiais.
+Após gerar uma imagem no `/gerar/selo-estrategia`, adicionar um botão "Repetir" ao lado esquerdo do botão "Baixar", permitindo que o usuário volte para a tela de seleção de imagens para gerar uma nova imagem.
 
 ---
 
-## Arquivo a Modificar
+### Localização do Código
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useImageCampaigns.ts` | Criar função de sanitização e aplicar ao nome do arquivo |
+**Arquivo:** `src/pages/ImageCampaignPublic.tsx`
+
+**Código atual (linhas 544-554):**
+
+```tsx
+) : (
+  <>
+    {/* Resultado final */}
+    <div className="border border-white/20 rounded-lg p-2 bg-white/5">
+      <img src={generatedImage} alt="Resultado" className="w-full rounded" />
+    </div>
+    <Button onClick={handleDownload} className="w-full">
+      <Download className="h-4 w-4 mr-2" />
+      Baixar
+    </Button>
+  </>
+)}
+```
 
 ---
 
-## Código Atual vs Corrigido
+### Solução
 
-### Antes (linha 286-287):
-```typescript
-mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
-  const fileName = `${folder}/${crypto.randomUUID()}-${file.name}`;
+1. Criar função `handleRepeat` que limpa os estados e volta para a tela inicial
+2. Adicionar container `grid` com 2 colunas para os botões
+3. Botão "Repetir" à esquerda com ícone de refresh
+4. Botão "Baixar" à direita
+
+---
+
+### Código Atualizado
+
+```tsx
+) : (
+  <>
+    {/* Resultado final */}
+    <div className="border border-white/20 rounded-lg p-2 bg-white/5">
+      <img src={generatedImage} alt="Resultado" className="w-full rounded" />
+    </div>
+    
+    {/* Botões: Repetir | Baixar */}
+    <div className="grid grid-cols-2 gap-3">
+      <Button 
+        variant="outline" 
+        onClick={handleRepeat}
+        className="w-full border-white/30 text-white hover:bg-white/10"
+      >
+        <RotateCcw className="h-4 w-4 mr-2" />
+        Repetir
+      </Button>
+      <Button onClick={handleDownload} className="w-full">
+        <Download className="h-4 w-4 mr-2" />
+        Baixar
+      </Button>
+    </div>
+  </>
+)}
 ```
 
-### Depois:
-```typescript
-// Função para sanitizar nome de arquivo
-const sanitizeFileName = (name: string): string => {
-  return name
-    .normalize('NFD')                    // Decompõe caracteres acentuados
-    .replace(/[\u0300-\u036f]/g, '')     // Remove acentos
-    .replace(/[^a-zA-Z0-9.-]/g, '_')     // Substitui caracteres especiais por _
-    .replace(/_+/g, '_')                 // Remove underscores duplicados
-    .replace(/^_|_$/g, '');              // Remove underscores no início/fim
+---
+
+### Função handleRepeat
+
+Adicionar junto às outras funções handlers (após `handleDownload`):
+
+```tsx
+const handleRepeat = () => {
+  setGeneratedImage(null);
+  setUploadedImage(null);
+  setSelectedAsset(null);
 };
-
-mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
-  const sanitizedName = sanitizeFileName(file.name);
-  const fileName = `${folder}/${crypto.randomUUID()}-${sanitizedName}`;
 ```
 
 ---
 
-## Exemplo de Transformação
+### Import do Ícone
 
-| Original | Sanitizado |
-|----------|------------|
-| `Eu faço a estratégia - profile frames - 1.png` | `Eu_faco_a_estrategia_profile_frames_1.png` |
-| `Imagem (cópia).jpg` | `Imagem_copia.jpg` |
-| `foto@2x.png` | `foto_2x.png` |
+Adicionar `RotateCcw` na linha 18:
 
----
-
-## Implementação Completa
-
-```typescript
-// Função para sanitizar nome de arquivo (adicionar no início do arquivo)
-const sanitizeFileName = (name: string): string => {
-  // Separa nome e extensão
-  const lastDot = name.lastIndexOf('.');
-  const baseName = lastDot > 0 ? name.substring(0, lastDot) : name;
-  const extension = lastDot > 0 ? name.substring(lastDot) : '';
-  
-  // Sanitiza apenas o nome, mantendo a extensão
-  const sanitizedBase = baseName
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9-]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-  
-  return sanitizedBase + extension.toLowerCase();
-};
-
-// Hook para upload de imagem para storage
-export function useUploadCampaignImage() {
-  return useMutation({
-    mutationFn: async ({ file, folder }: { file: File; folder: string }) => {
-      const sanitizedName = sanitizeFileName(file.name);
-      const fileName = `${folder}/${crypto.randomUUID()}-${sanitizedName}`;
-      
-      const { data, error } = await supabase.storage
-        .from("image-campaigns")
-        .upload(fileName, file, { upsert: true });
-
-      if (error) throw error;
-
-      const { data: publicUrlData } = supabase.storage
-        .from("image-campaigns")
-        .getPublicUrl(data.path);
-
-      return publicUrlData.publicUrl;
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro ao fazer upload: ${error.message}`);
-    },
-  });
-}
+```tsx
+import { Loader2, CloudUpload, Download, ArrowLeft, Sparkles, ImageIcon, RotateCcw } from "lucide-react";
 ```
 
 ---
 
-## Resultado Esperado
+### Resultado Esperado
 
-1. Uploads de imagens com qualquer nome funcionam corretamente
-2. Caracteres especiais são automaticamente convertidos
-3. A extensão do arquivo é preservada
-4. O UUID garante unicidade mesmo com nomes sanitizados iguais
+| Estado | Layout |
+|--------|--------|
+| Antes de gerar | Upload + Selos + Botão "Gerar" |
+| Após gerar | Imagem gerada + **[Repetir] [Baixar]** em 2 colunas |
+
+O botão "Repetir":
+- Limpa a imagem gerada
+- Limpa a imagem enviada
+- Limpa o selo selecionado
+- Volta para a tela de upload inicial
 
