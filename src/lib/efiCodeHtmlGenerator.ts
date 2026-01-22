@@ -105,8 +105,16 @@ export const generateFullHtml = (
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
-      font-family: system-ui, -apple-system, sans-serif; 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
       background-color: ${pageSettings.backgroundColor || '#ffffff'};
+      ${pageSettings.backgroundImage ? `
+      background-image: url('${pageSettings.backgroundImage}');
+      background-size: ${pageSettings.backgroundSize || 'cover'};
+      background-position: ${pageSettings.backgroundPosition || 'center'};
+      background-attachment: ${pageSettings.backgroundAttachment || 'scroll'};
+      background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'};
+      ` : ''}
+      min-height: 100vh;
     }
     .page-container {
       max-width: ${pageSettings.containerMaxWidth || '1200'}px;

@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import { Settings, Layout, FileText, BarChart3, Upload, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, Layout, FileText, BarChart3, Upload, Loader2, Trash2, ImageIcon } from 'lucide-react';
 import { PageSettings, defaultPageSettings } from '@/hooks/useEfiCodeSites';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 interface SettingsPanelProps {
   pageSettings?: PageSettings;
@@ -16,7 +18,8 @@ interface SettingsPanelProps {
 }
 
 export const SettingsPanel = ({ pageSettings, onPageSettingsChange }: SettingsPanelProps) => {
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+  const [isUploadingBackground, setIsUploadingBackground] = useState(false);
   
   const { selected, actions } = useEditor((state) => {
     const currentNodeId = state.events.selected.size === 1 
@@ -57,7 +60,7 @@ export const SettingsPanel = ({ pageSettings, onPageSettingsChange }: SettingsPa
       return;
     }
 
-    setIsUploading(true);
+    setIsUploadingFavicon(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `favicon-${Date.now()}.${fileExt}`;
@@ -79,8 +82,48 @@ export const SettingsPanel = ({ pageSettings, onPageSettingsChange }: SettingsPa
       console.error('Erro no upload:', error);
       toast.error('Erro ao enviar: ' + error.message);
     } finally {
-      setIsUploading(false);
+      setIsUploadingFavicon(false);
     }
+  };
+
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione uma imagem válida');
+      return;
+    }
+
+    setIsUploadingBackground(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `bg-${Date.now()}.${fileExt}`;
+      const filePath = `backgrounds/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('efi-code-assets')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('efi-code-assets')
+        .getPublicUrl(filePath);
+
+      handleSettingChange('backgroundImage', publicUrl);
+      toast.success('Imagem de fundo enviada!');
+    } catch (error: any) {
+      console.error('Erro no upload:', error);
+      toast.error('Erro ao enviar: ' + error.message);
+    } finally {
+      setIsUploadingBackground(false);
+    }
+  };
+
+  const handleRemoveBackground = () => {
+    handleSettingChange('backgroundImage', '');
+    toast.success('Imagem de fundo removida');
   };
 
   // Se um bloco está selecionado, mostrar suas configurações
@@ -170,6 +213,135 @@ export const SettingsPanel = ({ pageSettings, onPageSettingsChange }: SettingsPa
                 />
               </div>
             </div>
+
+            {/* Imagem de fundo */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <ImageIcon className="h-3 w-3" />
+                Imagem de fundo
+              </Label>
+              
+              {settings.backgroundImage && (
+                <div className="relative rounded-md overflow-hidden border">
+                  <img 
+                    src={settings.backgroundImage} 
+                    alt="Background preview" 
+                    className="w-full h-24 object-cover"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6"
+                    onClick={handleRemoveBackground}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              <label className="flex items-center justify-center gap-2 px-3 py-2 border border-dashed rounded cursor-pointer hover:bg-muted/50 transition-colors">
+                {isUploadingBackground ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                <span className="text-sm">
+                  {isUploadingBackground ? 'Enviando...' : 'Upload de imagem'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBackgroundUpload}
+                  className="hidden"
+                  disabled={isUploadingBackground}
+                />
+              </label>
+
+              <Input
+                value={settings.backgroundImage}
+                onChange={(e) => handleSettingChange('backgroundImage', e.target.value)}
+                placeholder="Ou cole a URL da imagem"
+              />
+            </div>
+
+            {/* Configurações de background (só aparecem se tiver imagem) */}
+            {settings.backgroundImage && (
+              <div className="space-y-3 pl-2 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Tamanho</Label>
+                  <Select
+                    value={settings.backgroundSize}
+                    onValueChange={(value) => handleSettingChange('backgroundSize', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cover">Cobrir tudo</SelectItem>
+                      <SelectItem value="contain">Conter</SelectItem>
+                      <SelectItem value="auto">Tamanho original</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Posição</Label>
+                  <Select
+                    value={settings.backgroundPosition}
+                    onValueChange={(value) => handleSettingChange('backgroundPosition', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="center">Centro</SelectItem>
+                      <SelectItem value="top">Topo</SelectItem>
+                      <SelectItem value="bottom">Inferior</SelectItem>
+                      <SelectItem value="left">Esquerda</SelectItem>
+                      <SelectItem value="right">Direita</SelectItem>
+                      <SelectItem value="top left">Topo esquerda</SelectItem>
+                      <SelectItem value="top right">Topo direita</SelectItem>
+                      <SelectItem value="bottom left">Inferior esquerda</SelectItem>
+                      <SelectItem value="bottom right">Inferior direita</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Comportamento</Label>
+                  <Select
+                    value={settings.backgroundAttachment}
+                    onValueChange={(value) => handleSettingChange('backgroundAttachment', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scroll">Rolar junto</SelectItem>
+                      <SelectItem value="fixed">Fixo (parallax)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Repetição</Label>
+                  <Select
+                    value={settings.backgroundRepeat}
+                    onValueChange={(value) => handleSettingChange('backgroundRepeat', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no-repeat">Não repetir</SelectItem>
+                      <SelectItem value="repeat">Repetir</SelectItem>
+                      <SelectItem value="repeat-x">Repetir horizontalmente</SelectItem>
+                      <SelectItem value="repeat-y">Repetir verticalmente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -232,20 +404,20 @@ export const SettingsPanel = ({ pageSettings, onPageSettingsChange }: SettingsPa
                     />
                   )}
                   <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-dashed rounded cursor-pointer hover:bg-muted/50 transition-colors">
-                    {isUploading ? (
+                    {isUploadingFavicon ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Upload className="h-4 w-4" />
                     )}
                     <span className="text-sm">
-                      {isUploading ? 'Enviando...' : 'Upload'}
+                      {isUploadingFavicon ? 'Enviando...' : 'Upload'}
                     </span>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleFaviconUpload}
                       className="hidden"
-                      disabled={isUploading}
+                      disabled={isUploadingFavicon}
                     />
                   </label>
                 </div>

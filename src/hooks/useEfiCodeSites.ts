@@ -11,6 +11,11 @@ export interface PageSettings {
   keywords: string;
   favicon: string;
   backgroundColor: string;
+  backgroundImage: string;
+  backgroundSize: string;
+  backgroundPosition: string;
+  backgroundAttachment: string;
+  backgroundRepeat: string;
   googleAnalyticsId: string;
   facebookPixelId: string;
   customHeadCode: string;
@@ -23,6 +28,11 @@ export const defaultPageSettings: PageSettings = {
   keywords: '',
   favicon: '',
   backgroundColor: '#ffffff',
+  backgroundImage: '',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundAttachment: 'scroll',
+  backgroundRepeat: 'no-repeat',
   googleAnalyticsId: '',
   facebookPixelId: '',
   customHeadCode: '',
