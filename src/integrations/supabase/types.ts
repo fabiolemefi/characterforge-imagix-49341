@@ -1195,6 +1195,7 @@ export type Database = {
           is_visible: boolean
           name: string
           position: number
+          thumbnail_url: string | null
         }
         Insert: {
           campaign_id: string
@@ -1204,6 +1205,7 @@ export type Database = {
           is_visible?: boolean
           name: string
           position?: number
+          thumbnail_url?: string | null
         }
         Update: {
           campaign_id?: string
@@ -1213,6 +1215,7 @@ export type Database = {
           is_visible?: boolean
           name?: string
           position?: number
+          thumbnail_url?: string | null
         }
         Relationships: [
           {

@@ -471,7 +471,7 @@ export default function ImageCampaignPublic() {
                         : 'border-white/20 hover:border-white/40'
                     } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <img src={asset.image_url} alt={asset.name} className="w-full aspect-square object-contain" />
+                    <img src={asset.thumbnail_url || asset.image_url} alt={asset.name} className="w-full aspect-square object-contain" />
                   </button>
                 ))}
               </div>
