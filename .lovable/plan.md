@@ -1,108 +1,94 @@
 
 
-## Plano: Corrigir Regex do Parser de Importação
+## Plano: Corrigir Regex para Suportar Comentários Multi-Linha Decorativos
 
-### Problema Identificado
+### Problema Atual
 
-A regex atual não captura comentários HTML multi-linha. O formato esperado pelo código é:
+A regex atual não consegue capturar o formato real dos comentários que têm:
+- Linha 1: `<!-- =====================...`
+- Linha 2: `     BLOCO 1: HERO SECTION...`
+- Linha 3: `=====================... -->`
 
-```html
-<!-- ===== BLOCO 1: HERO SECTION ===== -->
-```
+### Solução
 
-Mas o formato enviado pelo usuario tem quebras de linha:
-
-```html
-<!-- =====================================================================
-     BLOCO 1: HERO SECTION (full bleed com overlay + call-to-action)
-===================================================================== -->
-```
-
----
-
-### Solucao
-
-Atualizar as regex em duas linhas do `BlockImportModal.tsx`:
+Modificar as regex para usar `[\s\S]*?` (qualquer caractere incluindo quebras) entre `<!--` e `BLOCO`:
 
 #### Linha 110 (parseMultipleBlocks):
 ```typescript
 // DE:
-const blockRegex = /<!--\s*=*\s*BLOCO\s+\d+:\s*(.+?)\s*=*\s*-->([\s\S]*?)(?=<!--\s*=*\s*BLOCO\s+\d+:|$)/gi;
-
-// PARA (suporta multi-linha):
 const blockRegex = /<!--[\s=]*BLOCO\s+\d+:\s*([^\n]+?)[\s=]*-->([\s\S]*?)(?=<!--[\s=]*BLOCO\s+\d+:|$)/gi;
+
+// PARA:
+const blockRegex = /<!--[\s\S]*?BLOCO\s+\d+:\s*([^\n]+?)[\s\S]*?-->([\s\S]*?)(?=<!--[\s\S]*?BLOCO\s+\d+:|$)/gi;
 ```
 
-#### Linha 215 (parseContent):
+#### Linha 215-216 (parseContent):
 ```typescript
 // DE:
-const blockPattern = /<!--\s*=*\s*BLOCO\s+\d+:\s*.+?\s*=*\s*-->/gi;
-
-// PARA (suporta multi-linha):
 const blockPattern = /<!--[\s\S]*?BLOCO\s+\d+:\s*[^\n]+[\s\S]*?-->/gi;
+if (blockPattern.test(trimmed)) {
+
+// PARA (criar nova regex para evitar problema do test() consumir índice):
+const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
+if (hasBlockComments) {
 ```
 
----
+### Explicação Técnica
 
-### Detalhes Tecnicos
+| Problema | Solução |
+|----------|---------|
+| `[\s=]*` só captura espaços e `=` | `[\s\S]*?` captura **qualquer caractere** (incluindo quebras de linha) de forma não-gulosa |
+| `test()` com regex global `/g` consome índice | Usar regex sem `/g` para o teste inicial, ou criar nova instância |
+| Lookahead muito restritivo | Usar mesmo padrão flexível `[\s\S]*?` no lookahead |
 
-| Alteracao | Justificativa |
-|-----------|---------------|
-| `[\s=]*` | Captura qualquer combinacao de espacos e sinais de igual (incluindo novas linhas) |
-| `([^\n]+?)` | Captura o nome do bloco (ate o fim da linha, sem incluir a quebra) |
-| `[\s\S]*?` | Captura qualquer caractere incluindo quebras de linha (nao-guloso) |
+### Regex Corrigida (Visual)
 
----
+```text
+<!--            Início do comentário
+[\s\S]*?        QUALQUER caractere (incluindo \n) - não guloso
+BLOCO\s+\d+:    Literal "BLOCO", espaços, número, dois-pontos
+\s*             Espaços opcionais
+([^\n]+?)       GRUPO 1: Nome do bloco (até fim da linha)
+[\s\S]*?        Qualquer caractere até o fim do comentário
+-->             Fim do comentário
+([\s\S]*?)      GRUPO 2: Conteúdo (HTML + JSON)
+(?=...)         Lookahead para próximo bloco ou fim
+```
 
 ### Arquivo a Modificar
 
-| Arquivo | Alteracoes |
-|---------|------------|
-| `src/components/eficode/BlockImportModal.tsx` | Linhas 110 e 215 - atualizar regex |
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| `src/components/eficode/BlockImportModal.tsx` | 110 | Atualizar `blockRegex` |
+| `src/components/eficode/BlockImportModal.tsx` | 215-216 | Simplificar teste de detecção |
 
----
+### Código Final Esperado
 
-### Regex Corrigida (Explicacao Visual)
+```typescript
+// Linha 110
+const blockRegex = /<!--[\s\S]*?BLOCO\s+\d+:\s*([^\n]+?)[\s\S]*?-->([\s\S]*?)(?=<!--[\s\S]*?BLOCO\s+\d+:|$)/gi;
 
-```text
-<!--              Inicio do comentario HTML
-[\s=]*            Espacos, quebras de linha e sinais de igual opcionais
-BLOCO\s+\d+:      Palavra "BLOCO", espacos, numero, dois-pontos
-\s*               Espacos opcionais
-([^\n]+?)         GRUPO 1: Nome do bloco (qualquer texto ate fim da linha)
-[\s=]*            Espacos, quebras de linha e sinais de igual opcionais  
--->               Fim do comentario HTML
-([\s\S]*?)        GRUPO 2: Conteudo do bloco (HTML + JSON)
-(?=...)           Lookahead para proximo bloco ou fim do texto
+// Linhas 215-216
+const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
+if (hasBlockComments) {
 ```
-
----
 
 ### Testes que Devem Passar
 
-1. Comentario em linha unica:
+1. **Formato simples**:
    ```html
-   <!-- BLOCO 1: HERO SECTION -->
+   <!-- BLOCO 1: HERO -->
    ```
 
-2. Comentario com decoracao simples:
+2. **Formato com decoração inline**:
    ```html
-   <!-- ===== BLOCO 1: HERO SECTION ===== -->
+   <!-- ===== BLOCO 1: HERO ===== -->
    ```
 
-3. Comentario multi-linha com decoracao:
+3. **Formato multi-linha decorativo** (seu caso):
    ```html
    <!-- =====================================================================
         BLOCO 1: HERO SECTION (full bleed com overlay + call-to-action)
    ===================================================================== -->
    ```
-
----
-
-### Resultado Esperado
-
-Apos a correcao, o parser devera:
-- Detectar corretamente blocos com comentarios multi-linha
-- Extrair o nome "HERO SECTION (full bleed com overlay + call-to-action)"
-- Continuar suportando formatos anteriores (linha unica)
 
