@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Upload, Download, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
+import { Loader2, CloudUpload, Download, ArrowLeft, Sparkles, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 import { useCampaign, useCampaignAssets, ImageCampaignAsset } from "@/hooks/useImageCampaigns";
@@ -399,7 +399,7 @@ export default function ImageCampaignPublic() {
   // Main interface
   return (
     <div
-      className={`min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat transition-all duration-500 ${
+      className={`min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat transition-all duration-500 relative ${
         generatedImage ? 'backdrop-blur-md' : ''
       }`}
       style={{
@@ -408,7 +408,9 @@ export default function ImageCampaignPublic() {
           : undefined,
       }}
     >
-      <div className={`w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500 ${
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+      <div className={`relative z-10 w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500 ${
         generatedImage ? 'ring-2 ring-white/30 shadow-2xl' : ''
       }`}>
         {/* Header */}
@@ -435,8 +437,8 @@ export default function ImageCampaignPublic() {
                 <img src={uploadedImage} alt="Upload" className="max-h-40 mx-auto rounded" />
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 mx-auto text-white/60" />
-                  <p className="text-sm text-white/60">Arraste ou clique para enviar</p>
+                  <CloudUpload className="h-8 w-8 mx-auto text-white/60" />
+                  <p className="text-sm text-white/60">Enviar imagem</p>
                 </div>
               )}
               
