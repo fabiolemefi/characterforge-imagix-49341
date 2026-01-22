@@ -1238,6 +1238,9 @@ export type Database = {
           id: string
           is_active: boolean
           logo_url: string | null
+          og_description: string | null
+          og_image_url: string | null
+          og_title: string | null
           prompt: string | null
           seal_opacity: number | null
           slug: string
@@ -1255,6 +1258,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
           prompt?: string | null
           seal_opacity?: number | null
           slug: string
@@ -1272,6 +1278,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
           prompt?: string | null
           seal_opacity?: number | null
           slug?: string
@@ -1683,6 +1692,39 @@ export type Database = {
           share_code?: string
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          created_at: string | null
+          favicon_url: string | null
+          id: string
+          og_description: string | null
+          og_image_url: string | null
+          og_title: string | null
+          twitter_card: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          favicon_url?: string | null
+          id?: string
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          twitter_card?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          favicon_url?: string | null
+          id?: string
+          og_description?: string | null
+          og_image_url?: string | null
+          og_title?: string | null
+          twitter_card?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { Helmet } from "react-helmet";
 import Cropper, { Area } from "react-easy-crop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -399,17 +400,33 @@ export default function ImageCampaignPublic() {
   }
 
   // Main interface
+  const ogTitle = campaign.og_title || campaign.title;
+  const ogDescription = campaign.og_description || campaign.subtitle || "";
+  const ogImage = campaign.og_image_url || campaign.logo_url || campaign.background_image_url || "";
+
   return (
-    <div
-      className={`min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat transition-all duration-500 relative ${
-        generatedImage ? 'backdrop-blur-md' : ''
-      }`}
-      style={{
-        backgroundImage: campaign.background_image_url
-          ? `url(${campaign.background_image_url})`
-          : undefined,
-      }}
-    >
+    <>
+      <Helmet>
+        <title>{ogTitle}</title>
+        <meta property="og:title" content={ogTitle} />
+        <meta property="og:description" content={ogDescription} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={ogTitle} />
+        <meta name="twitter:description" content={ogDescription} />
+        {ogImage && <meta name="twitter:image" content={ogImage} />}
+      </Helmet>
+      <div
+        className={`min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat transition-all duration-500 relative ${
+          generatedImage ? 'backdrop-blur-md' : ''
+        }`}
+        style={{
+          backgroundImage: campaign.background_image_url
+            ? `url(${campaign.background_image_url})`
+            : undefined,
+        }}
+      >
       {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/60 pointer-events-none" />
       <div className={`relative z-10 w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500 ${
@@ -595,5 +612,6 @@ export default function ImageCampaignPublic() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

@@ -15,6 +15,9 @@ export interface ImageCampaign {
   logo_url: string | null;
   seal_opacity: number | null;
   footer_text: string | null;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -43,6 +46,9 @@ export interface CreateCampaignData {
   logo_url?: string;
   seal_opacity?: number;
   footer_text?: string;
+  og_title?: string;
+  og_description?: string;
+  og_image_url?: string;
 }
 
 export interface UpdateCampaignData extends Partial<CreateCampaignData> {
