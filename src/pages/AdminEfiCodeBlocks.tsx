@@ -52,11 +52,13 @@ import {
   Table as TableIcon,
   Code,
   FileCode,
+  Images,
 } from 'lucide-react';
 import { useEfiCodeBlocks, EfiCodeBlockFormData } from '@/hooks/useEfiCodeBlocks';
 import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { ImageLibraryDialog } from '@/components/eficode/ImageLibraryDialog';
 
 const CATEGORIES = [
   { value: 'layout', label: 'Layout' },
@@ -112,6 +114,7 @@ export default function AdminEfiCodeBlocks() {
   const { globalCss, updateConfig, isLoading: isConfigLoading } = useEfiCodeConfig();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCssDialogOpen, setIsCssDialogOpen] = useState(false);
+  const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<EfiCodeBlockFormData>(defaultFormData);
   const [defaultPropsJson, setDefaultPropsJson] = useState('{}');
@@ -251,6 +254,13 @@ export default function AdminEfiCodeBlocks() {
                 >
                   <FileCode className="h-4 w-4 mr-2" />
                   CSS Global
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsImageLibraryOpen(true)}
+                >
+                  <Images className="h-4 w-4 mr-2" />
+                  Biblioteca de Imagens
                 </Button>
                 <Button onClick={() => handleOpenDialog()}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -506,6 +516,12 @@ body {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Library Dialog */}
+        <ImageLibraryDialog 
+          open={isImageLibraryOpen} 
+          onOpenChange={setIsImageLibraryOpen} 
+        />
         </main>
       </div>
     </SidebarProvider>
