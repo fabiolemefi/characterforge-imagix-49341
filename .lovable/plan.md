@@ -1,157 +1,255 @@
 
 
-## Plano: Adicionar Thumbnail para Assets de Campanha
+## Plano: Configuração de Meta Tags Global e por Campanha
 
 ### Objetivo
 
-Adicionar uma imagem de **thumbnail** separada para cada asset de campanha de imagem. Esta thumbnail será exibida na página pública `/gerar/:slug` para o usuário selecionar o selo, enquanto a `image_url` original continuará sendo usada para aplicar o selo na foto.
+Criar controle administrativo sobre as meta tags do site em dois níveis:
+1. **Global**: Meta tags da página principal (Index) - afeta links do domínio raiz
+2. **Por Campanha**: Meta tags específicas para cada campanha de geração de imagens (`/gerar/:slug`)
 
 ---
 
-### Fluxo Visual
+### Estrutura do Banco de Dados
 
-```
-┌─────────────────────────────────────────────────────┐
-│          Admin: Gerenciar Assets                    │
-├─────────────────────────────────────────────────────┤
-│  [Imagem do Selo] → image_url (obrigatória)        │
-│  [Thumbnail]      → thumbnail_url (opcional)        │
-│                                                     │
-│  Se thumbnail não existir, usa image_url            │
-└─────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────┐
-│          Página Pública: /gerar/:slug               │
-├─────────────────────────────────────────────────────┤
-│  Exibe: thumbnail_url OU image_url (fallback)      │
-│  Aplica: image_url (sempre)                        │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-### Alterações Necessárias
-
-#### 1. Banco de Dados: Adicionar coluna `thumbnail_url`
-
-**Migração SQL:**
+#### 1. Nova Tabela: `site_settings`
+Armazena configurações globais do site (meta tags da index).
 
 ```sql
-ALTER TABLE public.image_campaign_assets 
-ADD COLUMN thumbnail_url TEXT;
+CREATE TABLE public.site_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  og_title TEXT,
+  og_description TEXT,
+  og_image_url TEXT,
+  twitter_card TEXT DEFAULT 'summary_large_image',
+  favicon_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-COMMENT ON COLUMN public.image_campaign_assets.thumbnail_url IS 
-'URL da imagem de thumbnail para exibição na seleção. Se nulo, usa image_url.';
+-- Inserir registro único
+INSERT INTO site_settings (og_title, og_description) 
+VALUES ('Martech Efí Bank', 'Martech Efi Bank');
+```
+
+#### 2. Alteração na Tabela: `image_campaigns`
+Adicionar campos para SEO específico por campanha.
+
+```sql
+ALTER TABLE public.image_campaigns
+ADD COLUMN og_title TEXT,
+ADD COLUMN og_description TEXT,
+ADD COLUMN og_image_url TEXT;
 ```
 
 ---
 
-#### 2. Hook: Atualizar Interfaces TypeScript
+### Novos Arquivos
 
-**Arquivo:** `src/hooks/useImageCampaigns.ts`
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/AdminSiteSettings.tsx` | Página admin para configuração geral |
+| `src/hooks/useSiteSettings.ts` | Hook para gerenciar configurações do site |
+
+---
+
+### Alterações em Arquivos Existentes
+
+#### 1. `src/components/AdminSidebar.tsx`
+Adicionar novo item de menu "Configuração Geral".
 
 ```typescript
-export interface ImageCampaignAsset {
+{
+  title: "Configuração Geral",
+  url: "/admin/configuracao",
+  icon: Settings,  // lucide-react
+}
+```
+
+#### 2. `src/App.tsx`
+Adicionar rota para a nova página.
+
+```typescript
+<Route path="/admin/configuracao" element={<AdminSiteSettings />} />
+```
+
+#### 3. `src/hooks/useImageCampaigns.ts`
+Atualizar interfaces para incluir campos de SEO.
+
+```typescript
+export interface ImageCampaign {
+  // ... campos existentes
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
+}
+
+export interface CreateCampaignData {
+  // ... campos existentes
+  og_title?: string;
+  og_description?: string;
+  og_image_url?: string;
+}
+```
+
+#### 4. `src/components/campaigns/CampaignFormDialog.tsx`
+Adicionar seção "SEO & Compartilhamento" no formulário.
+
+Nova seção com campos:
+- **Título para compartilhamento** (og_title)
+- **Descrição para compartilhamento** (og_description)
+- **Imagem de preview** (og_image_url) - upload de imagem
+
+#### 5. `src/pages/ImageCampaignPublic.tsx`
+Usar `react-helmet` para injetar meta tags dinâmicas.
+
+```typescript
+import { Helmet } from "react-helmet";
+
+// Dentro do componente, após carregar a campanha:
+<Helmet>
+  <title>{campaign.og_title || campaign.title}</title>
+  <meta property="og:title" content={campaign.og_title || campaign.title} />
+  <meta property="og:description" content={campaign.og_description || campaign.subtitle || ''} />
+  {campaign.og_image_url && (
+    <meta property="og:image" content={campaign.og_image_url} />
+  )}
+</Helmet>
+```
+
+---
+
+### Nova Página: Configuração Geral
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Configuração Geral                                        │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  META TAGS DO SITE (Open Graph)                            │
+│  ─────────────────────────────────                         │
+│                                                            │
+│  Título (og:title):                                        │
+│  ┌──────────────────────────────────────────┐              │
+│  │ Martech Efí Bank                         │              │
+│  └──────────────────────────────────────────┘              │
+│                                                            │
+│  Descrição (og:description):                               │
+│  ┌──────────────────────────────────────────┐              │
+│  │ Plataforma de marketing digital          │              │
+│  │ do Efí Bank                              │              │
+│  └──────────────────────────────────────────┘              │
+│                                                            │
+│  Imagem de Preview:                                        │
+│  ┌───────────────────┐                                     │
+│  │    [Imagem]       │  [Trocar Imagem]                    │
+│  │                   │                                     │
+│  └───────────────────┘                                     │
+│  Recomendado: 1200x630px                                   │
+│                                                            │
+│  Favicon:                                                  │
+│  ┌───────┐                                                 │
+│  │ [ico] │  [Trocar Favicon]                               │
+│  └───────┘                                                 │
+│                                                            │
+│                            [Salvar Configurações]          │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Seção SEO no Formulário de Campanha
+
+Adicionar ao `CampaignFormDialog.tsx`:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  SEO & COMPARTILHAMENTO                                    │
+│  ─────────────────────                                     │
+│                                                            │
+│  Título para compartilhamento:                             │
+│  ┌──────────────────────────────────────────┐              │
+│  │ Gere seu selo exclusivo!                 │              │
+│  └──────────────────────────────────────────┘              │
+│  Se vazio, usa o título da campanha                        │
+│                                                            │
+│  Descrição para compartilhamento:                          │
+│  ┌──────────────────────────────────────────┐              │
+│  │ Personalize sua foto com o selo          │              │
+│  │ da campanha Selo Estratégia              │              │
+│  └──────────────────────────────────────────┘              │
+│                                                            │
+│  Imagem de Preview:                                        │
+│  ┌───────────────────┐                                     │
+│  │    [Imagem]       │  [Upload]                           │
+│  │  1200x630px       │                                     │
+│  └───────────────────┘                                     │
+│  Imagem mostrada ao compartilhar o link                    │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Hook: `useSiteSettings.ts`
+
+```typescript
+export interface SiteSettings {
   id: string;
-  campaign_id: string;
-  image_url: string;
-  thumbnail_url: string | null;  // NOVO
-  name: string;
-  is_visible: boolean;
-  position: number;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
+  twitter_card: string;
+  favicon_url: string | null;
   created_at: string;
+  updated_at: string;
 }
 
-export interface CreateAssetData {
-  campaign_id: string;
-  image_url: string;
-  thumbnail_url?: string;  // NOVO
-  name: string;
-  is_visible?: boolean;
-  position?: number;
-}
-
-export interface UpdateAssetData {
-  id: string;
-  is_visible?: boolean;
-  position?: number;
-  name?: string;
-  thumbnail_url?: string;  // NOVO
+export function useSiteSettings() {
+  // Query para buscar configurações
+  // Mutation para atualizar
+  // Função para upload de imagem
 }
 ```
 
 ---
 
-#### 3. Admin: Atualizar Gerenciador de Assets
+### Limitação Importante
 
-**Arquivo:** `src/components/campaigns/CampaignAssetsManager.tsx`
+As meta tags da `index.html` (página raiz) são estáticas e definidas em build time. Para que as configurações do admin reflitam no `index.html`, seria necessário:
 
-**Alterações:**
+**Opção A (Recomendada)**: Usar `react-helmet` na página Index para sobrescrever as tags dinamicamente quando o JavaScript carrega.
 
-| Elemento | Alteração |
-|----------|-----------|
-| Estado | Adicionar `thumbnailFile` para armazenar arquivo de thumbnail selecionado |
-| Upload | Adicionar área de upload separada para thumbnail |
-| Criação | Fazer upload de ambas imagens (selo e thumbnail) |
-| Exibição | Mostrar thumbnail na lista de assets (se existir) |
+**Opção B**: Server-side rendering (não disponível no Lovable).
 
-**UI do formulário de upload:**
-
-```
-┌───────────────────────────────────────────────────────┐
-│  Adicionar Asset                                      │
-├───────────────────────────────────────────────────────┤
-│  Nome do Asset: [________________]                   │
-│                                                       │
-│  ┌───────────────┐  ┌───────────────┐                │
-│  │ Imagem Selo   │  │  Thumbnail    │                │
-│  │  (Obrigatório)│  │  (Opcional)   │                │
-│  │ [Selecionar]  │  │ [Selecionar]  │                │
-│  └───────────────┘  └───────────────┘                │
-│                                                       │
-│  ☐ Visível para usuários                             │
-│                                                       │
-│  [      Adicionar Asset      ]                       │
-└───────────────────────────────────────────────────────┘
-```
-
----
-
-#### 4. Página Pública: Usar Thumbnail na Exibição
-
-**Arquivo:** `src/pages/ImageCampaignPublic.tsx`
-
-**Alteração na renderização dos selos (linha ~474):**
-
-```typescript
-// ANTES
-<img src={asset.image_url} alt={asset.name} />
-
-// DEPOIS
-<img 
-  src={asset.thumbnail_url || asset.image_url} 
-  alt={asset.name} 
-/>
-```
+A Opção A será implementada, mas crawlers que não executam JavaScript podem não ver as tags atualizadas.
 
 ---
 
 ### Resumo das Alterações
 
-| Arquivo | Tipo | Descrição |
-|---------|------|-----------|
-| Migração SQL | Banco | Adicionar coluna `thumbnail_url` |
-| `src/hooks/useImageCampaigns.ts` | TypeScript | Atualizar interfaces |
-| `src/components/campaigns/CampaignAssetsManager.tsx` | UI Admin | Adicionar upload de thumbnail |
-| `src/pages/ImageCampaignPublic.tsx` | UI Pública | Usar thumbnail para exibição |
+| Tipo | Arquivo/Recurso | Descrição |
+|------|-----------------|-----------|
+| SQL | Migration | Criar `site_settings` + adicionar colunas em `image_campaigns` |
+| Novo | `src/pages/AdminSiteSettings.tsx` | Página de configuração geral |
+| Novo | `src/hooks/useSiteSettings.ts` | Hook para configurações do site |
+| Edição | `src/components/AdminSidebar.tsx` | Adicionar menu "Configuração Geral" |
+| Edição | `src/App.tsx` | Adicionar rota `/admin/configuracao` |
+| Edição | `src/hooks/useImageCampaigns.ts` | Adicionar campos og_* nas interfaces |
+| Edição | `src/components/campaigns/CampaignFormDialog.tsx` | Adicionar seção SEO |
+| Edição | `src/pages/ImageCampaignPublic.tsx` | Injetar meta tags via Helmet |
+| Edição | `src/pages/Index.tsx` | Injetar meta tags via Helmet |
 
 ---
 
-### Comportamento
+### Fluxo de Funcionamento
 
-1. **Upload no Admin:** O administrador pode enviar duas imagens separadas - o selo real e uma thumbnail
-2. **Thumbnail opcional:** Se não for enviada, a página pública usará a `image_url` como fallback
-3. **Geração:** A imagem do selo (`image_url`) continua sendo usada para aplicar na foto do usuário
-4. **Exibição:** A thumbnail é usada apenas para mostrar as opções de seleção na página pública
+1. Admin acessa `/admin/configuracao` e define meta tags globais
+2. Admin cria/edita campanha e define meta tags específicas (opcional)
+3. Quando usuário acessa `/gerar/selo-estrategia`:
+   - Helmet injeta as meta tags da campanha
+   - Se og_title não definido, usa título da campanha
+   - Se og_image não definido, pode usar logo ou background como fallback
+4. Quando usuário compartilha o link, a preview mostra as informações corretas
 
