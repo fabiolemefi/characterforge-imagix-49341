@@ -58,16 +58,6 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Code,
 };
 
-const COMPONENT_MAP: Record<string, React.ReactElement> = {
-  Container: <Element is={Container} canvas />,
-  Heading: <Heading />,
-  Text: <Text />,
-  Button: <Button />,
-  Image: <Image />,
-  Divider: <Divider />,
-  Spacer: <Spacer />,
-};
-
 export const Toolbox = () => {
   const { connectors } = useEditor();
   const { blocks, isLoading } = useEfiCodeBlocks(true);
@@ -77,8 +67,25 @@ export const Toolbox = () => {
     return IconComponent ? <IconComponent className="h-5 w-5" /> : <SquareDashed className="h-5 w-5" />;
   };
 
-  const getComponent = (componentType: string) => {
-    return COMPONENT_MAP[componentType] || <Element is={Container} canvas />;
+  const getComponent = (componentType: string, defaultProps: Record<string, any> = {}) => {
+    switch (componentType) {
+      case 'Container':
+        return <Element is={Container} canvas {...defaultProps} />;
+      case 'Heading':
+        return <Heading {...defaultProps} />;
+      case 'Text':
+        return <Text {...defaultProps} />;
+      case 'Button':
+        return <Button {...defaultProps} />;
+      case 'Image':
+        return <Image {...defaultProps} />;
+      case 'Divider':
+        return <Divider {...defaultProps} />;
+      case 'Spacer':
+        return <Spacer {...defaultProps} />;
+      default:
+        return <Element is={Container} canvas {...defaultProps} />;
+    }
   };
 
   if (isLoading) {
@@ -105,7 +112,7 @@ export const Toolbox = () => {
         {blocks.map((block) => (
           <div
             key={block.id}
-            ref={(ref) => ref && connectors.create(ref, getComponent(block.component_type))}
+            ref={(ref) => ref && connectors.create(ref, getComponent(block.component_type, block.default_props || {}))}
           >
             <ToolboxItem
               icon={getIcon(block.icon_name)}
