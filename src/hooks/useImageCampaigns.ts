@@ -24,6 +24,7 @@ export interface ImageCampaignAsset {
   id: string;
   campaign_id: string;
   image_url: string;
+  thumbnail_url: string | null;
   name: string;
   is_visible: boolean;
   position: number;
@@ -51,6 +52,7 @@ export interface UpdateCampaignData extends Partial<CreateCampaignData> {
 export interface CreateAssetData {
   campaign_id: string;
   image_url: string;
+  thumbnail_url?: string;
   name: string;
   is_visible?: boolean;
   position?: number;
@@ -61,6 +63,7 @@ export interface UpdateAssetData {
   is_visible?: boolean;
   position?: number;
   name?: string;
+  thumbnail_url?: string;
 }
 
 // Hook para listar todas as campanhas (admin)
