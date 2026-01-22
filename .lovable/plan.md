@@ -1,121 +1,157 @@
 
 
-## Plano: Corrigir Loading Infinito em Página Pública
+## Plano: Adicionar Thumbnail para Assets de Campanha
 
-### Diagnóstico
+### Objetivo
 
-O problema ocorre porque:
+Adicionar uma imagem de **thumbnail** separada para cada asset de campanha de imagem. Esta thumbnail será exibida na página pública `/gerar/:slug` para o usuário selecionar o selo, enquanto a `image_url` original continuará sendo usada para aplicar o selo na foto.
 
-1. O Supabase client mantém tokens de autenticação no **localStorage**
-2. Quando o token está corrompido/expirado, o client tenta usá-lo automaticamente
-3. Isso pode causar falhas nas requisições, **mesmo para dados públicos**
-4. Limpar "cache do navegador" não remove localStorage/IndexedDB
+---
 
-### Solução Imediata (para você testar agora)
+### Fluxo Visual
 
-Abra o DevTools (F12) → Application → Local Storage → martech-efi.lovable.app e delete:
-- `sb-dbxaamdirxjrbolsegwz-auth-token`
-
-Ou execute no console:
-```javascript
-localStorage.removeItem('sb-dbxaamdirxjrbolsegwz-auth-token');
-location.reload();
+```
+┌─────────────────────────────────────────────────────┐
+│          Admin: Gerenciar Assets                    │
+├─────────────────────────────────────────────────────┤
+│  [Imagem do Selo] → image_url (obrigatória)        │
+│  [Thumbnail]      → thumbnail_url (opcional)        │
+│                                                     │
+│  Se thumbnail não existir, usa image_url            │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│          Página Pública: /gerar/:slug               │
+├─────────────────────────────────────────────────────┤
+│  Exibe: thumbnail_url OU image_url (fallback)      │
+│  Aplica: image_url (sempre)                        │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Correção no Código
+### Alterações Necessárias
 
-Adicionar tratamento de erro robusto na página `ImageCampaignPublic.tsx`:
+#### 1. Banco de Dados: Adicionar coluna `thumbnail_url`
 
-#### 1. Adicionar retry específico para páginas públicas
+**Migração SQL:**
+
+```sql
+ALTER TABLE public.image_campaign_assets 
+ADD COLUMN thumbnail_url TEXT;
+
+COMMENT ON COLUMN public.image_campaign_assets.thumbnail_url IS 
+'URL da imagem de thumbnail para exibição na seleção. Se nulo, usa image_url.';
+```
+
+---
+
+#### 2. Hook: Atualizar Interfaces TypeScript
+
+**Arquivo:** `src/hooks/useImageCampaigns.ts`
 
 ```typescript
-// src/hooks/useImageCampaigns.ts - Modificar useCampaign
+export interface ImageCampaignAsset {
+  id: string;
+  campaign_id: string;
+  image_url: string;
+  thumbnail_url: string | null;  // NOVO
+  name: string;
+  is_visible: boolean;
+  position: number;
+  created_at: string;
+}
 
-export function useCampaign(slug: string | undefined) {
-  return useQuery({
-    queryKey: ["image-campaign", slug],
-    queryFn: async () => {
-      if (!slug) return null;
-      
-      const { data, error } = await supabase
-        .from("image_campaigns")
-        .select("*")
-        .eq("slug", slug)
-        .single();
+export interface CreateAssetData {
+  campaign_id: string;
+  image_url: string;
+  thumbnail_url?: string;  // NOVO
+  name: string;
+  is_visible?: boolean;
+  position?: number;
+}
 
-      if (error) throw error;
-      return data as ImageCampaign;
-    },
-    enabled: !!slug,
-    retry: 3,                    // NOVO: Tentar 3 vezes
-    retryDelay: 1000,            // NOVO: 1 segundo entre tentativas
-    staleTime: 0,                // NOVO: Sempre buscar dados frescos
-  });
+export interface UpdateAssetData {
+  id: string;
+  is_visible?: boolean;
+  position?: number;
+  name?: string;
+  thumbnail_url?: string;  // NOVO
 }
 ```
 
-#### 2. Adicionar timeout e tratamento de erro na página
+---
+
+#### 3. Admin: Atualizar Gerenciador de Assets
+
+**Arquivo:** `src/components/campaigns/CampaignAssetsManager.tsx`
+
+**Alterações:**
+
+| Elemento | Alteração |
+|----------|-----------|
+| Estado | Adicionar `thumbnailFile` para armazenar arquivo de thumbnail selecionado |
+| Upload | Adicionar área de upload separada para thumbnail |
+| Criação | Fazer upload de ambas imagens (selo e thumbnail) |
+| Exibição | Mostrar thumbnail na lista de assets (se existir) |
+
+**UI do formulário de upload:**
+
+```
+┌───────────────────────────────────────────────────────┐
+│  Adicionar Asset                                      │
+├───────────────────────────────────────────────────────┤
+│  Nome do Asset: [________________]                   │
+│                                                       │
+│  ┌───────────────┐  ┌───────────────┐                │
+│  │ Imagem Selo   │  │  Thumbnail    │                │
+│  │  (Obrigatório)│  │  (Opcional)   │                │
+│  │ [Selecionar]  │  │ [Selecionar]  │                │
+│  └───────────────┘  └───────────────┘                │
+│                                                       │
+│  ☐ Visível para usuários                             │
+│                                                       │
+│  [      Adicionar Asset      ]                       │
+└───────────────────────────────────────────────────────┘
+```
+
+---
+
+#### 4. Página Pública: Usar Thumbnail na Exibição
 
 **Arquivo:** `src/pages/ImageCampaignPublic.tsx`
 
+**Alteração na renderização dos selos (linha ~474):**
+
 ```typescript
-// Adicionar estado de timeout
-const [loadingTimeout, setLoadingTimeout] = useState(false);
+// ANTES
+<img src={asset.image_url} alt={asset.name} />
 
-// useEffect para detectar loading travado
-useEffect(() => {
-  if (loadingCampaign) {
-    const timer = setTimeout(() => {
-      setLoadingTimeout(true);
-    }, 10000); // 10 segundos
-    
-    return () => clearTimeout(timer);
-  } else {
-    setLoadingTimeout(false);
-  }
-}, [loadingCampaign]);
-
-// Função para limpar storage e recarregar
-const handleRetry = () => {
-  localStorage.removeItem('sb-dbxaamdirxjrbolsegwz-auth-token');
-  window.location.reload();
-};
-
-// Modificar o render de loading
-if (loadingCampaign) {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      {loadingTimeout && (
-        <div className="text-center space-y-2">
-          <p className="text-sm text-muted-foreground">
-            O carregamento está demorando mais que o esperado
-          </p>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
-            Tentar novamente
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
+// DEPOIS
+<img 
+  src={asset.thumbnail_url || asset.image_url} 
+  alt={asset.name} 
+/>
 ```
 
 ---
 
 ### Resumo das Alterações
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useImageCampaigns.ts` | Adicionar `retry: 3`, `retryDelay: 1000`, `staleTime: 0` ao `useCampaign` |
-| `src/pages/ImageCampaignPublic.tsx` | Adicionar detecção de timeout (10s) e botão "Tentar novamente" que limpa localStorage |
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| Migração SQL | Banco | Adicionar coluna `thumbnail_url` |
+| `src/hooks/useImageCampaigns.ts` | TypeScript | Atualizar interfaces |
+| `src/components/campaigns/CampaignAssetsManager.tsx` | UI Admin | Adicionar upload de thumbnail |
+| `src/pages/ImageCampaignPublic.tsx` | UI Pública | Usar thumbnail para exibição |
 
-### Resultado Esperado
+---
 
-- Usuários não ficam presos em loading infinito
-- Após 10 segundos, aparece opção de "Tentar novamente"
-- O botão limpa tokens problemáticos e recarrega a página
-- Funciona mesmo com sessões corrompidas
+### Comportamento
+
+1. **Upload no Admin:** O administrador pode enviar duas imagens separadas - o selo real e uma thumbnail
+2. **Thumbnail opcional:** Se não for enviada, a página pública usará a `image_url` como fallback
+3. **Geração:** A imagem do selo (`image_url`) continua sendo usada para aplicar na foto do usuário
+4. **Exibição:** A thumbnail é usada apenas para mostrar as opções de seleção na página pública
 
