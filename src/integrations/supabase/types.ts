@@ -749,6 +749,27 @@ export type Database = {
         }
         Relationships: []
       }
+      efi_code_config: {
+        Row: {
+          created_at: string | null
+          global_css: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          global_css?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          global_css?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       efi_code_sites: {
         Row: {
           content: Json | null

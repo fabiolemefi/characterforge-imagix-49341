@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -50,8 +51,10 @@ import {
   Quote,
   Table as TableIcon,
   Code,
+  FileCode,
 } from 'lucide-react';
 import { useEfiCodeBlocks, EfiCodeBlockFormData } from '@/hooks/useEfiCodeBlocks';
+import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -106,10 +109,13 @@ const defaultFormData: EfiCodeBlockFormData = {
 export default function AdminEfiCodeBlocks() {
   const navigate = useNavigate();
   const { blocks, isLoading, createBlock, updateBlock, deleteBlock, toggleBlockActive } = useEfiCodeBlocks();
+  const { globalCss, updateConfig, isLoading: isConfigLoading } = useEfiCodeConfig();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCssDialogOpen, setIsCssDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<EfiCodeBlockFormData>(defaultFormData);
   const [defaultPropsJson, setDefaultPropsJson] = useState('{}');
+  const [cssContent, setCssContent] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -235,10 +241,22 @@ export default function AdminEfiCodeBlocks() {
                   </p>
                 </div>
               </div>
-              <Button onClick={() => handleOpenDialog()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Bloco
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setCssContent(globalCss);
+                    setIsCssDialogOpen(true);
+                  }}
+                >
+                  <FileCode className="h-4 w-4 mr-2" />
+                  CSS Global
+                </Button>
+                <Button onClick={() => handleOpenDialog()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Bloco
+                </Button>
+              </div>
             </div>
 
           <div className="border rounded-lg">
@@ -439,6 +457,51 @@ export default function AdminEfiCodeBlocks() {
               </Button>
               <Button onClick={handleSubmit} disabled={!formData.name || !formData.component_type}>
                 {editingId ? 'Salvar' : 'Criar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* CSS Global Dialog */}
+        <Dialog open={isCssDialogOpen} onOpenChange={setIsCssDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>CSS Global</DialogTitle>
+              <DialogDescription>
+                Este CSS será incluído automaticamente em todos os sites exportados do Efi Code.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4">
+              <Textarea
+                value={cssContent}
+                onChange={(e) => setCssContent(e.target.value)}
+                placeholder={`/* Adicione seu CSS global aqui */
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #00809d, #005f74);
+  transition: all 0.3s ease;
+}`}
+                className="font-mono text-sm min-h-[400px]"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCssDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={async () => {
+                  await updateConfig.mutateAsync({ global_css: cssContent });
+                  setIsCssDialogOpen(false);
+                }}
+                disabled={updateConfig.isPending}
+              >
+                {updateConfig.isPending ? 'Salvando...' : 'Salvar CSS'}
               </Button>
             </DialogFooter>
           </DialogContent>
