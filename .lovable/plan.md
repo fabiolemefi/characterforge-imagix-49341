@@ -1,189 +1,270 @@
 
 
-## Plano: Melhorias no Header do Efi Code Editor
+## Plano: Aba de Ícones com Importação ZIP
 
 ### Objetivo
 
-Reorganizar o header do editor para incluir:
-1. Dropdown "Ações" agrupando Prévia e Exportar HTML
-2. Toggle Visual/Código com sincronização bidirecional
-3. Toggles de responsividade (Web/Tablet/Mobile)
+Adicionar uma terceira aba "Ícones" no dialog da Biblioteca de Imagens com:
+1. Lista de ícones SVG com agrupamento por prefixo do nome
+2. Botão "Novo Ícone" para upload individual
+3. Botão "Importar" para upload de ZIP com múltiplos ícones
+4. Opção de "substituir existentes" na importação
 
 ---
 
-### Layout Proposto do Header
+### 1. Estrutura do Banco de Dados
+
+Nova tabela específica para ícones (separada das imagens para organização):
+
+#### Tabela: `efi_library_icons`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | Chave primária |
+| `name` | text | Nome do arquivo (ex: "ilustra-dev-api-abertura") |
+| `filename` | text | Nome original do arquivo com extensão |
+| `group_prefix` | text | Prefixo agrupador (ex: "ilustra", "bolix", "geral") |
+| `url` | text | URL pública do SVG |
+| `is_active` | boolean | Se está ativo |
+| `created_at` | timestamp | Data de criação |
+| `created_by` | uuid | Usuário que fez upload |
+
+**Lógica de agrupamento:**
+- Se o nome começa com `ilustra-` → grupo "ilustra"
+- Se o nome começa com `bolix-` → grupo "bolix"
+- Qualquer outro → grupo "geral"
+
+---
+
+### 2. Interface da Aba Ícones
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│  [←] [Nome do Site_______] [Web|Tablet|Mobile]     [Visual|Código] [⤺][⤻] [Ações▾] [Salvar] │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Biblioteca de Imagens                                           [X]    │
+├──────────────────────────────────────────────────────────────────────────┤
+│  [Categorias] [Imagens] [Ícones]                                         │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  [Todos ▾]  [🔍 Buscar...]              [📥 Importar] [+ Novo Ícone]    │
+│                                                                          │
+│  ▼ ilustra (45 ícones)                                                   │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                  │
+│  │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │                  │
+│  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────┘                  │
+│  abertura  conta    extrato  extrato-1 cobranca ...                     │
+│                                                                          │
+│  ▼ geral (12 ícones)                                                     │
+│  ┌──────┐ ┌──────┐ ┌──────┐                                              │
+│  │ SVG  │ │ SVG  │ │ SVG  │                                              │
+│  └──────┘ └──────┘ └──────┘                                              │
+│  arrow    check    close                                                │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 1. Dropdown "Ações"
+### 3. Modal de Importação ZIP
 
-Substituir os botões "Prévia" e "Exportar HTML" por um único dropdown:
-
-| Item | Ícone | Ação |
-|------|-------|------|
-| Prévia | Eye | Salva e abre nova aba com preview |
-| Exportar HTML | Download | Baixa arquivo .html |
-
-Componente: `DropdownMenu` do shadcn/ui.
-
----
-
-### 2. Toggle Visual/Código
-
-**Comportamento:**
-- **Visual (padrão)**: Exibe o editor Craft.js normalmente
-- **Código**: Exibe um editor de texto com o HTML gerado
-
-**Sincronização Bidirecional:**
-- Visual → Código: Ao alternar para código, gera HTML do estado atual do Craft.js
-- Código → Visual: Ao alternar para visual, precisa "parsear" o HTML e reconstruir os nodes do Craft.js
-
-**Desafio Técnico:**
-O Craft.js usa uma estrutura JSON específica para representar componentes. Converter HTML arbitrário de volta para essa estrutura é complexo.
-
-**Solução Proposta:**
-- Modo Código será **somente leitura** inicialmente, permitindo copiar/visualizar o HTML
-- OU implementar um parser simples que detecta estruturas conhecidas (Container, Heading, Text, Button, Image, Divider, Spacer) e reconstrói os nodes
-
-**Recomendação:** Começar com modo de edição limitado, onde:
-1. O usuário pode editar textos inline no HTML
-2. Mudanças estruturais (adicionar/remover elementos) são feitas no modo Visual
-3. O parser tenta extrair os valores de props conhecidos do HTML editado
-
-**Componente:** Toggle usando `ToggleGroup` do shadcn/ui ou botões com estado.
-
----
-
-### 3. Toggles de Responsividade
-
-**Breakpoints:**
-| Modo | Largura do Preview | Ícone |
-|------|-------------------|-------|
-| Web | 100% (padrão) | Monitor |
-| Tablet | 768px | Tablet |
-| Mobile | 375px | Smartphone |
+```text
+┌────────────────────────────────────────────────────────────────┐
+│  Importar Ícones                                         [X]  │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                                                          │  │
+│  │     📁 Arraste um arquivo .zip aqui                     │  │
+│  │        ou clique para selecionar                        │  │
+│  │                                                          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+│  ☐ Substituir ícones existentes com mesmo nome                │
+│                                                                │
+│  ─────────────────────────────────────────────────────────────  │
+│  Prévia (após selecionar ZIP):                                 │
+│                                                                │
+│  ✓ ilustra-dev-api-abertura.svg                               │
+│  ✓ ilustra-dev-api-conta.svg                                  │
+│  ⚠️ bolix.svg (já existe - será ignorado)                      │
+│  ✓ novo-icone.svg                                              │
+│                                                                │
+│  Total: 45 ícones | Novos: 42 | Ignorados: 3                  │
+│                                                                │
+│                              [Cancelar] [Importar 42 ícones]  │
+└────────────────────────────────────────────────────────────────┘
+```
 
 **Comportamento:**
-- Ao clicar em Tablet/Mobile, o container do viewport centraliza e limita a largura
-- Adiciona uma borda visual para simular a tela do dispositivo
-- Não altera o HTML, apenas a visualização
+1. Usuário seleciona arquivo ZIP
+2. Sistema extrai lista de SVGs usando `jszip` (já instalado)
+3. Verifica quais já existem no banco (por `filename`)
+4. Exibe prévia com status de cada arquivo
+5. Se "substituir" marcado: sobrescreve existentes
+6. Se "substituir" desmarcado (padrão): ignora existentes
 
 ---
 
-### Arquivos a Modificar
+### 4. Hook Atualizado: useEfiImageLibrary
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/EfiCodeEditor.tsx` | Adicionar estados para viewMode (visual/code), viewportWidth. Reorganizar header com dropdown e toggles |
-| `src/lib/efiCodeHtmlGenerator.ts` | (Opcional) Adicionar função para parsear HTML de volta para nodes |
-
----
-
-### Novo Estado no EfiCodeEditor
+Adicionar métodos para ícones:
 
 ```typescript
-// Estados novos
-const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
-const [viewportSize, setViewportSize] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-const [codeContent, setCodeContent] = useState<string>('');
+// Novos tipos
+interface EfiLibraryIcon {
+  id: string;
+  name: string;
+  filename: string;
+  group_prefix: string;
+  url: string;
+  is_active: boolean;
+  created_at: string;
+  created_by: string | null;
+}
 
-// Dimensões do viewport
-const viewportWidths = {
-  desktop: '100%',
-  tablet: '768px',
-  mobile: '375px',
+// Novas funções
+- iconsQuery - Lista todos os ícones
+- iconsGrouped - Agrupa ícones por prefixo
+- createIcon(data) - Cria um ícone
+- updateIcon(id, data) - Atualiza ícone
+- deleteIcon(id) - Deleta ícone
+- uploadIcon(file) - Upload de SVG individual
+- importIconsFromZip(file, replace) - Importa ZIP com opção de substituir
+```
+
+---
+
+### 5. Lógica de Extração do Prefixo
+
+```typescript
+const extractGroupPrefix = (filename: string): string => {
+  // Remove extensão
+  const name = filename.replace(/\.svg$/i, '');
+  
+  // Prefixos conhecidos
+  const knownPrefixes = ['ilustra', 'bolix', 'icon'];
+  
+  for (const prefix of knownPrefixes) {
+    if (name.startsWith(`${prefix}-`)) {
+      return prefix;
+    }
+  }
+  
+  // Se não tem prefixo conhecido, vai para "geral"
+  return 'geral';
 };
 ```
 
 ---
 
-### Estrutura do Código no Modo Código
-
-```typescript
-{viewMode === 'visual' ? (
-  <EditorFrame editorState={editorState} />
-) : (
-  <div className="w-full h-full">
-    <textarea
-      value={codeContent}
-      onChange={(e) => setCodeContent(e.target.value)}
-      className="w-full h-full font-mono text-sm p-4 bg-gray-900 text-gray-100"
-      spellCheck={false}
-    />
-  </div>
-)}
-```
-
----
-
-### Fluxo de Sincronização
+### 6. Fluxo de Importação ZIP
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Modo Visual                                                    │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Craft.js Editor (drag & drop)                            │  │
-│  │  State: JSON nodes                                        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-         [Toggle para Código]
-         generateFullHtml(nodes)
-                           │
-                           ▼
+│  1. Usuário seleciona arquivo .zip                              │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Modo Código                                                    │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  <textarea> com HTML                                      │  │
-│  │  Usuário pode editar textos, cores, etc.                  │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-         [Toggle para Visual]
-         parseHtmlToNodes(html) ← Parser limitado
-                           │
-                           ▼
+│  2. JSZip extrai lista de arquivos                              │
+│     - Filtra apenas .svg                                        │
+│     - Ignora pastas vazias                                      │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Modo Visual (atualizado)                                       │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Craft.js com nodes reconstruídos                         │  │
-│  └───────────────────────────────────────────────────────────┘  │
+│  3. Consulta banco: quais filenames já existem?                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. Exibe prévia com status:                                    │
+│     - ✓ Novo (será adicionado)                                  │
+│     - ⚠️ Existente (será ignorado OU substituído)               │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  5. Usuário confirma importação                                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  6. Para cada SVG:                                              │
+│     a. Upload para bucket (efi-code-assets/icons/)              │
+│     b. Insert/Upsert no banco                                   │
+│     c. Atualiza progresso                                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Componentes UI Necessários
+### 7. Arquivos a Criar/Modificar
 
-- `DropdownMenu` - Para o botão "Ações"
-- `ToggleGroup` - Para Visual/Código e Web/Tablet/Mobile
-- `Textarea` ou editor de código (pode usar Monaco Editor futuramente)
-
----
-
-### Implementação em Fases
-
-**Fase 1 (Esta implementação):**
-- Dropdown "Ações" com Prévia e Exportar HTML
-- Toggles de responsividade funcionais
-- Toggle Visual/Código com modo código **somente visualização**
-
-**Fase 2 (Futura):**
-- Editor de código com syntax highlighting (Monaco Editor)
-- Parser HTML → Craft.js nodes para edição bidirecional
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/migrations/xxx.sql` | Criar tabela `efi_library_icons` com RLS |
+| `src/hooks/useEfiImageLibrary.ts` | Adicionar queries/mutations para ícones |
+| `src/components/eficode/ImageLibraryDialog.tsx` | Adicionar aba "Ícones" com IconsTab |
+| `src/components/eficode/IconImportModal.tsx` | **Novo** - Modal de importação ZIP |
 
 ---
 
-### Resultado Final
+### 8. Estrutura no Bucket
 
-- Header mais limpo e organizado
-- Fácil visualização em diferentes resoluções
-- Possibilidade de ver/copiar o código HTML gerado
-- Preparado para edição de código no futuro
+```text
+efi-code-assets/
+├── library/
+│   └── [imagens por categoria]
+├── icons/
+│   ├── ilustra-dev-api-abertura.svg
+│   ├── ilustra-dev-api-conta.svg
+│   ├── bolix.svg
+│   └── arrow.svg
+└── [outros]
+```
+
+---
+
+### 9. Componente IconsTab (Resumo)
+
+```typescript
+const IconsTab = () => {
+  // Estados
+  const [filterGroup, setFilterGroup] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  
+  // Agrupar ícones por prefixo
+  const groupedIcons = useMemo(() => {
+    const groups: Record<string, EfiLibraryIcon[]> = {};
+    filteredIcons.forEach(icon => {
+      const group = icon.group_prefix;
+      if (!groups[group]) groups[group] = [];
+      groups[group].push(icon);
+    });
+    return groups;
+  }, [filteredIcons]);
+  
+  return (
+    <>
+      {/* Filtros e botões */}
+      {/* Grid agrupado por prefixo */}
+      {/* Modal de novo ícone */}
+      <IconImportModal open={isImportOpen} onOpenChange={setIsImportOpen} />
+    </>
+  );
+};
+```
+
+---
+
+### 10. Resultado Final
+
+1. **Nova aba "Ícones"** com grid visual dos SVGs
+2. **Agrupamento automático** por prefixo do nome
+3. **Upload individual** de novos ícones
+4. **Importação em massa** via ZIP
+5. **Opção de substituir** ou ignorar existentes
+6. **Prévia antes de importar** mostrando o que será feito
 
