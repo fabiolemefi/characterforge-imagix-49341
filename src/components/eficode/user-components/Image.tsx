@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNode } from '@craftjs/core';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, ImageIcon } from 'lucide-react';
+import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
+import { EfiLibraryImage } from '@/hooks/useEfiImageLibrary';
 
 interface ImageProps {
   src?: string;
@@ -52,6 +54,7 @@ export const ImageSettings = () => {
     props: node.data.props,
   }));
   const [uploading, setUploading] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,18 +83,26 @@ export const ImageSettings = () => {
     }
   };
 
+  const handleSelectFromLibrary = (image: EfiLibraryImage) => {
+    setProp((props: ImageProps) => {
+      props.src = image.url;
+      if (image.alt_text) {
+        props.alt = image.alt_text;
+      }
+    });
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <label className="text-sm font-medium mb-2 block">Upload de Imagem</label>
-        <label className="flex items-center justify-center gap-2 w-full border-2 border-dashed rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors">
           {uploading ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : (
             <Upload className="h-5 w-5 text-muted-foreground" />
           )}
-          <span className="text-sm text-muted-foreground">
-            {uploading ? 'Enviando...' : 'Clique para enviar'}
+          <span className="text-xs text-muted-foreground text-center">
+            {uploading ? 'Enviando...' : 'Upload'}
           </span>
           <input
             type="file"
@@ -101,13 +112,21 @@ export const ImageSettings = () => {
             disabled={uploading}
           />
         </label>
+        
+        <button
+          onClick={() => setIsPickerOpen(true)}
+          className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+        >
+          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground text-center">Biblioteca</span>
+        </button>
       </div>
-      <div className="relative">
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-muted-foreground/20" />
-        <span className="relative bg-background px-2 text-xs text-muted-foreground flex justify-center">
-          ou
-        </span>
-      </div>
+
+      <ImagePickerModal
+        open={isPickerOpen}
+        onOpenChange={setIsPickerOpen}
+        onSelectImage={handleSelectFromLibrary}
+      />
       <div>
         <label className="text-sm font-medium">URL da Imagem</label>
         <input
