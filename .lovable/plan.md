@@ -1,92 +1,234 @@
 
 
-## Plano: Parser Simplificado - HTML + JSON sem Comentários
+## Plano: Corrigir Parser para Suportar Delimitador @container
 
-### Nova Lógica de Detecção
+### Problema Identificado
 
-Em vez de procurar comentários, o parser vai:
-1. Encontrar cada tag HTML de abertura (`<section`, `<div`, etc.)
-2. Capturar todo o HTML até o fechamento correspondente
-3. Capturar o JSON que vem logo após (se existir)
-4. Repetir para cada bloco encontrado
+O formato real usa `@container">` como delimitador entre blocos, não apenas HTML seguido de JSON. A estrutura é:
 
----
+```text
+BLOCO 1: HTML...
+         {JSON}
 
-### Formato Esperado (Simplificado)
+@container">   <-- Delimitador para próximo bloco
 
-```html
-<section class="w-full [sectionClass]">
-  <h1>[title]</h1>
-  <p>[description]</p>
-</section>
-{
-  "sectionClass": "bg-white",
-  "title": "Título Principal",
-  "description": "Descrição aqui"
-}
+BLOCO 2: HTML...
+         {JSON}
 
-<div class="grid [gridClass]">
-  ...
-</div>
-{
-  "gridClass": "grid-cols-3"
-}
+@container">   <-- Delimitador para próximo bloco
+
+BLOCO 3: ...
 ```
 
+O parser atual não reconhece esse delimitador e falha ao tentar processar.
+
 ---
 
-### Algoritmo Proposto
+### Solução Proposta
+
+Modificar o `parseHtmlWithTrailingJson` para:
+1. **Primeiro**, dividir o conteúdo por `@container">` (ou variantes)
+2. **Depois**, processar cada parte como um par HTML + JSON
+
+---
+
+### Novo Algoritmo
 
 ```typescript
 const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Regex: Captura uma tag HTML completa seguida de um JSON opcional
-  // Suporta: <section>...</section>, <div>...</div>, etc.
-  const blockPattern = /(<(?:section|div|article|header|footer|main|aside|nav)[^>]*>[\s\S]*?<\/\1>)\s*(\{[\s\S]*?\})?/gi;
+  // Dividir por @container"> (delimitador entre blocos)
+  // O primeiro split pode não ter o delimitador no início
+  const rawSegments = content.split(/@container">\s*/);
   
-  // Alternativa mais robusta: dividir por objetos JSON
-  // Encontrar todos os blocos JSON e usar como separadores
-  const jsonBlocks = content.match(/\{[\s\S]*?\}\s*(?=<|$)/g) || [];
-  
-  // Dividir o conteúdo pelos JSONs encontrados
-  let remaining = content;
-  let blockIndex = 0;
-  
-  for (const jsonStr of jsonBlocks) {
-    const jsonIndex = remaining.indexOf(jsonStr);
-    if (jsonIndex === -1) continue;
+  for (const segment of rawSegments) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
     
-    // HTML é tudo antes do JSON
-    const html = remaining.slice(0, jsonIndex).trim();
+    // Encontrar o JSON no final do segmento
+    // Usa regex que suporta objetos aninhados (até 2 níveis)
+    const jsonMatch = trimmed.match(/(\{[\s\S]*\})\s*$/);
     
-    if (html) {
-      let props = {};
-      try {
-        props = JSON.parse(jsonStr);
-      } catch {}
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[1];
+      const jsonIndex = trimmed.lastIndexOf(jsonStr);
+      let html = trimmed.slice(0, jsonIndex).trim();
       
-      const finalHtml = replacePlaceholders(html, props);
+      // Limpar comentários HTML
+      html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
       
-      blocks.push({
-        name: `Bloco ${++blockIndex}`,
-        category: detectCategoryFromHtml(html),
-        icon_name: detectIconFromHtml(html),
-        html_content: finalHtml,
-      });
+      if (html && html.includes('<')) {
+        let props = {};
+        try {
+          props = JSON.parse(jsonStr);
+        } catch {
+          // JSON inválido, usar HTML sem substituição
+        }
+        
+        const finalHtml = replacePlaceholders(html, props);
+        const blockIndex = blocks.length + 1;
+        
+        blocks.push({
+          name: detectNameFromHtml(html, blockIndex),
+          category: detectCategoryFromHtml(html),
+          icon_name: detectIconFromHtml(html),
+          html_content: finalHtml,
+        });
+      }
+    } else if (trimmed.includes('<')) {
+      // Sem JSON, apenas HTML
+      const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+      if (cleanHtml) {
+        const blockIndex = blocks.length + 1;
+        blocks.push({
+          name: detectNameFromHtml(cleanHtml, blockIndex),
+          category: detectCategoryFromHtml(cleanHtml),
+          icon_name: detectIconFromHtml(cleanHtml),
+          html_content: cleanHtml,
+        });
+      }
     }
-    
-    // Avançar para depois do JSON
-    remaining = remaining.slice(jsonIndex + jsonStr.length).trim();
   }
   
-  // Se sobrou HTML sem JSON, importar como bloco
-  if (remaining.trim().startsWith('<')) {
+  return blocks;
+};
+```
+
+---
+
+### Fluxo de Processamento
+
+```text
+Entrada:
+┌──────────────────────────────────────────────────────────────────┐
+│ <section>...</section>                                          │
+│ { "title": "Bloco 1" }                                          │
+│                                                                  │
+│ @container">                                                     │
+│ <div>...</div>                                                   │
+│ { "title": "Bloco 2" }                                           │
+│                                                                  │
+│ @container">                                                     │
+│ <article>...</article>                                           │
+│ { "title": "Bloco 3" }                                           │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ split("@container">")
+┌──────────────────────────────────────────────────────────────────┐
+│ Segment 1: <section>...</section> { "title": "Bloco 1" }         │
+├──────────────────────────────────────────────────────────────────┤
+│ Segment 2: <div>...</div> { "title": "Bloco 2" }                 │
+├──────────────────────────────────────────────────────────────────┤
+│ Segment 3: <article>...</article> { "title": "Bloco 3" }         │
+└──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ Para cada segmento
+┌──────────────────────────────────────────────────────────────────┐
+│ 1. Extrair JSON do final                                        │
+│ 2. Extrair HTML de antes do JSON                                │
+│ 3. Substituir [placeholders] pelos valores do JSON              │
+│ 4. Detectar nome/categoria/ícone                                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Variantes do Delimitador a Suportar
+
+Para ser robusto, a regex de split deve capturar:
+- `@container">`
+- `@container" >`
+- `@container">` com espaços antes/depois
+- Apenas `@container` (sem aspas/chevron)
+
+Regex sugerida:
+```typescript
+const rawSegments = content.split(/@container[^<]*(?:>|\s|$)/);
+```
+
+---
+
+### Arquivo a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/eficode/BlockImportModal.tsx` | Reescrever `parseHtmlWithTrailingJson` para usar split por `@container` |
+
+---
+
+### Código Final para parseHtmlWithTrailingJson
+
+```typescript
+// NEW: Parse HTML + JSON with @container"> delimiter
+const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
+  const blocks: BlockImportData[] = [];
+  
+  // Split by @container"> delimiter (and variations)
+  // This handles: @container">, @container" >, @container (without quotes)
+  const rawSegments = content.split(/@container[^<\n]*(?:>|\s|$)/i);
+  
+  for (const segment of rawSegments) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    
+    // Find the last JSON object in this segment
+    // Using lastIndexOf('{') approach to handle nested objects
+    const lastBraceIndex = trimmed.lastIndexOf('}');
+    if (lastBraceIndex === -1) {
+      // No JSON, check if it's just HTML
+      if (trimmed.includes('<')) {
+        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+        if (cleanHtml) {
+          blocks.push({
+            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+            category: detectCategoryFromHtml(cleanHtml),
+            icon_name: detectIconFromHtml(cleanHtml),
+            html_content: cleanHtml,
+          });
+        }
+      }
+      continue;
+    }
+    
+    // Find the matching opening brace for the JSON
+    let braceCount = 0;
+    let jsonStartIndex = -1;
+    
+    for (let i = lastBraceIndex; i >= 0; i--) {
+      if (trimmed[i] === '}') braceCount++;
+      if (trimmed[i] === '{') braceCount--;
+      
+      if (braceCount === 0) {
+        jsonStartIndex = i;
+        break;
+      }
+    }
+    
+    if (jsonStartIndex === -1) continue;
+    
+    const jsonStr = trimmed.slice(jsonStartIndex, lastBraceIndex + 1);
+    let html = trimmed.slice(0, jsonStartIndex).trim();
+    
+    // Clean HTML comments
+    html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
+    
+    if (!html || !html.includes('<')) continue;
+    
+    let props = {};
+    try {
+      props = JSON.parse(jsonStr);
+    } catch {
+      // Invalid JSON, keep HTML without replacement
+    }
+    
+    const finalHtml = replacePlaceholders(html, props);
+    
     blocks.push({
-      name: `Bloco ${++blockIndex}`,
-      category: 'layout',
-      icon_name: 'Code',
-      html_content: remaining.trim(),
+      name: detectNameFromHtml(html, blocks.length + 1),
+      category: detectCategoryFromHtml(html),
+      icon_name: detectIconFromHtml(html),
+      html_content: finalHtml,
     });
   }
   
@@ -96,127 +238,27 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
 
 ---
 
-### Detecção de Categoria pelo HTML
+### Testes que Devem Passar
 
-```typescript
-const detectCategoryFromHtml = (html: string): string => {
-  const lower = html.toLowerCase();
-  if (lower.includes('hero') || lower.includes('banner')) return 'layout';
-  if (lower.includes('grid') || lower.includes('card')) return 'layout';
-  if (lower.includes('<h1') || lower.includes('<h2')) return 'text';
-  if (lower.includes('<img') || lower.includes('image')) return 'media';
-  if (lower.includes('<button') || lower.includes('<form')) return 'interactive';
-  return 'layout';
-};
-```
+| Caso | Entrada | Resultado Esperado |
+|------|---------|-------------------|
+| 1 bloco simples | `<section>...</section> {json}` | 1 bloco |
+| 2 blocos com delimitador | `<section>...</section> {json} @container"> <div>...</div> {json}` | 2 blocos |
+| Múltiplos blocos | Seu formato atual | 4+ blocos |
+| Sem JSON | `<section>...</section>` | 1 bloco (sem props) |
+| JSON com nested objects | `{ "richContent": "<p>...</p>" }` | Funciona |
 
 ---
 
-### Detecção de Nome pelo HTML
+### Resultado Esperado
 
-```typescript
-const detectNameFromHtml = (html: string, index: number): string => {
-  // Tentar extrair nome de classes ou IDs
-  const classMatch = html.match(/class="([^"]+)"/i);
-  if (classMatch) {
-    const firstClass = classMatch[1].split(' ')[0];
-    if (firstClass && !firstClass.includes('[')) {
-      return formatBlockName(firstClass.replace(/-/g, ' '));
-    }
-  }
-  
-  const idMatch = html.match(/id="([^"]+)"/i);
-  if (idMatch) {
-    return formatBlockName(idMatch[1].replace(/-/g, ' '));
-  }
-  
-  return `Bloco ${index}`;
-};
-```
-
----
-
-### Fluxo de Parsing Atualizado
+Após essa correção, ao colar seu conteúdo, deve aparecer:
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│  Entrada: HTML + JSON intercalados (sem comentários)            │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  1. Encontrar todos os blocos JSON no texto                     │
-│     Regex: /\{[\s\S]*?\}\s*(?=<|$)/g                             │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  2. Para cada JSON encontrado:                                  │
-│     a. Extrair HTML que vem ANTES do JSON                       │
-│     b. Parsear o JSON como props                                │
-│     c. Substituir [placeholders] no HTML                        │
-│     d. Detectar nome/categoria/ícone do HTML                    │
-└─────────────────────────┬────────────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────────────┐
-│  3. Retornar array de blocos prontos                            │
-└──────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Prioridade de Parsing (Ordem)
-
-1. **JSON puro** - Manter retrocompatibilidade com formato atual
-2. **HTML + JSON intercalado** - Novo formato simplificado (prioridade)
-3. **Comentários BLOCO** - Fallback para formato antigo (opcional)
-4. **HTML puro** - Sem props, importar direto
-
----
-
-### Arquivo a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/eficode/BlockImportModal.tsx` | Adicionar `parseHtmlWithTrailingJson` e atualizar ordem de prioridade no `parseContent` |
-
----
-
-### Vantagens do Novo Formato
-
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Comentários | Obrigatórios (`<!-- BLOCO X -->`) | Não precisa |
-| Regex | Complexa, multi-linha | Simples, baseada em JSON |
-| Manutenção | Difícil (regex frágil) | Fácil (split por JSON) |
-| Erro humano | Alto (formato estrito) | Baixo (formato flexível) |
-
----
-
-### Exemplo de Importação
-
-**Entrada:**
-```html
-<section class="hero-section">
-  <h1>[title]</h1>
-</section>
-{
-  "title": "Bem-vindo"
-}
-
-<div class="feature-grid">
-  <p>[text]</p>
-</div>
-{
-  "text": "Recursos incríveis"
-}
-```
-
-**Saída detectada:**
-```text
-📦 Detectados: 2 blocos
-   • Hero Section (layout)
-   • Feature Grid (layout)
+📦 Detectados: 4 blocos
+   • Bloco 1 (layout) - Section com hero
+   • Bloco 2 (layout) - Container com grid  
+   • Bloco 3 (layout) - Cards grid
+   • Bloco 4 (layout) - Section split
 ```
 
