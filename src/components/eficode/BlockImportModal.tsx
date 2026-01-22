@@ -106,8 +106,8 @@ const extractHtmlAndJson = (content: string): { html: string; props: Record<stri
 const parseMultipleBlocks = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Regex to match each block section
-  const blockRegex = /<!--\s*=*\s*BLOCO\s+\d+:\s*(.+?)\s*=*\s*-->([\s\S]*?)(?=<!--\s*=*\s*BLOCO\s+\d+:|$)/gi;
+  // Regex to match each block section (supports multi-line comments with decorators)
+  const blockRegex = /<!--[\s=]*BLOCO\s+\d+:\s*([^\n]+?)[\s=]*-->([\s\S]*?)(?=<!--[\s=]*BLOCO\s+\d+:|$)/gi;
   
   let match;
   while ((match = blockRegex.exec(content)) !== null) {
@@ -211,8 +211,8 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
       // Not JSON, continue to other formats
     }
     
-    // 2. Check for block comments pattern <!-- BLOCO X: NAME -->
-    const blockPattern = /<!--\s*=*\s*BLOCO\s+\d+:\s*.+?\s*=*\s*-->/gi;
+    // 2. Check for block comments pattern <!-- BLOCO X: NAME --> (supports multi-line)
+    const blockPattern = /<!--[\s\S]*?BLOCO\s+\d+:\s*[^\n]+[\s\S]*?-->/gi;
     if (blockPattern.test(trimmed)) {
       const blocks = parseMultipleBlocks(trimmed);
       if (blocks.length > 0) {
