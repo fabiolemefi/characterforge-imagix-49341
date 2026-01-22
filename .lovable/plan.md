@@ -1,34 +1,34 @@
 
 
-## Plano: Corrigir Parser para Suportar Delimitador @container
+## Plano: Corrigir Parser para Não Quebrar HTML Interno
 
 ### Problema Identificado
 
-O formato real usa `@container">` como delimitador entre blocos, não apenas HTML seguido de JSON. A estrutura é:
+O parser atual usa `split(@container)` que **corta o HTML interno** do bloco:
 
 ```text
-BLOCO 1: HTML...
-         {JSON}
+Entrada:
+<section class="...">
+  <div class="@container">    ← @container está DENTRO do HTML!
+    ...
+  </div>
+</section>
+{ json }
 
-@container">   <-- Delimitador para próximo bloco
-
-BLOCO 2: HTML...
-         {JSON}
-
-@container">   <-- Delimitador para próximo bloco
-
-BLOCO 3: ...
+O que o split faz:
+Parte 1: <section class="..."> <div class="
+Parte 2: ">...              ← HTML quebrado!
 ```
 
-O parser atual não reconhece esse delimitador e falha ao tentar processar.
+O `@container` é uma classe CSS de Container Queries, não um delimitador entre blocos!
 
 ---
 
-### Solução Proposta
+### Solução: Detectar JSON como Delimitador
 
-Modificar o `parseHtmlWithTrailingJson` para:
-1. **Primeiro**, dividir o conteúdo por `@container">` (ou variantes)
-2. **Depois**, processar cada parte como um par HTML + JSON
+Em vez de usar `@container` como separador, o parser deve:
+1. Encontrar todos os objetos JSON de nível superior
+2. Usar o texto **antes** de cada JSON como o HTML do bloco
 
 ---
 
@@ -38,56 +38,89 @@ Modificar o `parseHtmlWithTrailingJson` para:
 const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Dividir por @container"> (delimitador entre blocos)
-  // O primeiro split pode não ter o delimitador no início
-  const rawSegments = content.split(/@container">\s*/);
+  // Encontrar todos os objetos JSON de nível superior no conteúdo
+  // Um JSON de nível superior começa com { no início de uma linha (ou após fechar >)
+  const jsonPositions: { start: number; end: number; json: string }[] = [];
   
-  for (const segment of rawSegments) {
-    const trimmed = segment.trim();
-    if (!trimmed) continue;
-    
-    // Encontrar o JSON no final do segmento
-    // Usa regex que suporta objetos aninhados (até 2 níveis)
-    const jsonMatch = trimmed.match(/(\{[\s\S]*\})\s*$/);
-    
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[1];
-      const jsonIndex = trimmed.lastIndexOf(jsonStr);
-      let html = trimmed.slice(0, jsonIndex).trim();
+  let i = 0;
+  while (i < content.length) {
+    // Procurar por { que não está dentro de uma string ou tag HTML
+    if (content[i] === '{') {
+      // Verificar se é início de JSON (não dentro de class="..." ou style="...")
+      const before = content.slice(Math.max(0, i - 50), i);
+      const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
       
-      // Limpar comentários HTML
-      html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
-      
-      if (html && html.includes('<')) {
-        let props = {};
-        try {
-          props = JSON.parse(jsonStr);
-        } catch {
-          // JSON inválido, usar HTML sem substituição
+      if (!isInsideAttribute) {
+        // Contar chaves para encontrar o fim do JSON
+        let braceCount = 0;
+        let jsonEnd = i;
+        
+        for (let j = i; j < content.length; j++) {
+          if (content[j] === '{') braceCount++;
+          if (content[j] === '}') braceCount--;
+          
+          if (braceCount === 0) {
+            jsonEnd = j + 1;
+            break;
+          }
         }
         
-        const finalHtml = replacePlaceholders(html, props);
-        const blockIndex = blocks.length + 1;
+        const jsonStr = content.slice(i, jsonEnd);
+        
+        // Validar se é JSON válido
+        try {
+          JSON.parse(jsonStr);
+          jsonPositions.push({ start: i, end: jsonEnd, json: jsonStr });
+          i = jsonEnd;
+          continue;
+        } catch {
+          // Não é JSON válido, continuar
+        }
+      }
+    }
+    i++;
+  }
+  
+  // Agora processar: HTML antes de cada JSON
+  let lastEnd = 0;
+  for (const { start, end, json } of jsonPositions) {
+    const html = content.slice(lastEnd, start).trim();
+    
+    if (html && html.includes('<')) {
+      // Limpar comentários HTML
+      const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, '').trim();
+      
+      if (cleanHtml) {
+        let props = {};
+        try {
+          props = JSON.parse(json);
+        } catch {}
+        
+        const finalHtml = replacePlaceholders(cleanHtml, props);
         
         blocks.push({
-          name: detectNameFromHtml(html, blockIndex),
-          category: detectCategoryFromHtml(html),
-          icon_name: detectIconFromHtml(html),
+          name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+          category: detectCategoryFromHtml(cleanHtml),
+          icon_name: detectIconFromHtml(cleanHtml),
           html_content: finalHtml,
         });
       }
-    } else if (trimmed.includes('<')) {
-      // Sem JSON, apenas HTML
-      const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
-      if (cleanHtml) {
-        const blockIndex = blocks.length + 1;
-        blocks.push({
-          name: detectNameFromHtml(cleanHtml, blockIndex),
-          category: detectCategoryFromHtml(cleanHtml),
-          icon_name: detectIconFromHtml(cleanHtml),
-          html_content: cleanHtml,
-        });
-      }
+    }
+    
+    lastEnd = end;
+  }
+  
+  // Verificar se sobrou HTML após o último JSON
+  const remaining = content.slice(lastEnd).trim();
+  if (remaining && remaining.includes('<')) {
+    const cleanHtml = remaining.replace(/<!--[\s\S]*?-->/g, '').trim();
+    if (cleanHtml) {
+      blocks.push({
+        name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+        category: detectCategoryFromHtml(cleanHtml),
+        icon_name: detectIconFromHtml(cleanHtml),
+        html_content: cleanHtml,
+      });
     }
   }
   
@@ -97,55 +130,52 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
 
 ---
 
-### Fluxo de Processamento
+### Fluxo de Processamento Corrigido
 
 ```text
 Entrada:
 ┌──────────────────────────────────────────────────────────────────┐
-│ <section>...</section>                                          │
-│ { "title": "Bloco 1" }                                          │
-│                                                                  │
-│ @container">                                                     │
-│ <div>...</div>                                                   │
-│ { "title": "Bloco 2" }                                           │
-│                                                                  │
-│ @container">                                                     │
-│ <article>...</article>                                           │
-│ { "title": "Bloco 3" }                                           │
+│ <section class="...">                                           │
+│   <div class="@container">                                       │
+│     ...                                                          │
+│   </div>                                                         │
+│ </section>                                                       │
+│ {                                                                │
+│   "sectionBg": "bg-gradient-to-b...",                           │
+│   ...                                                            │
+│ }                                                                │
 └──────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ split("@container">")
+                              ▼ Encontrar posições de JSON
 ┌──────────────────────────────────────────────────────────────────┐
-│ Segment 1: <section>...</section> { "title": "Bloco 1" }         │
-├──────────────────────────────────────────────────────────────────┤
-│ Segment 2: <div>...</div> { "title": "Bloco 2" }                 │
-├──────────────────────────────────────────────────────────────────┤
-│ Segment 3: <article>...</article> { "title": "Bloco 3" }         │
+│ JSON encontrado: posição 150-400                                │
+│ → HTML é tudo de 0 até 150                                      │
 └──────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ Para cada segmento
+                              ▼ Processar
 ┌──────────────────────────────────────────────────────────────────┐
-│ 1. Extrair JSON do final                                        │
-│ 2. Extrair HTML de antes do JSON                                │
-│ 3. Substituir [placeholders] pelos valores do JSON              │
-│ 4. Detectar nome/categoria/ícone                                │
+│ 1. HTML = conteúdo antes do JSON (0-150)                        │
+│ 2. Props = JSON parseado                                         │
+│ 3. Substituir [placeholders] no HTML                            │
+│ 4. Criar bloco                                                   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Variantes do Delimitador a Suportar
+### Diferencial da Verificação
 
-Para ser robusto, a regex de split deve capturar:
-- `@container">`
-- `@container" >`
-- `@container">` com espaços antes/depois
-- Apenas `@container` (sem aspas/chevron)
+A chave é esta verificação:
 
-Regex sugerida:
 ```typescript
-const rawSegments = content.split(/@container[^<]*(?:>|\s|$)/);
+const before = content.slice(Math.max(0, i - 50), i);
+const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
 ```
+
+Isso detecta se a `{` está dentro de um atributo HTML como:
+- `class="{...}"` → Ignorar (não é JSON)
+- `style="{...}"` → Ignorar (não é JSON)
+- `{...}` sozinho após `>` ou após fechar tag → É JSON!
 
 ---
 
@@ -153,112 +183,29 @@ const rawSegments = content.split(/@container[^<]*(?:>|\s|$)/);
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/BlockImportModal.tsx` | Reescrever `parseHtmlWithTrailingJson` para usar split por `@container` |
-
----
-
-### Código Final para parseHtmlWithTrailingJson
-
-```typescript
-// NEW: Parse HTML + JSON with @container"> delimiter
-const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
-  const blocks: BlockImportData[] = [];
-  
-  // Split by @container"> delimiter (and variations)
-  // This handles: @container">, @container" >, @container (without quotes)
-  const rawSegments = content.split(/@container[^<\n]*(?:>|\s|$)/i);
-  
-  for (const segment of rawSegments) {
-    const trimmed = segment.trim();
-    if (!trimmed) continue;
-    
-    // Find the last JSON object in this segment
-    // Using lastIndexOf('{') approach to handle nested objects
-    const lastBraceIndex = trimmed.lastIndexOf('}');
-    if (lastBraceIndex === -1) {
-      // No JSON, check if it's just HTML
-      if (trimmed.includes('<')) {
-        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
-        if (cleanHtml) {
-          blocks.push({
-            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
-            category: detectCategoryFromHtml(cleanHtml),
-            icon_name: detectIconFromHtml(cleanHtml),
-            html_content: cleanHtml,
-          });
-        }
-      }
-      continue;
-    }
-    
-    // Find the matching opening brace for the JSON
-    let braceCount = 0;
-    let jsonStartIndex = -1;
-    
-    for (let i = lastBraceIndex; i >= 0; i--) {
-      if (trimmed[i] === '}') braceCount++;
-      if (trimmed[i] === '{') braceCount--;
-      
-      if (braceCount === 0) {
-        jsonStartIndex = i;
-        break;
-      }
-    }
-    
-    if (jsonStartIndex === -1) continue;
-    
-    const jsonStr = trimmed.slice(jsonStartIndex, lastBraceIndex + 1);
-    let html = trimmed.slice(0, jsonStartIndex).trim();
-    
-    // Clean HTML comments
-    html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
-    
-    if (!html || !html.includes('<')) continue;
-    
-    let props = {};
-    try {
-      props = JSON.parse(jsonStr);
-    } catch {
-      // Invalid JSON, keep HTML without replacement
-    }
-    
-    const finalHtml = replacePlaceholders(html, props);
-    
-    blocks.push({
-      name: detectNameFromHtml(html, blocks.length + 1),
-      category: detectCategoryFromHtml(html),
-      icon_name: detectIconFromHtml(html),
-      html_content: finalHtml,
-    });
-  }
-  
-  return blocks;
-};
-```
+| `src/components/eficode/BlockImportModal.tsx` | Reescrever `parseHtmlWithTrailingJson` para usar detecção de JSON em vez de split por `@container` |
 
 ---
 
 ### Testes que Devem Passar
 
-| Caso | Entrada | Resultado Esperado |
-|------|---------|-------------------|
-| 1 bloco simples | `<section>...</section> {json}` | 1 bloco |
-| 2 blocos com delimitador | `<section>...</section> {json} @container"> <div>...</div> {json}` | 2 blocos |
-| Múltiplos blocos | Seu formato atual | 4+ blocos |
-| Sem JSON | `<section>...</section>` | 1 bloco (sem props) |
-| JSON com nested objects | `{ "richContent": "<p>...</p>" }` | Funciona |
+| Caso | Entrada | Resultado |
+|------|---------|-----------|
+| 1 bloco com @container interno | Seu exemplo atual | 1 bloco detectado |
+| 2 blocos separados | `<section>...</section>{json}<div>...</div>{json}` | 2 blocos |
+| HTML com chaves em class | `class="grid-{cols}"` | Não confunde com JSON |
+| JSON com HTML interno | `{ "content": "<p>...</p>" }` | JSON parseado corretamente |
 
 ---
 
 ### Resultado Esperado
 
-Após essa correção, ao colar seu conteúdo, deve aparecer:
+Após essa correção:
 
 ```text
-📦 Detectados: 4 blocos
-   • Bloco 1 (layout) - Section com hero
-   • Bloco 2 (layout) - Container com grid  
-   • Bloco 3 (layout) - Cards grid
-   • Bloco 4 (layout) - Section split
+📦 Detectados: 1 bloco
+   • Bloco 1 (layout)
 ```
+
+O HTML completo (incluindo `<div class="@container">`) será preservado e os placeholders `[sectionBg]`, `[mainTitle]`, etc. serão substituídos pelos valores do JSON.
 
