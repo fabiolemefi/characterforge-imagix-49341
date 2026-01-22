@@ -152,10 +152,13 @@ export default function EfiCodeEditor() {
 
         {/* Main Editor Area */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Sidebar - Toolbox */}
-          <aside className="w-56 border-r bg-background overflow-hidden flex flex-col">
+          {/* Left Sidebar - Toolbox + Settings */}
+          <aside className="w-64 border-r bg-background overflow-hidden flex flex-col">
             <ScrollArea className="flex-1">
-              <Toolbox />
+              <Toolbox 
+                pageSettings={pageSettings}
+                onPageSettingsChange={setPageSettings}
+              />
             </ScrollArea>
           </aside>
 
@@ -175,12 +178,9 @@ export default function EfiCodeEditor() {
             </div>
           </main>
 
-          {/* Right Sidebar - Settings */}
+          {/* Right Sidebar - Component Settings */}
           <aside className="w-72 border-l bg-background overflow-hidden">
-            <SettingsPanel 
-              pageSettings={pageSettings}
-              onPageSettingsChange={setPageSettings}
-            />
+            <SettingsPanel />
           </aside>
         </div>
       </div>
