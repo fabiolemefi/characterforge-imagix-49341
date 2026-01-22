@@ -1,11 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Editor, Frame, Element, useEditor } from '@craftjs/core';
-import { ArrowLeft, Save, Download, Undo2, Redo2, Eye } from 'lucide-react';
+import { ArrowLeft, Save, Undo2, Redo2, Eye, Download, Monitor, Tablet, Smartphone, Code, Layers, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { useEfiCodeSite, useEfiCodeSites, PageSettings, defaultPageSettings } from '@/hooks/useEfiCodeSites';
 import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
@@ -32,8 +39,14 @@ const resolvers = {
   Spacer,
 };
 
-// HTML generation functions moved to src/lib/efiCodeHtmlGenerator.ts
+type ViewMode = 'visual' | 'code';
+type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
+const viewportWidths: Record<ViewportSize, string> = {
+  desktop: '100%',
+  tablet: '768px',
+  mobile: '375px',
+};
 
 export default function EfiCodeEditor() {
   const { id } = useParams();
@@ -44,6 +57,9 @@ export default function EfiCodeEditor() {
   const [siteName, setSiteName] = useState('');
   const [editorState, setEditorState] = useState<string | null>(null);
   const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
+  const [viewMode, setViewMode] = useState<ViewMode>('visual');
+  const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop');
+  const [codeContent, setCodeContent] = useState<string>('');
 
   useEffect(() => {
     if (site) {
@@ -79,7 +95,6 @@ export default function EfiCodeEditor() {
     const serialized = query.serialize();
     const nodes = JSON.parse(serialized);
     
-    // Gera HTML completo com todas as configurações e CSS global
     const html = generateFullHtml(nodes, siteName, pageSettings, globalCss);
     
     const blob = new Blob([html], { type: 'text/html' });
@@ -93,6 +108,13 @@ export default function EfiCodeEditor() {
     URL.revokeObjectURL(url);
     
     toast.success('HTML exportado!');
+  }, [siteName, pageSettings, globalCss]);
+
+  const handleGenerateCode = useCallback((query: any) => {
+    const serialized = query.serialize();
+    const nodes = JSON.parse(serialized);
+    const html = generateFullHtml(nodes, siteName, pageSettings, globalCss);
+    setCodeContent(html);
   }, [siteName, pageSettings, globalCss]);
 
   if (isLoading) {
@@ -139,13 +161,34 @@ export default function EfiCodeEditor() {
               className="w-64 font-medium"
               placeholder="Nome do site"
             />
+            
+            {/* Responsiveness Toggles */}
+            <ToggleGroup 
+              type="single" 
+              value={viewportSize} 
+              onValueChange={(value) => value && setViewportSize(value as ViewportSize)}
+              className="border rounded-md"
+            >
+              <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
+                <Monitor className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
+                <Tablet className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
+                <Smartphone className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
           
           <div className="flex items-center gap-2">
             <EditorActions 
               siteId={id}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onSave={handleSave} 
               onExport={handleExport}
+              onGenerateCode={handleGenerateCode}
             />
           </div>
         </header>
@@ -167,15 +210,42 @@ export default function EfiCodeEditor() {
             className="flex-1 overflow-auto p-8"
             style={{ backgroundColor: pageSettings.backgroundColor }}
           >
-            <div
-              className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
-              style={{ 
-                minHeight: '600px',
-                maxWidth: `${pageSettings.containerMaxWidth}px`,
-              }}
-            >
-              <EditorFrame editorState={editorState} />
-            </div>
+            {viewMode === 'visual' ? (
+              <div
+                className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all duration-300"
+                style={{ 
+                  minHeight: '600px',
+                  maxWidth: viewportSize === 'desktop' 
+                    ? `${pageSettings.containerMaxWidth}px` 
+                    : viewportWidths[viewportSize],
+                  width: viewportWidths[viewportSize],
+                }}
+              >
+                <EditorFrame editorState={editorState} />
+              </div>
+            ) : (
+              <div className="h-full flex flex-col">
+                <div className="bg-muted/50 px-4 py-2 border-b rounded-t-lg flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">HTML Gerado (somente leitura)</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(codeContent);
+                      toast.success('Código copiado!');
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+                <textarea
+                  value={codeContent}
+                  readOnly
+                  className="flex-1 w-full font-mono text-sm p-4 bg-secondary text-secondary-foreground rounded-b-lg resize-none focus:outline-none"
+                  spellCheck={false}
+                />
+              </div>
+            )}
           </main>
 
           {/* Right Sidebar - Component Settings */}
@@ -226,12 +296,18 @@ function EditorFrame({ editorState }: { editorState: string | null }) {
 // Componente separado para acessar o hook useEditor
 function EditorActions({ 
   siteId,
+  viewMode,
+  onViewModeChange,
   onSave, 
-  onExport 
+  onExport,
+  onGenerateCode,
 }: { 
   siteId: string | undefined;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
   onSave: (query: any) => Promise<void>;
   onExport: (query: any) => void;
+  onGenerateCode: (query: any) => void;
 }) {
   const { query, canUndo, canRedo, actions } = useEditor((state, query) => ({
     canUndo: query.history.canUndo(),
@@ -240,13 +316,39 @@ function EditorActions({
 
   const handlePreview = async () => {
     if (!siteId) return;
-    // Salva antes de abrir a prévia
     await onSave(query);
     window.open(`/efi-code/${siteId}/preview`, '_blank');
   };
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    if (mode === 'code') {
+      onGenerateCode(query);
+    }
+    onViewModeChange(mode);
+  };
+
   return (
     <>
+      {/* Visual/Code Toggle */}
+      <ToggleGroup 
+        type="single" 
+        value={viewMode} 
+        onValueChange={(value) => value && handleViewModeChange(value as ViewMode)}
+        className="border rounded-md"
+      >
+        <ToggleGroupItem value="visual" aria-label="Visual" className="px-3 gap-1.5">
+          <Layers className="h-4 w-4" />
+          <span className="text-xs">Visual</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="code" aria-label="Código" className="px-3 gap-1.5">
+          <Code className="h-4 w-4" />
+          <span className="text-xs">Código</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
+
+      <div className="w-px h-6 bg-border mx-1" />
+
+      {/* Undo/Redo */}
       <Button
         variant="ghost"
         size="icon"
@@ -265,23 +367,30 @@ function EditorActions({
       >
         <Redo2 className="h-4 w-4" />
       </Button>
-      <div className="w-px h-6 bg-border mx-2" />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handlePreview}
-      >
-        <Eye className="h-4 w-4 mr-2" />
-        Prévia
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onExport(query)}
-      >
-        <Download className="h-4 w-4 mr-2" />
-        Exportar HTML
-      </Button>
+
+      <div className="w-px h-6 bg-border mx-1" />
+
+      {/* Actions Dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm">
+            Ações
+            <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="bg-popover">
+          <DropdownMenuItem onClick={handlePreview}>
+            <Eye className="h-4 w-4 mr-2" />
+            Prévia
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onExport(query)}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar HTML
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Save Button */}
       <Button
         size="sm"
         onClick={() => onSave(query)}
