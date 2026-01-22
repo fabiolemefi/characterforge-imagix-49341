@@ -109,7 +109,7 @@ export const HtmlBlockSettings = () => {
 };
 
 HtmlBlock.craft = {
-  displayName: 'Bloco HTML',
+  displayName: 'HtmlBlock',
   props: {
     html: '',
     htmlTemplate: '<div class="p-4 bg-gray-100 rounded"><p>Bloco HTML personalizado</p></div>',

@@ -39,6 +39,7 @@ const resolvers = {
   Divider,
   Spacer,
   HtmlBlock,
+  'Bloco HTML': HtmlBlock, // Alias for backward compatibility
 };
 
 type ViewMode = 'visual' | 'code';
