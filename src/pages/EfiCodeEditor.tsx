@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { useEfiCodeSite, useEfiCodeSites, PageSettings, defaultPageSettings } from '@/hooks/useEfiCodeSites';
+import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { Toolbox } from '@/components/eficode/editor/Toolbox';
 import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
 import { 
@@ -82,7 +83,8 @@ ${allChildrenHtml}
 const generateFullHtml = (
   nodes: Record<string, any>, 
   siteName: string, 
-  pageSettings: PageSettings
+  pageSettings: PageSettings,
+  globalCss: string = ''
 ): string => {
   const bodyContent = generateHtmlFromNodes(nodes, 'ROOT');
   
@@ -142,6 +144,9 @@ const generateFullHtml = (
       margin: 0 auto;
     }
     img { max-width: 100%; }
+    
+    /* CSS Global do Efi Code */
+    ${globalCss}
   </style>
 </head>
 <body>
@@ -157,6 +162,7 @@ export default function EfiCodeEditor() {
   const navigate = useNavigate();
   const { data: site, isLoading } = useEfiCodeSite(id);
   const { updateSite } = useEfiCodeSites();
+  const { globalCss } = useEfiCodeConfig();
   const [siteName, setSiteName] = useState('');
   const [editorState, setEditorState] = useState<string | null>(null);
   const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
@@ -195,8 +201,8 @@ export default function EfiCodeEditor() {
     const serialized = query.serialize();
     const nodes = JSON.parse(serialized);
     
-    // Gera HTML completo com todas as configurações
-    const html = generateFullHtml(nodes, siteName, pageSettings);
+    // Gera HTML completo com todas as configurações e CSS global
+    const html = generateFullHtml(nodes, siteName, pageSettings, globalCss);
     
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -209,7 +215,7 @@ export default function EfiCodeEditor() {
     URL.revokeObjectURL(url);
     
     toast.success('HTML exportado!');
-  }, [siteName, pageSettings]);
+  }, [siteName, pageSettings, globalCss]);
 
   if (isLoading) {
     return (
