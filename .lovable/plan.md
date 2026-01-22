@@ -1,227 +1,226 @@
 
 
-## Plano: Corrigir Falso Positivo na Detecção de JSON
+## Plano: Corrigir Parser para Aceitar HTML Puro
 
-### Problema Real Identificado
+### Problema Identificado
 
-A regex `/[=]\s*["'][^"']*$/i` na linha 175 está causando **falsos positivos**. 
+O fluxo do `parseContent` tem uma falha na **ordem de execução e tratamento de erros**:
 
-Quando o HTML contém `[sectionBg]` (ou qualquer texto com colchetes) antes do JSON, a regex pode interpretar incorretamente que o `{` está dentro de um atributo HTML.
+```typescript
+// Linha 313-321
+const detectedBlocks = useMemo((): BlockImportData[] | null => {
+  if (!content.trim()) return null;
+  
+  try {
+    return parseContent(content);
+  } catch {
+    return null;  // ← ERRO SILENCIADO! Qualquer exceção = "nenhum bloco"
+  }
+}, [content]);
+```
 
-**Exemplo do problema:**
+Qualquer erro dentro de `parseContent` ou suas subfunções retorna `null`, que mostra "Nenhum bloco detectado" - sem nenhuma informação sobre o que falhou.
 
-```html
-<section class="w-full py-16 [sectionBg]">
-  ...
-</section>
-{
-  "sectionBg": "bg-gray-800"
+Além disso, a condição do **bloco 2** interfere com o **bloco 4**:
+
+```typescript
+// Bloco 2 - linha 354
+if (trimmed.includes('<') && trimmed.includes('{')) {
+  // Se tem < e {, tenta parseHtmlWithTrailingJson
+  // Se falhar, continua para próximo...
+}
+
+// Bloco 4 - linha 371
+if (trimmed.startsWith('<')) {
+  // HTML puro - DEVERIA funcionar
 }
 ```
 
-Os últimos 100 caracteres antes do `{` do JSON podem conter fragmentos que parecem atributos HTML incompletos, fazendo a regex retornar `true` e **pular** o JSON válido.
+O HTML `<section class="px-[4.688rem]">` não tem `{`, então deveria ir direto para o bloco 4. **Mas algo está falhando silenciosamente.**
 
 ---
 
-### Diagnóstico com Logs
+### Solução: Adicionar Logging + Corrigir Fluxo
 
-Para confirmar, precisamos adicionar logs temporários ou mudar a lógica de detecção.
-
-A verificação atual olha apenas os últimos 100 caracteres:
-```typescript
-const before = content.slice(Math.max(0, i - 100), i);
-const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
-```
-
-Mas isso não é suficiente para detectar corretamente se estamos dentro de uma string ou atributo.
-
----
-
-### Solução Proposta: Melhorar a Detecção de JSON Top-Level
-
-Em vez de usar uma heurística baseada em "olhar para trás", devemos:
-
-1. **Verificar se o `{` está no início de uma nova linha** (após whitespace/newlines)
-2. **OU** se o `{` vem logo após o fechamento de uma tag HTML (`>`)
+#### 1. Adicionar console.log para diagnóstico
 
 ```typescript
-const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
-  const blocks: BlockImportData[] = [];
-  const jsonPositions: { start: number; end: number; json: string }[] = [];
+const parseContent = (raw: string): BlockImportData[] => {
+  const trimmed = raw.trim();
+  console.log('[BlockImport] Input length:', trimmed.length);
+  console.log('[BlockImport] Starts with <:', trimmed.startsWith('<'));
+  console.log('[BlockImport] Contains {:', trimmed.includes('{'));
   
-  let i = 0;
-  while (i < content.length) {
-    if (content[i] === '{') {
-      // Check if this looks like a top-level JSON object
-      const before = content.slice(Math.max(0, i - 20), i);
-      
-      // A top-level JSON typically:
-      // 1. Is preceded by whitespace/newlines only (after HTML ends)
-      // 2. Or comes right after a closing tag >
-      // 3. Or is at the start of the content
-      const isLikelyTopLevelJson = 
-        i === 0 || 
-        /^[\s\n\r]*$/.test(before.slice(-10)) ||  // Only whitespace before
-        />\s*$/.test(before);  // Ends with > and optional whitespace
-      
-      if (isLikelyTopLevelJson) {
-        // Count braces to find the complete JSON object
-        let braceCount = 0;
-        let jsonEnd = i;
-        let inString = false;
-        let escapeNext = false;
-        
-        for (let j = i; j < content.length; j++) {
-          const char = content[j];
-          
-          if (escapeNext) {
-            escapeNext = false;
-            continue;
-          }
-          
-          if (char === '\\' && inString) {
-            escapeNext = true;
-            continue;
-          }
-          
-          if (char === '"' && !escapeNext) {
-            inString = !inString;
-            continue;
-          }
-          
-          if (!inString) {
-            if (char === '{') braceCount++;
-            if (char === '}') braceCount--;
-            
-            if (braceCount === 0) {
-              jsonEnd = j + 1;
-              break;
-            }
-          }
-        }
-        
-        const jsonStr = content.slice(i, jsonEnd);
-        
-        // Validate if it's valid JSON
-        try {
-          JSON.parse(jsonStr);
-          jsonPositions.push({ start: i, end: jsonEnd, json: jsonStr });
-          i = jsonEnd;
-          continue;
-        } catch {
-          // Not valid JSON, continue
-        }
-      }
-    }
-    i++;
-  }
+  // ... resto do código
   
-  // Process: HTML before each JSON becomes a block
-  let lastEnd = 0;
-  for (const { start, end, json } of jsonPositions) {
-    const html = content.slice(lastEnd, start).trim();
+  // Bloco 4
+  if (trimmed.startsWith('<')) {
+    console.log('[BlockImport] Trying raw HTML path');
+    const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+    console.log('[BlockImport] Clean HTML length:', cleanHtml.length);
     
-    if (html && html.includes('<')) {
-      const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, '').trim();
-      
-      if (cleanHtml) {
-        let props = {};
-        try {
-          props = JSON.parse(json);
-        } catch {}
-        
-        const finalHtml = replacePlaceholders(cleanHtml, props);
-        
-        blocks.push({
-          name: detectNameFromHtml(cleanHtml, blocks.length + 1),
-          category: detectCategoryFromHtml(cleanHtml),
-          icon_name: detectIconFromHtml(cleanHtml),
-          html_content: finalHtml,
-        });
-      }
-    }
-    
-    lastEnd = end;
-  }
-  
-  // Handle remaining HTML after last JSON
-  const remaining = content.slice(lastEnd).trim();
-  if (remaining && remaining.includes('<')) {
-    const cleanHtml = remaining.replace(/<!--[\s\S]*?-->/g, '').trim();
     if (cleanHtml) {
-      blocks.push({
-        name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+      const result = [{
+        name: detectNameFromHtml(cleanHtml, 1),
         category: detectCategoryFromHtml(cleanHtml),
         icon_name: detectIconFromHtml(cleanHtml),
         html_content: cleanHtml,
-      });
+      }];
+      console.log('[BlockImport] Returning:', result);
+      return result;
     }
   }
   
-  return blocks;
+  console.log('[BlockImport] No path matched, throwing error');
+  throw new Error('Formato não reconhecido.');
 };
 ```
 
----
+#### 2. Mostrar erro real ao invés de silenciar
 
-### Mudança Chave
-
-**Antes** (problemático):
 ```typescript
-const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
-if (!isInsideAttribute && !isTemplateExpression) {
-```
-
-**Depois** (corrigido):
-```typescript
-const isLikelyTopLevelJson = 
-  i === 0 || 
-  /^[\s\n\r]*$/.test(before.slice(-10)) ||  // Only whitespace before
-  />\s*$/.test(before);  // Ends with > and optional whitespace
-
-if (isLikelyTopLevelJson) {
+const detectedBlocks = useMemo((): BlockImportData[] | null => {
+  if (!content.trim()) return null;
+  
+  try {
+    return parseContent(content);
+  } catch (error) {
+    console.error('[BlockImport] Parse error:', error);
+    return null;
+  }
+}, [content]);
 ```
 
 ---
 
-### Por que funciona
+### Hipótese Principal
 
-O JSON do bloco sempre vem:
-- Após o fechamento do HTML (`</section>` ou similar)
-- Separado por quebras de linha/espaços
+Suspeito que a função `detectNameFromHtml` está lançando uma exceção para certos inputs, causando o retorno `null`.
 
-A nova lógica detecta isso verificando se os últimos 10 caracteres antes do `{` são apenas whitespace, ou se termina com `>`.
+A regex na linha 133:
+```typescript
+const classMatch = html.match(/<(?:section|div|article|header|footer)[^>]*class="([^"]+)"/i);
+```
+
+Para seu HTML:
+```html
+<section class="w-full py-16 lg:py-24 px-6 lg:px-[4.688rem] bg-gradient-to-b from-gray-800 to-gray-900"></section>
+```
+
+Isso deveria funcionar... Mas a classe tem `[4.688rem]` com colchetes, e depois na linha 136:
+
+```typescript
+if (firstClass && !firstClass.includes('[') && !firstClass.startsWith('w-') && !firstClass.startsWith('bg-')) {
+```
+
+A primeira classe é `w-full`, que **começa com `w-`**, então é descartada. Isso está OK, vai para o fallback `Bloco ${index}`.
 
 ---
 
 ### Arquivo a Modificar
 
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `src/components/eficode/BlockImportModal.tsx` | 166-227 | Substituir lógica de detecção de JSON |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/eficode/BlockImportModal.tsx` | Adicionar logs de diagnóstico em `parseContent` e no `catch` do `useMemo` |
 
 ---
 
-### Teste Esperado
+### Código Final com Diagnóstico
 
-Após essa correção, seu bloco:
+```typescript
+// Linha 313-321 - Adicionar log no catch
+const detectedBlocks = useMemo((): BlockImportData[] | null => {
+  if (!content.trim()) return null;
+  
+  try {
+    return parseContent(content);
+  } catch (error) {
+    console.error('[BlockImport] Parse error:', error);
+    return null;
+  }
+}, [content]);
 
-```html
-<section class="w-full py-16 lg:py-24 px-6 lg:px-[4.688rem] [sectionBg]">
-  <div class="@container">
-    ...
-  </div>
-</section>
-{
-  "sectionBg": "bg-gradient-to-b from-gray-800 to-gray-900",
-  ...
-}
+// Linha 323-384 - Adicionar logs em parseContent
+const parseContent = (raw: string): BlockImportData[] => {
+  const trimmed = raw.trim();
+  
+  console.log('[BlockImport] === Starting parse ===');
+  console.log('[BlockImport] Length:', trimmed.length);
+  console.log('[BlockImport] First 50 chars:', trimmed.slice(0, 50));
+  console.log('[BlockImport] startsWith(<):', trimmed.startsWith('<'));
+  console.log('[BlockImport] includes({):', trimmed.includes('{'));
+  
+  // 1. Try JSON first
+  try {
+    const parsed = JSON.parse(trimmed);
+    console.log('[BlockImport] ✓ Parsed as JSON');
+    // ... resto
+  } catch {
+    console.log('[BlockImport] ✗ Not valid JSON');
+  }
+  
+  // 2. HTML + JSON interleaved
+  if (trimmed.includes('<') && trimmed.includes('{')) {
+    console.log('[BlockImport] Trying HTML+JSON path');
+    const blocks = parseHtmlWithTrailingJson(trimmed);
+    console.log('[BlockImport] HTML+JSON found:', blocks.length, 'blocks');
+    if (blocks.length > 0) {
+      return blocks;
+    }
+  }
+  
+  // 3. Block comments
+  const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
+  console.log('[BlockImport] Has block comments:', hasBlockComments);
+  if (hasBlockComments) {
+    const blocks = parseMultipleBlocks(trimmed);
+    console.log('[BlockImport] Comment blocks found:', blocks.length);
+    if (blocks.length > 0) {
+      return blocks;
+    }
+  }
+  
+  // 4. Raw HTML
+  if (trimmed.startsWith('<')) {
+    console.log('[BlockImport] Trying raw HTML path');
+    const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+    console.log('[BlockImport] Clean HTML length:', cleanHtml.length);
+    
+    if (cleanHtml) {
+      const name = detectNameFromHtml(cleanHtml, 1);
+      const category = detectCategoryFromHtml(cleanHtml);
+      const icon = detectIconFromHtml(cleanHtml);
+      console.log('[BlockImport] Detected:', { name, category, icon });
+      
+      return [{
+        name,
+        category,
+        icon_name: icon,
+        html_content: cleanHtml,
+      }];
+    }
+  }
+  
+  console.log('[BlockImport] No path matched!');
+  throw new Error('Formato não reconhecido. Cole HTML ou JSON válido.');
+};
 ```
 
-Deve resultar em:
+---
 
-```text
-📦 Detectados: 1 bloco
-   • Bloco 1 (layout)
-```
+### Próximos Passos
+
+1. Implementar os logs acima
+2. Testar novamente com o HTML simples
+3. Verificar console do navegador para ver exatamente onde falha
+4. Corrigir o bug específico baseado nos logs
+
+---
+
+### Resultado Esperado
+
+Com os logs, veremos exatamente:
+- Qual caminho está sendo tentado
+- Se há algum erro silencioso
+- Por que o bloco 4 (HTML puro) não está funcionando
 
