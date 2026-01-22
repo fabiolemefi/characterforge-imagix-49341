@@ -366,14 +366,16 @@ export default function ImageCampaignPublic() {
   if (!isAuthenticated && campaign.access_code) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat"
+        className="min-h-screen flex items-center justify-center p-6 bg-cover bg-center bg-no-repeat relative"
         style={{
           backgroundImage: campaign.background_image_url
             ? `url(${campaign.background_image_url})`
             : undefined,
         }}
       >
-        <form onSubmit={handleAccessCodeSubmit} className="w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+        <form onSubmit={handleAccessCodeSubmit} className="relative z-10 w-full max-w-xs space-y-4 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl">
           {campaign.logo_url && (
             <img src={campaign.logo_url} alt="Logo" className="w-[80px] mx-auto" />
           )}
@@ -409,7 +411,7 @@ export default function ImageCampaignPublic() {
       }}
     >
       {/* Dark overlay */}
-      <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+      <div className="absolute inset-0 bg-black/60 pointer-events-none" />
       <div className={`relative z-10 w-full max-w-md space-y-6 backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 shadow-xl transition-all duration-500 ${
         generatedImage ? 'ring-2 ring-white/30 shadow-2xl' : ''
       }`}>
