@@ -154,85 +154,88 @@ const detectNameFromHtml = (html: string, index: number): string => {
   return `Bloco ${index}`;
 };
 
-// NEW: Parse HTML + JSON interleaved (without comments)
+// NEW: Parse HTML + JSON with @container"> delimiter
 const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Find all JSON objects that are followed by HTML or end of string
-  // This regex matches complete JSON objects
-  const jsonBlockRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
-  const jsonMatches: { json: string; index: number; endIndex: number }[] = [];
+  // Split by @container"> delimiter (and variations)
+  // This handles: @container">, @container" >, @container (without quotes)
+  const rawSegments = content.split(/@container[^<\n]*(?:>|\s|$)/i);
   
-  let match;
-  while ((match = jsonBlockRegex.exec(content)) !== null) {
-    // Validate it's actually JSON
+  for (const segment of rawSegments) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    
+    // Find the last closing brace for JSON extraction
+    const lastBraceIndex = trimmed.lastIndexOf('}');
+    if (lastBraceIndex === -1) {
+      // No JSON, check if it's just HTML
+      if (trimmed.includes('<')) {
+        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+        if (cleanHtml) {
+          blocks.push({
+            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+            category: detectCategoryFromHtml(cleanHtml),
+            icon_name: detectIconFromHtml(cleanHtml),
+            html_content: cleanHtml,
+          });
+        }
+      }
+      continue;
+    }
+    
+    // Find the matching opening brace for the JSON by counting braces
+    let braceCount = 0;
+    let jsonStartIndex = -1;
+    
+    for (let i = lastBraceIndex; i >= 0; i--) {
+      if (trimmed[i] === '}') braceCount++;
+      if (trimmed[i] === '{') braceCount--;
+      
+      if (braceCount === 0) {
+        jsonStartIndex = i;
+        break;
+      }
+    }
+    
+    if (jsonStartIndex === -1) {
+      // No valid JSON structure found, treat as HTML only
+      if (trimmed.includes('<')) {
+        const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+        if (cleanHtml) {
+          blocks.push({
+            name: detectNameFromHtml(cleanHtml, blocks.length + 1),
+            category: detectCategoryFromHtml(cleanHtml),
+            icon_name: detectIconFromHtml(cleanHtml),
+            html_content: cleanHtml,
+          });
+        }
+      }
+      continue;
+    }
+    
+    const jsonStr = trimmed.slice(jsonStartIndex, lastBraceIndex + 1);
+    let html = trimmed.slice(0, jsonStartIndex).trim();
+    
+    // Clean HTML comments
+    html = html.replace(/<!--[\s\S]*?-->/g, '').trim();
+    
+    if (!html || !html.includes('<')) continue;
+    
+    let props = {};
     try {
-      JSON.parse(match[0]);
-      jsonMatches.push({
-        json: match[0],
-        index: match.index,
-        endIndex: match.index + match[0].length
-      });
+      props = JSON.parse(jsonStr);
     } catch {
-      // Not valid JSON, skip
-    }
-  }
-  
-  if (jsonMatches.length === 0) {
-    // No JSON found, return entire content as single block
-    const trimmed = content.trim();
-    if (trimmed.startsWith('<')) {
-      return [{
-        name: detectNameFromHtml(trimmed, 1),
-        category: detectCategoryFromHtml(trimmed),
-        icon_name: detectIconFromHtml(trimmed),
-        html_content: trimmed,
-      }];
-    }
-    return [];
-  }
-  
-  // For each JSON, find the HTML that comes before it
-  let lastEndIndex = 0;
-  
-  for (let i = 0; i < jsonMatches.length; i++) {
-    const { json, index, endIndex } = jsonMatches[i];
-    
-    // HTML is everything between last JSON end and this JSON start
-    const htmlPart = content.slice(lastEndIndex, index).trim();
-    
-    // Skip HTML comments
-    const cleanHtml = htmlPart.replace(/<!--[\s\S]*?-->/g, '').trim();
-    
-    if (cleanHtml && cleanHtml.startsWith('<')) {
-      let props = {};
-      try {
-        props = JSON.parse(json);
-      } catch {}
-      
-      const finalHtml = replacePlaceholders(cleanHtml, props);
-      const blockIndex = blocks.length + 1;
-      
-      blocks.push({
-        name: detectNameFromHtml(cleanHtml, blockIndex),
-        category: detectCategoryFromHtml(cleanHtml),
-        icon_name: detectIconFromHtml(cleanHtml),
-        html_content: finalHtml,
-      });
+      // Invalid JSON, keep HTML without replacement
     }
     
-    lastEndIndex = endIndex;
-  }
-  
-  // Check if there's remaining HTML after the last JSON
-  const remainingHtml = content.slice(lastEndIndex).replace(/<!--[\s\S]*?-->/g, '').trim();
-  if (remainingHtml && remainingHtml.startsWith('<')) {
-    const blockIndex = blocks.length + 1;
+    const finalHtml = replacePlaceholders(html, props);
+    
     blocks.push({
-      name: detectNameFromHtml(remainingHtml, blockIndex),
-      category: detectCategoryFromHtml(remainingHtml),
-      icon_name: detectIconFromHtml(remainingHtml),
-      html_content: remainingHtml,
+      name: detectNameFromHtml(html, blocks.length + 1),
+      category: detectCategoryFromHtml(html),
+      icon_name: detectIconFromHtml(html),
+      html_content: finalHtml,
     });
   }
   
