@@ -107,7 +107,8 @@ const parseMultipleBlocks = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
   // Regex to match each block section (supports multi-line comments with decorators)
-  const blockRegex = /<!--[\s=]*BLOCO\s+\d+:\s*([^\n]+?)[\s=]*-->([\s\S]*?)(?=<!--[\s=]*BLOCO\s+\d+:|$)/gi;
+  // [\s\S]*? captures ANY character including newlines between <!-- and BLOCO
+  const blockRegex = /<!--[\s\S]*?BLOCO\s+\d+:\s*([^\n]+?)[\s\S]*?-->([\s\S]*?)(?=<!--[\s\S]*?BLOCO\s+\d+:|$)/gi;
   
   let match;
   while ((match = blockRegex.exec(content)) !== null) {
@@ -212,8 +213,9 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
     }
     
     // 2. Check for block comments pattern <!-- BLOCO X: NAME --> (supports multi-line)
-    const blockPattern = /<!--[\s\S]*?BLOCO\s+\d+:\s*[^\n]+[\s\S]*?-->/gi;
-    if (blockPattern.test(trimmed)) {
+    // Use non-global regex for test() to avoid index consumption issues
+    const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
+    if (hasBlockComments) {
       const blocks = parseMultipleBlocks(trimmed);
       if (blocks.length > 0) {
         return blocks;
