@@ -82,7 +82,6 @@ const replacePlaceholders = (html: string, props: Record<string, any>): string =
 // Helper: Extract HTML and JSON from block content
 const extractHtmlAndJson = (content: string): { html: string; props: Record<string, any> } => {
   // Find the last JSON object in the content (after HTML)
-  // Match from the last { that starts a line or has whitespace before
   const jsonMatch = content.match(/(\{[\s\S]*\})\s*$/);
   
   if (jsonMatch) {
@@ -94,7 +93,6 @@ const extractHtmlAndJson = (content: string): { html: string; props: Record<stri
       const props = JSON.parse(jsonStr);
       return { html, props };
     } catch {
-      // Invalid JSON, return full content as HTML
       return { html: content, props: {} };
     }
   }
@@ -102,12 +100,149 @@ const extractHtmlAndJson = (content: string): { html: string; props: Record<stri
   return { html: content, props: {} };
 };
 
+// Helper: Detect category from HTML content
+const detectCategoryFromHtml = (html: string): string => {
+  const lower = html.toLowerCase();
+  if (lower.includes('hero') || lower.includes('banner')) return 'layout';
+  if (lower.includes('header') || lower.includes('nav')) return 'layout';
+  if (lower.includes('footer')) return 'layout';
+  if (lower.includes('grid') || lower.includes('card')) return 'layout';
+  if (lower.includes('<h1') || lower.includes('<h2') || lower.includes('<p>')) return 'text';
+  if (lower.includes('<img') || lower.includes('image')) return 'media';
+  if (lower.includes('<button') || lower.includes('<form')) return 'interactive';
+  return 'layout';
+};
+
+// Helper: Detect icon from HTML content
+const detectIconFromHtml = (html: string): string => {
+  const lower = html.toLowerCase();
+  if (lower.includes('hero')) return 'LayoutTemplate';
+  if (lower.includes('header') || lower.includes('nav')) return 'Menu';
+  if (lower.includes('footer')) return 'PanelBottom';
+  if (lower.includes('grid')) return 'Grid3x3';
+  if (lower.includes('card')) return 'Square';
+  if (lower.includes('<img')) return 'Image';
+  if (lower.includes('<button')) return 'MousePointer';
+  if (lower.includes('<form')) return 'FileInput';
+  return 'Code';
+};
+
+// Helper: Detect name from HTML structure
+const detectNameFromHtml = (html: string, index: number): string => {
+  // Try to extract name from section/div class or id
+  const classMatch = html.match(/<(?:section|div|article|header|footer)[^>]*class="([^"]+)"/i);
+  if (classMatch) {
+    const firstClass = classMatch[1].split(' ')[0];
+    if (firstClass && !firstClass.includes('[') && !firstClass.startsWith('w-') && !firstClass.startsWith('bg-')) {
+      return formatBlockName(firstClass.replace(/-/g, ' '));
+    }
+  }
+  
+  const idMatch = html.match(/id="([^"]+)"/i);
+  if (idMatch && !idMatch[1].includes('[')) {
+    return formatBlockName(idMatch[1].replace(/-/g, ' '));
+  }
+  
+  // Try to detect from common patterns
+  const lower = html.toLowerCase();
+  if (lower.includes('hero')) return `Hero Section ${index}`;
+  if (lower.includes('header')) return `Header ${index}`;
+  if (lower.includes('footer')) return `Footer ${index}`;
+  if (lower.includes('grid')) return `Grid ${index}`;
+  if (lower.includes('card')) return `Card ${index}`;
+  
+  return `Bloco ${index}`;
+};
+
+// NEW: Parse HTML + JSON interleaved (without comments)
+const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
+  const blocks: BlockImportData[] = [];
+  
+  // Find all JSON objects that are followed by HTML or end of string
+  // This regex matches complete JSON objects
+  const jsonBlockRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+  const jsonMatches: { json: string; index: number; endIndex: number }[] = [];
+  
+  let match;
+  while ((match = jsonBlockRegex.exec(content)) !== null) {
+    // Validate it's actually JSON
+    try {
+      JSON.parse(match[0]);
+      jsonMatches.push({
+        json: match[0],
+        index: match.index,
+        endIndex: match.index + match[0].length
+      });
+    } catch {
+      // Not valid JSON, skip
+    }
+  }
+  
+  if (jsonMatches.length === 0) {
+    // No JSON found, return entire content as single block
+    const trimmed = content.trim();
+    if (trimmed.startsWith('<')) {
+      return [{
+        name: detectNameFromHtml(trimmed, 1),
+        category: detectCategoryFromHtml(trimmed),
+        icon_name: detectIconFromHtml(trimmed),
+        html_content: trimmed,
+      }];
+    }
+    return [];
+  }
+  
+  // For each JSON, find the HTML that comes before it
+  let lastEndIndex = 0;
+  
+  for (let i = 0; i < jsonMatches.length; i++) {
+    const { json, index, endIndex } = jsonMatches[i];
+    
+    // HTML is everything between last JSON end and this JSON start
+    const htmlPart = content.slice(lastEndIndex, index).trim();
+    
+    // Skip HTML comments
+    const cleanHtml = htmlPart.replace(/<!--[\s\S]*?-->/g, '').trim();
+    
+    if (cleanHtml && cleanHtml.startsWith('<')) {
+      let props = {};
+      try {
+        props = JSON.parse(json);
+      } catch {}
+      
+      const finalHtml = replacePlaceholders(cleanHtml, props);
+      const blockIndex = blocks.length + 1;
+      
+      blocks.push({
+        name: detectNameFromHtml(cleanHtml, blockIndex),
+        category: detectCategoryFromHtml(cleanHtml),
+        icon_name: detectIconFromHtml(cleanHtml),
+        html_content: finalHtml,
+      });
+    }
+    
+    lastEndIndex = endIndex;
+  }
+  
+  // Check if there's remaining HTML after the last JSON
+  const remainingHtml = content.slice(lastEndIndex).replace(/<!--[\s\S]*?-->/g, '').trim();
+  if (remainingHtml && remainingHtml.startsWith('<')) {
+    const blockIndex = blocks.length + 1;
+    blocks.push({
+      name: detectNameFromHtml(remainingHtml, blockIndex),
+      category: detectCategoryFromHtml(remainingHtml),
+      icon_name: detectIconFromHtml(remainingHtml),
+      html_content: remainingHtml,
+    });
+  }
+  
+  return blocks;
+};
+
 // Parse multiple blocks with <!-- BLOCO X: NAME --> pattern
 const parseMultipleBlocks = (content: string): BlockImportData[] => {
   const blocks: BlockImportData[] = [];
   
-  // Regex to match each block section (supports multi-line comments with decorators)
-  // [\s\S]*? captures ANY character including newlines between <!-- and BLOCO
   const blockRegex = /<!--[\s\S]*?BLOCO\s+\d+:\s*([^\n]+?)[\s\S]*?-->([\s\S]*?)(?=<!--[\s\S]*?BLOCO\s+\d+:|$)/gi;
   
   let match;
@@ -117,12 +252,9 @@ const parseMultipleBlocks = (content: string): BlockImportData[] => {
     
     if (!blockContent) continue;
     
-    // Extract HTML and JSON props
     const { html, props } = extractHtmlAndJson(blockContent);
-    
     if (!html) continue;
     
-    // Replace placeholders with JSON values
     const finalHtml = replacePlaceholders(html, props);
     
     blocks.push({
@@ -134,34 +266,6 @@ const parseMultipleBlocks = (content: string): BlockImportData[] => {
   }
   
   return blocks;
-};
-
-// Parse single HTML + JSON (no block comments)
-const parseSingleHtmlWithJson = (content: string): BlockImportData[] => {
-  const { html, props } = extractHtmlAndJson(content);
-  
-  if (!html) {
-    throw new Error('Nenhum HTML válido encontrado');
-  }
-  
-  const finalHtml = replacePlaceholders(html, props);
-  
-  // Try to detect a name from the HTML structure
-  let name = 'Bloco HTML Importado';
-  const sectionMatch = html.match(/<section[^>]*class="([^"]+)"/i);
-  if (sectionMatch) {
-    const className = sectionMatch[1].split(' ')[0];
-    if (className && !className.startsWith('[')) {
-      name = formatBlockName(className.replace(/-/g, ' '));
-    }
-  }
-  
-  return [{
-    name,
-    category: 'layout',
-    icon_name: 'Code',
-    html_content: finalHtml,
-  }];
 };
 
 export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportModalProps) => {
@@ -187,7 +291,6 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
     try {
       const parsed = JSON.parse(trimmed);
       
-      // Array of blocks
       if (Array.isArray(parsed)) {
         return parsed.map((item) => ({
           name: item.name || 'Bloco Importado',
@@ -198,7 +301,6 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
         }));
       }
       
-      // Single block object
       if (typeof parsed === 'object' && (parsed.html_content || parsed.html || parsed.name)) {
         return [{
           name: parsed.name || 'Bloco Importado',
@@ -212,8 +314,15 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
       // Not JSON, continue to other formats
     }
     
-    // 2. Check for block comments pattern <!-- BLOCO X: NAME --> (supports multi-line)
-    // Use non-global regex for test() to avoid index consumption issues
+    // 2. NEW: Try HTML + JSON interleaved format (priority - simpler format)
+    if (trimmed.includes('<') && trimmed.includes('{')) {
+      const blocks = parseHtmlWithTrailingJson(trimmed);
+      if (blocks.length > 0) {
+        return blocks;
+      }
+    }
+    
+    // 3. Check for block comments pattern <!-- BLOCO X: NAME --> (legacy support)
     const hasBlockComments = /<!--[\s\S]*?BLOCO\s+\d+:/i.test(trimmed);
     if (hasBlockComments) {
       const blocks = parseMultipleBlocks(trimmed);
@@ -222,9 +331,17 @@ export const BlockImportModal = ({ open, onOpenChange, onImport }: BlockImportMo
       }
     }
     
-    // 3. Raw HTML with optional trailing JSON
-    if (trimmed.startsWith('<') || trimmed.includes('<')) {
-      return parseSingleHtmlWithJson(trimmed);
+    // 4. Raw HTML without JSON
+    if (trimmed.startsWith('<')) {
+      const cleanHtml = trimmed.replace(/<!--[\s\S]*?-->/g, '').trim();
+      if (cleanHtml) {
+        return [{
+          name: detectNameFromHtml(cleanHtml, 1),
+          category: detectCategoryFromHtml(cleanHtml),
+          icon_name: detectIconFromHtml(cleanHtml),
+          html_content: cleanHtml,
+        }];
+      }
     }
     
     throw new Error('Formato não reconhecido. Cole HTML ou JSON válido.');
