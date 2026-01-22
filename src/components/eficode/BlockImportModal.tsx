@@ -166,18 +166,18 @@ const parseHtmlWithTrailingJson = (content: string): BlockImportData[] => {
   while (i < content.length) {
     if (content[i] === '{') {
       // Check if this { is the start of a top-level JSON object
-      // Not inside an HTML attribute like class="{...}" or style="{...}"
-      const before = content.slice(Math.max(0, i - 100), i);
+      const before = content.slice(Math.max(0, i - 50), i);
       
-      // Patterns that indicate we're inside an HTML attribute:
-      // - ends with =" or ='
-      // - ends with ="{something (incomplete string)
-      const isInsideAttribute = /[=]\s*["'][^"']*$/i.test(before);
+      // A top-level JSON typically:
+      // 1. Is preceded by whitespace/newlines only (after HTML ends)
+      // 2. Or comes right after a closing tag >
+      // 3. Or is at the start of the content
+      const isLikelyTopLevelJson = 
+        i === 0 || 
+        /^[\s\n\r]*$/.test(before.slice(-10)) ||  // Only whitespace before
+        />\s*$/.test(before);  // Ends with > and optional whitespace
       
-      // Also check if we're inside a JSX/template expression like ${...}
-      const isTemplateExpression = before.endsWith('$');
-      
-      if (!isInsideAttribute && !isTemplateExpression) {
+      if (isLikelyTopLevelJson) {
         // Count braces to find the complete JSON object
         let braceCount = 0;
         let jsonEnd = i;
