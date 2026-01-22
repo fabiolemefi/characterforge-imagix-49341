@@ -1,153 +1,169 @@
 
 
-## Plano: Botão de Prévia no Efi Code Editor
+## Plano: Imagem de Background nas Configurações da Página
 
 ### Objetivo
 
-Adicionar um botão "Prévia" ao lado do "Exportar HTML" que:
-1. Salva o site automaticamente
-2. Abre uma nova aba com a prévia do HTML renderizado
+Adicionar à seção "Layout" das configurações da página:
+1. Upload de imagem de fundo (salvando no bucket `efi-code-assets`)
+2. Configurações de como a imagem se comporta (size, position, attachment)
 
 ---
 
-### Opções de Implementação
+### Novos Campos no `PageSettings`
 
-| Opção | Prós | Contras |
-|-------|------|---------|
-| **A) Nova rota `/efi-code/:id/preview`** | URL compartilhável, SEO-friendly | Precisa criar nova página, carregar do banco |
-| **B) Blob URL em nova aba** | Instantâneo, não precisa de rota extra | URL temporária, não compartilhável |
-| **C) Salvar HTML no banco + rota pública** | URL permanente, pode publicar | Mais complexo, precisa salvar HTML no banco |
-
-**Recomendação**: **Opção A** - Criar uma rota de preview que busca o site pelo ID e renderiza o HTML.
+| Campo | Tipo | Valores | CSS Gerado |
+|-------|------|---------|------------|
+| `backgroundImage` | string | URL da imagem | `background-image: url(...)` |
+| `backgroundSize` | string | `cover`, `contain`, `auto` | `background-size: ...` |
+| `backgroundPosition` | string | `center`, `top`, `bottom`, etc. | `background-position: ...` |
+| `backgroundAttachment` | string | `scroll`, `fixed` | `background-attachment: ...` |
+| `backgroundRepeat` | string | `no-repeat`, `repeat`, `repeat-x`, `repeat-y` | `background-repeat: ...` |
 
 ---
 
-### Fluxo do Usuário
+### Interface de Usuário
+
+Na seção "Layout" do `SettingsPanel`, após a cor de fundo:
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Editor: /efi-code/439293e3-...                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  [←] [Nome do Site________]           [⤺] [⤻] | [Prévia] [Exportar] [Salvar] │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-                                            │
-                                            ▼ (Clica em "Prévia")
-                                    1. Salva automaticamente
-                                    2. Abre nova aba com:
-                                       /efi-code/439293e3-.../preview
-                                            │
-                                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Preview (HTML puro, sem React)                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│    [Renderização exata do HTML gerado]                              │
-│                                                                     │
-│    Bem-vindo ao Efi Code                                            │
-│    Arraste componentes para começar...                              │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│  📐 Layout                              │
+├─────────────────────────────────────────┤
+│  Largura máxima: [1200______]           │
+│                                         │
+│  Cor de fundo: [🎨][#ffffff___]         │
+│                                         │
+│  Imagem de fundo:                       │
+│  ┌─────────────────────────────────────┐│
+│  │ [Preview da imagem se existir]     ││
+│  │ [📤 Upload] [🗑️ Remover]           ││
+│  └─────────────────────────────────────┘│
+│  [URL da imagem_______________]         │
+│                                         │
+│  Tamanho:                               │
+│  [Cobrir tudo ▾] (cover/contain/auto)   │
+│                                         │
+│  Posição:                               │
+│  [Centro ▾] (center/top/bottom/left/...)│
+│                                         │
+│  Comportamento:                         │
+│  [Rolar junto ▾] (scroll/fixed)         │
+│                                         │
+│  Repetição:                             │
+│  [Não repetir ▾]                        │
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-### Estrutura Técnica
+### Opções dos Selects
 
-#### Nova Página: `src/pages/EfiCodePreview.tsx`
+**Tamanho (`backgroundSize`):**
+- `cover` - "Cobrir tudo" (imagem cobre toda a área)
+- `contain` - "Conter" (imagem inteira visível)
+- `auto` - "Tamanho original"
 
-Página que:
-1. Busca o site pelo ID
-2. Gera o HTML usando as mesmas funções do editor
-3. Renderiza usando `dangerouslySetInnerHTML` ou iframe
+**Posição (`backgroundPosition`):**
+- `center` - "Centro"
+- `top` - "Topo"
+- `bottom` - "Inferior"
+- `left` - "Esquerda"
+- `right` - "Direita"
+- `top left` - "Topo esquerda"
+- `top right` - "Topo direita"
+- `bottom left` - "Inferior esquerda"
+- `bottom right` - "Inferior direita"
+
+**Comportamento (`backgroundAttachment`):**
+- `scroll` - "Rolar junto" (imagem rola com a página)
+- `fixed` - "Fixo" (imagem fica parada enquanto conteúdo rola)
+
+**Repetição (`backgroundRepeat`):**
+- `no-repeat` - "Não repetir"
+- `repeat` - "Repetir"
+- `repeat-x` - "Repetir horizontalmente"
+- `repeat-y` - "Repetir verticalmente"
+
+---
+
+### Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useEfiCodeSites.ts` | Adicionar campos de background na interface `PageSettings` e `defaultPageSettings` |
+| `src/components/eficode/editor/SettingsPanel.tsx` | Adicionar upload de imagem e selects de configuração na seção Layout |
+| `src/lib/efiCodeHtmlGenerator.ts` | Aplicar estilos de background-image no body do HTML gerado |
+
+---
+
+### Alterações Detalhadas
+
+#### 1. `useEfiCodeSites.ts` - Interface PageSettings
 
 ```typescript
-export default function EfiCodePreview() {
-  const { id } = useParams();
-  const { data: site } = useEfiCodeSite(id);
-  const { globalCss } = useEfiCodeConfig();
-  
-  // Gera o HTML completo
-  const html = useMemo(() => {
-    if (!site?.content) return '';
-    return generateFullHtml(site.content, site.name, site.page_settings, globalCss);
-  }, [site, globalCss]);
-  
-  // Renderiza como iframe para isolamento completo
-  return (
-    <iframe
-      srcDoc={html}
-      className="w-full h-screen border-0"
-      title="Preview"
-    />
-  );
+export interface PageSettings {
+  // ... campos existentes
+  backgroundColor: string;
+  // Novos campos:
+  backgroundImage: string;
+  backgroundSize: string;      // 'cover' | 'contain' | 'auto'
+  backgroundPosition: string;  // 'center' | 'top' | etc.
+  backgroundAttachment: string; // 'scroll' | 'fixed'
+  backgroundRepeat: string;    // 'no-repeat' | 'repeat' | etc.
+}
+
+export const defaultPageSettings: PageSettings = {
+  // ... valores existentes
+  backgroundColor: '#ffffff',
+  // Novos valores padrão:
+  backgroundImage: '',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundAttachment: 'scroll',
+  backgroundRepeat: 'no-repeat',
+};
+```
+
+#### 2. `SettingsPanel.tsx` - Upload e Configurações
+
+- Adicionar função `handleBackgroundUpload` (similar ao `handleFaviconUpload`)
+- Adicionar preview da imagem com botão de remover
+- Adicionar 4 `Select` para as configurações de posicionamento/comportamento
+
+#### 3. `efiCodeHtmlGenerator.ts` - CSS do Body
+
+```typescript
+body { 
+  font-family: system-ui, -apple-system, sans-serif; 
+  background-color: ${pageSettings.backgroundColor || '#ffffff'};
+  ${pageSettings.backgroundImage ? `
+    background-image: url('${pageSettings.backgroundImage}');
+    background-size: ${pageSettings.backgroundSize || 'cover'};
+    background-position: ${pageSettings.backgroundPosition || 'center'};
+    background-attachment: ${pageSettings.backgroundAttachment || 'scroll'};
+    background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'};
+  ` : ''}
+  min-height: 100vh;
 }
 ```
 
 ---
 
-### Alterações Necessárias
+### Fluxo de Upload
 
-#### 1. Criar `src/pages/EfiCodePreview.tsx`
-Nova página para renderizar a prévia.
-
-#### 2. Mover funções de geração de HTML
-Extrair `generateHtmlFromNodes` e `generateFullHtml` para um arquivo utilitário (`src/lib/efiCodeHtmlGenerator.ts`) para reutilizar no preview.
-
-#### 3. Atualizar `src/App.tsx`
-Adicionar nova rota:
-```typescript
-<Route path="/efi-code/:id/preview" element={<EfiCodePreview />} />
-```
-
-#### 4. Atualizar `src/pages/EfiCodeEditor.tsx`
-Adicionar botão de prévia no componente `EditorActions`:
-```typescript
-const handlePreview = async (query: any) => {
-  // 1. Salva primeiro
-  await onSave(query);
-  // 2. Abre nova aba
-  window.open(`/efi-code/${id}/preview`, '_blank');
-};
-
-// No render:
-<Button variant="outline" size="sm" onClick={() => handlePreview(query)}>
-  <Eye className="h-4 w-4 mr-2" />
-  Prévia
-</Button>
-```
-
----
-
-### Arquivos a Criar/Modificar
-
-| Tipo | Arquivo | Descrição |
-|------|---------|-----------|
-| Novo | `src/lib/efiCodeHtmlGenerator.ts` | Funções de geração HTML extraídas |
-| Novo | `src/pages/EfiCodePreview.tsx` | Página de prévia |
-| Edição | `src/App.tsx` | Adicionar rota `/efi-code/:id/preview` |
-| Edição | `src/pages/EfiCodeEditor.tsx` | Adicionar botão "Prévia" + usar funções do utilitário |
-
----
-
-### Bônus: Corrigir rota `/site/:slug`
-
-Já existe um botão "Visualizar" na listagem de sites que aponta para `/site/:slug`, mas essa rota não existe. Podemos:
-1. Criar a rota pública `/site/:slug` para sites publicados
-2. Ou atualizar o botão para usar `/efi-code/:id/preview`
-
-Recomendo criar ambas as rotas:
-- `/efi-code/:id/preview` - Para desenvolvedores visualizarem rascunhos
-- `/site/:slug` - Para sites publicados (URL limpa para compartilhar)
+1. Usuário clica em "Upload" na seção de imagem de fundo
+2. Arquivo é enviado para `efi-code-assets/backgrounds/bg-{timestamp}.{ext}`
+3. URL pública é salva em `pageSettings.backgroundImage`
+4. Preview é exibido no painel
+5. Ao exportar/preview, a imagem é aplicada no body via CSS
 
 ---
 
 ### Resultado Final
 
-Após as alterações:
-1. No editor, clicar em "Prévia" salva o site e abre nova aba com a renderização
-2. A prévia mostra exatamente como o HTML ficará exportado
-3. O CSS global é aplicado na prévia
-4. Não precisa exportar arquivo para ver o resultado
+- Upload funcional com preview da imagem
+- Configurações intuitivas com selects traduzidos
+- HTML exportado com background-image aplicado corretamente
+- Suporte a background fixo para efeito parallax
 
