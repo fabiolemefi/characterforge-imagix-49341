@@ -90,12 +90,15 @@ export function useCampaign(slug: string | undefined) {
         .from("image_campaigns")
         .select("*")
         .eq("slug", slug)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data as ImageCampaign;
+      return data as ImageCampaign | null;
     },
     enabled: !!slug,
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 0,
   });
 }
 
