@@ -1,270 +1,255 @@
 
 
-## Plano: Aba de Ícones com Importação ZIP
+## Plano: Campo HTML para Blocos Efi Code + Importação
 
 ### Objetivo
 
-Adicionar uma terceira aba "Ícones" no dialog da Biblioteca de Imagens com:
-1. Lista de ícones SVG com agrupamento por prefixo do nome
-2. Botão "Novo Ícone" para upload individual
-3. Botão "Importar" para upload de ZIP com múltiplos ícones
-4. Opção de "substituir existentes" na importação
+Adicionar suporte a **blocos com HTML personalizado** no Efi Code:
+1. Novo campo `html_content` na tabela de blocos
+2. Editor de código com tema escuro (estilo HTML) no formulário de criação/edição
+3. Botão de "Importar" ao lado do "Novo Bloco" para importar blocos via JSON/código
+4. Novo componente `HtmlBlock` que renderiza HTML customizado no editor
 
 ---
 
 ### 1. Estrutura do Banco de Dados
 
-Nova tabela específica para ícones (separada das imagens para organização):
-
-#### Tabela: `efi_library_icons`
+Adicionar nova coluna à tabela `efi_code_blocks`:
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| `id` | uuid | Chave primária |
-| `name` | text | Nome do arquivo (ex: "ilustra-dev-api-abertura") |
-| `filename` | text | Nome original do arquivo com extensão |
-| `group_prefix` | text | Prefixo agrupador (ex: "ilustra", "bolix", "geral") |
-| `url` | text | URL pública do SVG |
-| `is_active` | boolean | Se está ativo |
-| `created_at` | timestamp | Data de criação |
-| `created_by` | uuid | Usuário que fez upload |
+| `html_content` | text | Código HTML personalizado do bloco (opcional) |
 
-**Lógica de agrupamento:**
-- Se o nome começa com `ilustra-` → grupo "ilustra"
-- Se o nome começa com `bolix-` → grupo "bolix"
-- Qualquer outro → grupo "geral"
+Quando `html_content` está preenchido, o bloco usará o novo componente `HtmlBlock` ao invés dos componentes padrão (Container, Heading, etc).
 
 ---
 
-### 2. Interface da Aba Ícones
+### 2. Interface do Formulário de Bloco
+
+Transformar o botão "Novo Bloco" em um dropdown com duas opções:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Blocos do Efi Code                                                     │
+│                                                                         │
+│  [CSS Global] [Biblioteca] [+ Novo Bloco ▾]                            │
+│                                    ├─────────────────┤                  │
+│                                    │ ✨ Criar Bloco  │                  │
+│                                    │ 📥 Importar     │                  │
+│                                    └─────────────────┘                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3. Formulário de Criação/Edição (atualizado)
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  Biblioteca de Imagens                                           [X]    │
-├──────────────────────────────────────────────────────────────────────────┤
-│  [Categorias] [Imagens] [Ícones]                                         │
+│  Novo Bloco                                                       [X]   │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  [Todos ▾]  [🔍 Buscar...]              [📥 Importar] [+ Novo Ícone]    │
+│  Nome: [________________]     Categoria: [Layout ▾]    Posição: [0]     │
 │                                                                          │
-│  ▼ ilustra (45 ícones)                                                   │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                  │
-│  │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │ │ SVG  │                  │
-│  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────┘                  │
-│  abertura  conta    extrato  extrato-1 cobranca ...                     │
+│  Descrição: [________________________________________________]           │
 │                                                                          │
-│  ▼ geral (12 ícones)                                                     │
-│  ┌──────┐ ┌──────┐ ┌──────┐                                              │
-│  │ SVG  │ │ SVG  │ │ SVG  │                                              │
-│  └──────┘ └──────┘ └──────┘                                              │
-│  arrow    check    close                                                │
+│  Ícone: [SquareDashed ▾]                                                │
 │                                                                          │
+│  ═══════════════════════════════════════════════════════════════════════ │
+│                                                                          │
+│  Código HTML                                                             │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │ <div class="hero-section">                                       │   │
+│  │   <h1>Título Principal</h1>                                      │   │
+│  │   <p>Subtítulo descritivo</p>                                    │   │
+│  │   <a href="#" class="btn">Saiba mais</a>                         │   │
+│  │ </div>                                                           │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│         ↑ Fundo escuro (#1e1e1e), syntax highlight HTML                 │
+│                                                                          │
+│  ☐ Bloco ativo                                                          │
+│                                                                          │
+│                                              [Cancelar] [Criar Bloco]   │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Mudanças principais:**
+- Campo `component_type` removido (não é mais necessário para blocos HTML)
+- Campo `default_props` removido (as props agora estão dentro do HTML)
+- Novo campo `html_content` com editor de código estilizado
+
 ---
 
-### 3. Modal de Importação ZIP
+### 4. Modal de Importação
+
+Ao clicar em "Importar", abre um modal para colar JSON ou código:
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
-│  Importar Ícones                                         [X]  │
+│  Importar Bloco                                          [X]  │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                │
+│  Cole o JSON ou HTML do bloco:                                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │                                                          │  │
-│  │     📁 Arraste um arquivo .zip aqui                     │  │
-│  │        ou clique para selecionar                        │  │
-│  │                                                          │  │
+│  │ {                                                        │  │
+│  │   "name": "Hero Section",                                │  │
+│  │   "category": "layout",                                  │  │
+│  │   "icon_name": "LayoutGrid",                             │  │
+│  │   "html_content": "<div class='hero'>...</div>"          │  │
+│  │ }                                                        │  │
 │  └──────────────────────────────────────────────────────────┘  │
+│         ↑ Fundo escuro, syntax highlight JSON/HTML             │
 │                                                                │
-│  ☐ Substituir ícones existentes com mesmo nome                │
+│  ☐ Substituir se já existir (mesmo nome)                      │
 │                                                                │
-│  ─────────────────────────────────────────────────────────────  │
-│  Prévia (após selecionar ZIP):                                 │
-│                                                                │
-│  ✓ ilustra-dev-api-abertura.svg                               │
-│  ✓ ilustra-dev-api-conta.svg                                  │
-│  ⚠️ bolix.svg (já existe - será ignorado)                      │
-│  ✓ novo-icone.svg                                              │
-│                                                                │
-│  Total: 45 ícones | Novos: 42 | Ignorados: 3                  │
-│                                                                │
-│                              [Cancelar] [Importar 42 ícones]  │
+│                              [Cancelar] [Importar]             │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-**Comportamento:**
-1. Usuário seleciona arquivo ZIP
-2. Sistema extrai lista de SVGs usando `jszip` (já instalado)
-3. Verifica quais já existem no banco (por `filename`)
-4. Exibe prévia com status de cada arquivo
-5. Se "substituir" marcado: sobrescreve existentes
-6. Se "substituir" desmarcado (padrão): ignora existentes
+**Formatos aceitos:**
+1. **JSON completo**: Objeto com todas as propriedades do bloco
+2. **HTML puro**: Apenas o código HTML (nome será solicitado em seguida)
+3. **JSON com múltiplos blocos**: Array de objetos para importação em lote
 
 ---
 
-### 4. Hook Atualizado: useEfiImageLibrary
+### 5. Novo Componente: HtmlBlock
 
-Adicionar métodos para ícones:
+Criar componente Craft.js que renderiza HTML personalizado:
 
 ```typescript
-// Novos tipos
-interface EfiLibraryIcon {
-  id: string;
-  name: string;
-  filename: string;
-  group_prefix: string;
-  url: string;
-  is_active: boolean;
-  created_at: string;
-  created_by: string | null;
+// src/components/eficode/user-components/HtmlBlock.tsx
+
+interface HtmlBlockProps {
+  html: string;
+  className?: string;
 }
 
-// Novas funções
-- iconsQuery - Lista todos os ícones
-- iconsGrouped - Agrupa ícones por prefixo
-- createIcon(data) - Cria um ícone
-- updateIcon(id, data) - Atualiza ícone
-- deleteIcon(id) - Deleta ícone
-- uploadIcon(file) - Upload de SVG individual
-- importIconsFromZip(file, replace) - Importa ZIP com opção de substituir
+export const HtmlBlock = ({ html, className }: HtmlBlockProps) => {
+  // Renderiza HTML customizado de forma segura
+  // Editável via contentEditable no editor
+};
+
+HtmlBlock.craft = {
+  displayName: 'Bloco HTML',
+  props: { html: '', className: '' },
+  related: { settings: HtmlBlockSettings },
+};
 ```
+
+**Características:**
+- Renderiza HTML usando `dangerouslySetInnerHTML` (conteúdo controlado pelo admin)
+- Editável inline no canvas (contentEditable)
+- Painel de configurações permite editar o HTML diretamente
 
 ---
 
-### 5. Lógica de Extração do Prefixo
+### 6. Atualização do Toolbox
+
+Modificar a função `getComponent` para suportar blocos HTML:
 
 ```typescript
-const extractGroupPrefix = (filename: string): string => {
-  // Remove extensão
-  const name = filename.replace(/\.svg$/i, '');
-  
-  // Prefixos conhecidos
-  const knownPrefixes = ['ilustra', 'bolix', 'icon'];
-  
-  for (const prefix of knownPrefixes) {
-    if (name.startsWith(`${prefix}-`)) {
-      return prefix;
-    }
+const getComponent = (block: EfiCodeBlock) => {
+  // Se tem html_content, usar HtmlBlock
+  if (block.html_content) {
+    return <HtmlBlock html={block.html_content} />;
   }
   
-  // Se não tem prefixo conhecido, vai para "geral"
-  return 'geral';
+  // Caso contrário, usar componente padrão (compatibilidade)
+  switch (block.component_type) {
+    case 'Container':
+      return <Element is={Container} canvas {...block.default_props} />;
+    // ... outros casos
+  }
 };
 ```
 
 ---
 
-### 6. Fluxo de Importação ZIP
+### 7. Estilo do Editor de Código
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  1. Usuário seleciona arquivo .zip                              │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  2. JSZip extrai lista de arquivos                              │
-│     - Filtra apenas .svg                                        │
-│     - Ignora pastas vazias                                      │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  3. Consulta banco: quais filenames já existem?                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  4. Exibe prévia com status:                                    │
-│     - ✓ Novo (será adicionado)                                  │
-│     - ⚠️ Existente (será ignorado OU substituído)               │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  5. Usuário confirma importação                                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  6. Para cada SVG:                                              │
-│     a. Upload para bucket (efi-code-assets/icons/)              │
-│     b. Insert/Upsert no banco                                   │
-│     c. Atualiza progresso                                       │
-└─────────────────────────────────────────────────────────────────┘
+Criar estilo CSS para o campo de código com tema escuro:
+
+```css
+.code-editor {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Fira Code', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 6px;
+  min-height: 200px;
+}
+
+/* Destaque de sintaxe básico via textarea */
+.code-editor::placeholder {
+  color: #666;
+}
 ```
+
+**Nota técnica:** Para syntax highlight completo, seria necessário uma biblioteca como CodeMirror ou Monaco Editor. A implementação inicial usará um Textarea estilizado que já fornece a experiência visual desejada (fundo escuro, fonte monospace).
 
 ---
 
-### 7. Arquivos a Criar/Modificar
+### 8. Arquivos a Criar/Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/migrations/xxx.sql` | Criar tabela `efi_library_icons` com RLS |
-| `src/hooks/useEfiImageLibrary.ts` | Adicionar queries/mutations para ícones |
-| `src/components/eficode/ImageLibraryDialog.tsx` | Adicionar aba "Ícones" com IconsTab |
-| `src/components/eficode/IconImportModal.tsx` | **Novo** - Modal de importação ZIP |
+| `supabase/migrations/xxx.sql` | Adicionar coluna `html_content` |
+| `src/hooks/useEfiCodeBlocks.ts` | Incluir campo `html_content` no tipo e operações |
+| `src/pages/AdminEfiCodeBlocks.tsx` | Refatorar formulário com dropdown e campo HTML |
+| `src/components/eficode/user-components/HtmlBlock.tsx` | **Novo** - Componente para renderizar HTML |
+| `src/components/eficode/user-components/index.ts` | Exportar HtmlBlock |
+| `src/components/eficode/editor/Toolbox.tsx` | Atualizar `getComponent` para suportar HtmlBlock |
+| `src/components/eficode/BlockImportModal.tsx` | **Novo** - Modal de importação |
 
 ---
 
-### 8. Estrutura no Bucket
+### 9. Fluxo de Uso
 
 ```text
-efi-code-assets/
-├── library/
-│   └── [imagens por categoria]
-├── icons/
-│   ├── ilustra-dev-api-abertura.svg
-│   ├── ilustra-dev-api-conta.svg
-│   ├── bolix.svg
-│   └── arrow.svg
-└── [outros]
-```
-
----
-
-### 9. Componente IconsTab (Resumo)
-
-```typescript
-const IconsTab = () => {
-  // Estados
-  const [filterGroup, setFilterGroup] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  
-  // Agrupar ícones por prefixo
-  const groupedIcons = useMemo(() => {
-    const groups: Record<string, EfiLibraryIcon[]> = {};
-    filteredIcons.forEach(icon => {
-      const group = icon.group_prefix;
-      if (!groups[group]) groups[group] = [];
-      groups[group].push(icon);
-    });
-    return groups;
-  }, [filteredIcons]);
-  
-  return (
-    <>
-      {/* Filtros e botões */}
-      {/* Grid agrupado por prefixo */}
-      {/* Modal de novo ícone */}
-      <IconImportModal open={isImportOpen} onOpenChange={setIsImportOpen} />
-    </>
-  );
-};
+┌────────────────────────────────────────────────────────────────────────┐
+│  1. Admin acessa /admin/efi-code-blocks                                │
+└──────────────────────────────┬─────────────────────────────────────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+              ▼                                 ▼
+┌─────────────────────────┐     ┌─────────────────────────────────────┐
+│  Clica em "Criar Bloco" │     │  Clica em "Importar"                │
+└───────────┬─────────────┘     └──────────────┬──────────────────────┘
+            │                                  │
+            ▼                                  ▼
+┌─────────────────────────┐     ┌─────────────────────────────────────┐
+│  Preenche formulário:   │     │  Cola JSON/HTML do bloco            │
+│  - Nome                 │     │  - Valida estrutura                 │
+│  - HTML (editor escuro) │     │  - Preenche campos automaticamente  │
+│  - Categoria            │     └──────────────┬──────────────────────┘
+│  - Ícone                │                    │
+└───────────┬─────────────┘                    │
+            │                                  │
+            └────────────────┬─────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  2. Bloco salvo no banco com html_content                              │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  3. Usuário abre editor /efi-code/:id                                  │
+│     - Toolbox carrega blocos do banco                                  │
+│     - Blocos com html_content usam HtmlBlock                           │
+│     - Arrasta bloco para canvas → HTML renderizado                     │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ### 10. Resultado Final
 
-1. **Nova aba "Ícones"** com grid visual dos SVGs
-2. **Agrupamento automático** por prefixo do nome
-3. **Upload individual** de novos ícones
-4. **Importação em massa** via ZIP
-5. **Opção de substituir** ou ignorar existentes
-6. **Prévia antes de importar** mostrando o que será feito
+1. **Campo HTML** no formulário de criação/edição de blocos com tema escuro
+2. **Dropdown** no botão "Novo Bloco" com opções Criar e Importar
+3. **Modal de Importação** para colar JSON ou HTML de blocos
+4. **Componente HtmlBlock** que renderiza HTML customizado no canvas
+5. **Retrocompatibilidade** com blocos existentes que usam component_type
 
