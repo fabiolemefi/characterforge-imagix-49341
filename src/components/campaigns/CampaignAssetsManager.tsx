@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Trash2, Eye, EyeOff, GripVertical, ImageIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, Eye, EyeOff, GripVertical, ImageIcon, Pencil, X } from "lucide-react";
 import {
   ImageCampaignAsset,
   useCampaignAssets,
@@ -53,6 +53,7 @@ interface SortableAssetItemProps {
   asset: ImageCampaignAsset;
   onToggleVisibility: (id: string, isVisible: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit: (asset: ImageCampaignAsset) => void;
   isUpdating: boolean;
 }
 
@@ -60,6 +61,7 @@ function SortableAssetItem({
   asset,
   onToggleVisibility,
   onDelete,
+  onEdit,
   isUpdating,
 }: SortableAssetItemProps) {
   const {
@@ -113,6 +115,15 @@ function SortableAssetItem({
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onEdit(asset)}
+          title="Editar thumbnail"
+        >
+          <Pencil className="h-4 w-4 text-muted-foreground" />
+        </Button>
+
         <div className="flex items-center gap-2">
           {asset.is_visible ? (
             <Eye className="h-4 w-4 text-muted-foreground" />
@@ -146,12 +157,18 @@ export function CampaignAssetsManager({
 }: CampaignAssetsManagerProps) {
   const sealFileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailFileInputRef = useRef<HTMLInputElement>(null);
+  const editThumbnailInputRef = useRef<HTMLInputElement>(null);
   const [newAssetName, setNewAssetName] = useState("");
   const [isVisible, setIsVisible] = useState(true);
   const [sealFile, setSealFile] = useState<File | null>(null);
   const [sealPreview, setSealPreview] = useState<string | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  
+  // Edit mode state
+  const [editingAsset, setEditingAsset] = useState<ImageCampaignAsset | null>(null);
+  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null);
+  const [editThumbnailPreview, setEditThumbnailPreview] = useState<string | null>(null);
 
   const { data: assets = [], isLoading } = useCampaignAssets(campaignId);
   const createAsset = useCreateAsset();
@@ -182,6 +199,16 @@ export function CampaignAssetsManager({
       setThumbnailFile(file);
       const reader = new FileReader();
       reader.onload = (event) => setThumbnailPreview(event.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditThumbnailFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditThumbnailFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => setEditThumbnailPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -223,6 +250,61 @@ export function CampaignAssetsManager({
     }
   };
 
+  const handleEditAsset = (asset: ImageCampaignAsset) => {
+    setEditingAsset(asset);
+    setEditThumbnailPreview(asset.thumbnail_url);
+    setEditThumbnailFile(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAsset) return;
+
+    try {
+      let thumbnailUrl: string | undefined = editingAsset.thumbnail_url || undefined;
+      
+      if (editThumbnailFile) {
+        thumbnailUrl = await uploadImage.mutateAsync({ file: editThumbnailFile, folder: "thumbnails" });
+      }
+
+      await updateAsset.mutateAsync({
+        id: editingAsset.id,
+        thumbnail_url: thumbnailUrl,
+      });
+
+      // Reset edit state
+      setEditingAsset(null);
+      setEditThumbnailFile(null);
+      setEditThumbnailPreview(null);
+      if (editThumbnailInputRef.current) editThumbnailInputRef.current.value = "";
+    } catch (error) {
+      console.error("Error updating asset:", error);
+    }
+  };
+
+  const handleRemoveThumbnail = async () => {
+    if (!editingAsset) return;
+
+    try {
+      await updateAsset.mutateAsync({
+        id: editingAsset.id,
+        thumbnail_url: undefined,
+      });
+
+      setEditingAsset(null);
+      setEditThumbnailFile(null);
+      setEditThumbnailPreview(null);
+    } catch (error) {
+      console.error("Error removing thumbnail:", error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAsset(null);
+    setEditThumbnailFile(null);
+    setEditThumbnailPreview(null);
+    if (editThumbnailInputRef.current) editThumbnailInputRef.current.value = "";
+  };
+
   const handleToggleVisibility = async (id: string, is_visible: boolean) => {
     await updateAsset.mutateAsync({ id, is_visible });
   };
@@ -252,6 +334,7 @@ export function CampaignAssetsManager({
   };
 
   const isUploading = uploadImage.isPending || createAsset.isPending;
+  const isEditUploading = uploadImage.isPending || updateAsset.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,6 +344,86 @@ export function CampaignAssetsManager({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Edit Thumbnail Section */}
+          {editingAsset && (
+            <Card className="border-primary">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Editar Thumbnail: {editingAsset.name}</CardTitle>
+                  <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <CardDescription>
+                  Altere a thumbnail que será exibida na seleção de selos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Current Seal (read-only) */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Selo atual</Label>
+                    <div className="border rounded-lg p-4 bg-muted/50">
+                      <img 
+                        src={editingAsset.image_url} 
+                        alt="Selo" 
+                        className="max-h-24 mx-auto rounded" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Thumbnail to edit */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Thumbnail</Label>
+                    <div
+                      onClick={() => !isEditUploading && editThumbnailInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                        editThumbnailPreview ? 'border-primary' : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      {editThumbnailPreview ? (
+                        <img src={editThumbnailPreview} alt="Thumbnail" className="max-h-24 mx-auto rounded" />
+                      ) : (
+                        <div className="space-y-1">
+                          <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">Clique para selecionar</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={editThumbnailInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleEditThumbnailFileSelect}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  {editingAsset.thumbnail_url && (
+                    <Button
+                      variant="outline"
+                      onClick={handleRemoveThumbnail}
+                      disabled={isEditUploading}
+                    >
+                      Remover Thumbnail
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={!editThumbnailFile || isEditUploading}
+                  >
+                    {isEditUploading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Salvar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Upload Section */}
           <Card>
             <CardHeader>
@@ -367,7 +530,7 @@ export function CampaignAssetsManager({
             <CardHeader>
               <CardTitle className="text-base">Assets da Campanha</CardTitle>
               <CardDescription>
-                Arraste para reordenar. Assets ocultos são enviados automaticamente na requisição.
+                Arraste para reordenar. Clique no lápis para editar a thumbnail.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -396,6 +559,7 @@ export function CampaignAssetsManager({
                           asset={asset}
                           onToggleVisibility={handleToggleVisibility}
                           onDelete={handleDelete}
+                          onEdit={handleEditAsset}
                           isUpdating={updateAsset.isPending}
                         />
                       ))}
