@@ -1,80 +1,130 @@
 
 
-# Plano: Restaurar CSS Global do Efi Code
+# Plano: Exportar Configurações da Página e Remover Editabilidade
 
-## Problema Identificado
+## Problemas Identificados
 
-O CSS global foi removido do banco de dados, mas ele era **necessário** para os blocos HTML funcionarem corretamente. Os blocos importados (como o formulário de pesquisa da Efí Bank) usam classes CSS que dependem desse CSS global.
+### Problema 1: Configurações de Fundo Não Exportadas
 
-### Situacao Atual
+A função `generateFullHtml` recebe `pageSettings` mas **não aplica** as configurações visuais:
+- `backgroundColor` - Cor de fundo
+- `backgroundImage` - Imagem de fundo
+- `backgroundSize`, `backgroundPosition`, `backgroundAttachment`, `backgroundRepeat` - Propriedades da imagem
+- `containerMaxWidth` - Largura máxima do container
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ Blocos HTML importados:                             │
-│   - Usam classes: bg-elevation-2, text-base-medium  │
-│   - Essas classes vêm do CSS Tailwind v4            │
-│                                                     │
-│ Campo global_css:                                   │
-│   - Foi limpo (vazio)                               │
-│   - Resultado: blocos sem estilização               │
-└─────────────────────────────────────────────────────┘
+O template atual apenas exporta `<body>` sem nenhum estilo inline.
+
+### Problema 2: HTML Exportado Editável
+
+Os blocos HTML podem conter atributos `contenteditable="true"` residuais se foram editados no editor. Precisamos sanitizar o HTML removendo esses atributos antes de exportar.
+
+## Solução
+
+### Parte 1: Aplicar Configurações de Fundo no Body
+
+Modificar `src/lib/efiCodeHtmlGenerator.ts` para gerar estilos inline no `<body>`:
+
+```typescript
+// Gerar estilos do body baseado em pageSettings
+const bodyStyles = [
+  `background-color: ${pageSettings.backgroundColor || '#ffffff'}`,
+  `min-height: 100vh`,
+  `margin: 0`,
+  `padding: 0`,
+];
+
+// Adicionar imagem de fundo se existir
+if (pageSettings.backgroundImage) {
+  bodyStyles.push(
+    `background-image: url('${pageSettings.backgroundImage}')`,
+    `background-size: ${pageSettings.backgroundSize || 'cover'}`,
+    `background-position: ${pageSettings.backgroundPosition || 'center'}`,
+    `background-attachment: ${pageSettings.backgroundAttachment || 'scroll'}`,
+    `background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'}`
+  );
+}
+
+// Gerar container wrapper
+const containerStyles = `max-width: ${pageSettings.containerMaxWidth || '1200'}px; margin: 0 auto;`;
 ```
 
-## Causa do Problema
-
-O CSS do Tailwind v4 que estava no campo `global_css` **não era lixo** - ele é o CSS necessário para os blocos HTML funcionarem. Quando um bloco HTML é importado com classes Tailwind, o CSS correspondente deve estar no campo `global_css` para que essas classes sejam interpretadas.
-
-## Solucao
-
-### Opcao 1: Restaurar CSS via Admin (Recomendado)
-
-1. Acesse: **Admin > Plugins > Efi Code Blocos** (ícone de engrenagem)
-2. Clique no botão **"CSS Global"**
-3. Cole o CSS do Tailwind v4 (ou o CSS personalizado que seus blocos precisam)
-4. Clique em **"Salvar CSS"**
-
-### Opcao 2: Restaurar CSS via Banco de Dados
-
-Executar SQL para restaurar o CSS diretamente no banco:
-
-```sql
-UPDATE efi_code_config 
-SET global_css = '[conteúdo do CSS do Tailwind v4]', 
-    updated_at = now();
+**Template Atualizado:**
+```html
+<body style="${bodyStyles.join('; ')}">
+  <div style="${containerStyles}">
+    ${bodyContent}
+  </div>
+</body>
 ```
 
-## Fluxo Correto de Uso
+### Parte 2: Sanitizar HTML Exportado
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ 1. Admin importa bloco HTML com classes Tailwind   │
-│    (ex: classes bg-elevation-2, text-base-medium)  │
-├─────────────────────────────────────────────────────┤
-│ 2. Admin cadastra CSS correspondente em:           │
-│    Admin > Efi Code Blocos > CSS Global            │
-├─────────────────────────────────────────────────────┤
-│ 3. CSS é armazenado em efi_code_config.global_css  │
-├─────────────────────────────────────────────────────┤
-│ 4. Editor e exportação usam esse CSS:              │
-│    - Editor: injeta via <style> no viewport        │
-│    - Exportação: inclui no <head> do HTML final    │
-└─────────────────────────────────────────────────────┘
+Adicionar função para remover atributos de edição:
+
+```typescript
+const sanitizeHtmlForExport = (html: string): string => {
+  return html
+    .replace(/\s*contenteditable=["'][^"']*["']/gi, '')
+    .replace(/\s*data-gramm=["'][^"']*["']/gi, '')
+    .replace(/\s*data-gramm_editor=["'][^"']*["']/gi, '')
+    .replace(/\s*spellcheck=["'][^"']*["']/gi, '');
+};
 ```
+
+Aplicar essa sanitização no retorno do `HtmlBlock` no `generateHtmlFromNodes`:
+
+```typescript
+case 'HtmlBlock':
+case 'Bloco HTML':
+  const rawHtml = props.htmlTemplate || props.html || '';
+  return sanitizeHtmlForExport(rawHtml);
+```
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/efiCodeHtmlGenerator.ts` | Aplicar estilos do body/container e sanitizar HTML |
 
 ## Resultado Esperado
 
-Apos restaurar o CSS global:
-- Editor mostrará os blocos estilizados corretamente
-- Exportação incluirá o CSS no arquivo HTML final
-- Os blocos serão renderizados como esperado
+### HTML Exportado Antes (Problemático):
+```html
+<body>
+  <div contenteditable="true">Texto editável...</div>
+</body>
+```
 
-## Acao Imediata
+### HTML Exportado Depois (Correto):
+```html
+<body style="background-color: #1d1d1d; min-height: 100vh; margin: 0; padding: 0;">
+  <div style="max-width: 1200px; margin: 0 auto;">
+    <div>Texto não editável...</div>
+  </div>
+</body>
+```
 
-Para resolver agora, você pode:
-1. Ir em **Admin > Plugins** (ícone de engrenagem ao lado de Efi Code)
-2. Clicar em **"CSS Global"** 
-3. Colar o CSS do Tailwind v4 que seus blocos usam
-4. Salvar
+## Fluxo Completo de Exportação
 
-Isso restaurará a estilização tanto no editor quanto na exportação.
+```text
+┌─────────────────────────────────────────────────────┐
+│ 1. Usuário configura no painel esquerdo:           │
+│    - Cor de fundo: #1d1d1d                         │
+│    - Largura máxima: 1200px                        │
+│    - Imagem de fundo (opcional)                    │
+│    - SEO, Analytics, etc.                          │
+├─────────────────────────────────────────────────────┤
+│ 2. Usuário clica em "Exportar HTML"               │
+├─────────────────────────────────────────────────────┤
+│ 3. generateFullHtml recebe pageSettings            │
+├─────────────────────────────────────────────────────┤
+│ 4. Função aplica configurações:                    │
+│    - Body: background-color, background-image...   │
+│    - Container: max-width, margin auto             │
+│    - Head: title, meta, scripts                    │
+│    - Sanitiza HTML removendo contenteditable       │
+├─────────────────────────────────────────────────────┤
+│ 5. HTML final exportado com todas as configurações │
+└─────────────────────────────────────────────────────┘
+```
 
