@@ -6,6 +6,7 @@ import { Image, ImageSettings } from './Image';
 import { Divider, DividerSettings } from './Divider';
 import { Spacer, SpacerSettings } from './Spacer';
 import { HtmlBlock, HtmlBlockSettings } from './HtmlBlock';
+import { IframePreview } from './IframePreview';
 
 export {
   Container,
@@ -24,4 +25,5 @@ export {
   SpacerSettings,
   HtmlBlock,
   HtmlBlockSettings,
+  IframePreview,
 };

@@ -19,6 +19,7 @@ import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { Toolbox } from '@/components/eficode/editor/Toolbox';
 import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
 import { generateFullHtml } from '@/lib/efiCodeHtmlGenerator';
+import { EfiCodeProvider } from '@/components/eficode/EfiCodeContext';
 import { 
   Container, 
   Text, 
@@ -148,121 +149,123 @@ export default function EfiCodeEditor() {
   }
 
   return (
-    <Editor resolver={resolvers}>
-      <div className="h-screen flex flex-col bg-background">
-        {/* Header */}
-        <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => navigate('/efi-code')}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Input
-              value={siteName}
-              onChange={(e) => setSiteName(e.target.value)}
-              className="w-64 font-medium"
-              placeholder="Nome do site"
-            />
-            
-            {/* Responsiveness Toggles */}
-            <ToggleGroup 
-              type="single" 
-              value={viewportSize} 
-              onValueChange={(value) => value && setViewportSize(value as ViewportSize)}
-              className="border rounded-md"
-            >
-              <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
-                <Monitor className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
-                <Tablet className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
-                <Smartphone className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <EditorActions 
-              siteId={id}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              onSave={handleSave} 
-              onExport={handleExport}
-              onGenerateCode={handleGenerateCode}
-            />
-          </div>
-        </header>
-
-        {/* Main Editor Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Sidebar - Toolbox + Settings */}
-          <aside className="w-64 border-r bg-background overflow-hidden flex flex-col">
-            <ScrollArea className="flex-1">
-              <Toolbox 
-                pageSettings={pageSettings}
-                onPageSettingsChange={setPageSettings}
-              />
-            </ScrollArea>
-          </aside>
-
-          {/* Center - Viewport */}
-          <main 
-            className="flex-1 overflow-auto p-8"
-            style={{ backgroundColor: pageSettings.backgroundColor }}
-          >
-            {/* Inject Global CSS scoped to viewport */}
-            <style dangerouslySetInnerHTML={{ __html: globalCss }} />
-            
-            {viewMode === 'visual' ? (
-              <div
-                className="mx-auto overflow-hidden transition-all duration-300"
-                style={{
-                  minHeight: '600px',
-                  maxWidth: viewportSize === 'desktop' 
-                    ? `${pageSettings.containerMaxWidth}px` 
-                    : viewportWidths[viewportSize],
-                  width: viewportWidths[viewportSize],
-                }}
+    <EfiCodeProvider globalCss={globalCss}>
+      <Editor resolver={resolvers}>
+        <div className="h-screen flex flex-col bg-background">
+          {/* Header */}
+          <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => navigate('/efi-code')}
               >
-                <EditorFrame editorState={editorState} />
-              </div>
-            ) : (
-              <div className="h-full flex flex-col">
-                <div className="bg-muted/50 px-4 py-2 border-b rounded-t-lg flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">HTML Gerado (somente leitura)</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(codeContent);
-                      toast.success('Código copiado!');
-                    }}
-                  >
-                    Copiar
-                  </Button>
-                </div>
-                <textarea
-                  value={codeContent}
-                  readOnly
-                  className="flex-1 w-full font-mono text-sm p-4 bg-secondary text-secondary-foreground rounded-b-lg resize-none focus:outline-none"
-                  spellCheck={false}
-                />
-              </div>
-            )}
-          </main>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Input
+                value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
+                className="w-64 font-medium"
+                placeholder="Nome do site"
+              />
+              
+              {/* Responsiveness Toggles */}
+              <ToggleGroup 
+                type="single" 
+                value={viewportSize} 
+                onValueChange={(value) => value && setViewportSize(value as ViewportSize)}
+                className="border rounded-md"
+              >
+                <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
+                  <Monitor className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
+                  <Tablet className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
+                  <Smartphone className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <EditorActions 
+                siteId={id}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onSave={handleSave} 
+                onExport={handleExport}
+                onGenerateCode={handleGenerateCode}
+              />
+            </div>
+          </header>
 
-          {/* Right Sidebar - Component Settings */}
-          <aside className="w-72 border-l bg-background overflow-hidden">
-            <SettingsPanel />
-          </aside>
+          {/* Main Editor Area */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Sidebar - Toolbox + Settings */}
+            <aside className="w-64 border-r bg-background overflow-hidden flex flex-col">
+              <ScrollArea className="flex-1">
+                <Toolbox 
+                  pageSettings={pageSettings}
+                  onPageSettingsChange={setPageSettings}
+                />
+              </ScrollArea>
+            </aside>
+
+            {/* Center - Viewport */}
+            <main 
+              className="flex-1 overflow-auto p-8"
+              style={{ backgroundColor: pageSettings.backgroundColor }}
+            >
+              {/* Inject Global CSS scoped to viewport */}
+              <style dangerouslySetInnerHTML={{ __html: globalCss }} />
+              
+              {viewMode === 'visual' ? (
+                <div
+                  className="mx-auto overflow-hidden transition-all duration-300"
+                  style={{
+                    minHeight: '600px',
+                    maxWidth: viewportSize === 'desktop' 
+                      ? `${pageSettings.containerMaxWidth}px` 
+                      : viewportWidths[viewportSize],
+                    width: viewportWidths[viewportSize],
+                  }}
+                >
+                  <EditorFrame editorState={editorState} />
+                </div>
+              ) : (
+                <div className="h-full flex flex-col">
+                  <div className="bg-muted/50 px-4 py-2 border-b rounded-t-lg flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">HTML Gerado (somente leitura)</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(codeContent);
+                        toast.success('Código copiado!');
+                      }}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                  <textarea
+                    value={codeContent}
+                    readOnly
+                    className="flex-1 w-full font-mono text-sm p-4 bg-secondary text-secondary-foreground rounded-b-lg resize-none focus:outline-none"
+                    spellCheck={false}
+                  />
+                </div>
+              )}
+            </main>
+
+            {/* Right Sidebar - Component Settings */}
+            <aside className="w-72 border-l bg-background overflow-hidden">
+              <SettingsPanel />
+            </aside>
+          </div>
         </div>
-      </div>
-    </Editor>
+      </Editor>
+    </EfiCodeProvider>
   );
 }
 
