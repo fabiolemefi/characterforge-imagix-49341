@@ -43,6 +43,11 @@ ${allChildrenHtml}
     case 'Spacer':
       return `<div style="height: ${props.height || 24}px;"></div>`;
 
+    case 'HtmlBlock':
+    case 'Bloco HTML':
+      // Retorna o HTML diretamente do template armazenado
+      return props.htmlTemplate || props.html || '';
+
     default:
       return allChildrenHtml;
   }
