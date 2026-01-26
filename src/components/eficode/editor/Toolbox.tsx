@@ -177,13 +177,11 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
   };
 
   const getComponent = (block: EfiCodeBlock) => {
-    // Se tem html_content, usar HtmlBlock com template + props dinâmicas
+    // Se tem html_content, usar HtmlBlock diretamente (sem Element wrapper para serialização correta)
     if (block.html_content) {
       const dynamicProps = (block.default_props as Record<string, any>) || {};
-      // Usar Element wrapper para registro correto no Craft.js
       return (
-        <Element 
-          is={HtmlBlock} 
+        <HtmlBlock 
           htmlTemplate={block.html_content} 
           {...dynamicProps} 
         />
@@ -208,8 +206,8 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
       case 'Spacer':
         return <Spacer {...defaultProps} />;
       case 'HtmlBlock':
-        // Também usar Element wrapper para o case padrão
-        return <Element is={HtmlBlock} htmlTemplate="" {...defaultProps} />;
+        // Usar HtmlBlock diretamente para serialização correta
+        return <HtmlBlock htmlTemplate="" {...defaultProps} />;
       default:
         return <Element is={Container} canvas {...defaultProps} />;
     }
