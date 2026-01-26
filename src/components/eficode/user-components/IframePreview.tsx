@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useEfiCodeContext } from '@/components/eficode/EfiCodeContext';
 
 interface IframePreviewProps {
@@ -6,20 +6,25 @@ interface IframePreviewProps {
   className?: string;
   onClick?: () => void;
   minHeight?: number;
+  editable?: boolean;
+  onHtmlChange?: (html: string) => void;
+  onEditEnd?: () => void;
 }
 
 export const IframePreview = ({ 
   html, 
   className = '', 
   onClick,
-  minHeight = 100 
+  minHeight = 100,
+  editable = false,
+  onHtmlChange,
+  onEditEnd
 }: IframePreviewProps) => {
   const { globalCss } = useEfiCodeContext();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(minHeight);
 
   // Build the complete HTML document for the iframe
-  // Não aplicamos nenhum reset - deixamos o globalCss controlar 100% dos estilos
   const srcdoc = `
 <!DOCTYPE html>
 <html>
@@ -29,11 +34,23 @@ export const IframePreview = ({
   <style>
     /* Global CSS do admin - controla 100% dos estilos */
     ${globalCss}
+    
+    /* Estilos para modo de edição */
+    body[contenteditable="true"] {
+      outline: none;
+      cursor: text;
+    }
+    body[contenteditable="true"]:focus {
+      outline: 2px solid hsl(221.2 83.2% 53.3%);
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
   ${html}
   <script>
+    const EDITABLE_MODE = ${editable};
+    
     // Comunicar altura para o parent
     function sendHeight() {
       const height = document.body.scrollHeight;
@@ -48,10 +65,43 @@ export const IframePreview = ({
     window.addEventListener('load', sendHeight);
     sendHeight();
     
-    // Propagar cliques para o parent
-    document.body.addEventListener('click', (e) => {
-      window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
-    });
+    if (EDITABLE_MODE) {
+      // Ativar modo de edição
+      document.body.contentEditable = 'true';
+      document.body.focus();
+      
+      // Enviar mudanças de HTML para o parent
+      document.body.addEventListener('input', () => {
+        window.parent.postMessage({ 
+          type: 'eficode-html-change', 
+          html: document.body.innerHTML 
+        }, '*');
+        sendHeight();
+      });
+      
+      // Detectar quando perde o foco
+      document.body.addEventListener('blur', () => {
+        window.parent.postMessage({ 
+          type: 'eficode-edit-end',
+          html: document.body.innerHTML 
+        }, '*');
+      });
+      
+      // Escape para sair do modo de edição
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          window.parent.postMessage({ 
+            type: 'eficode-edit-end',
+            html: document.body.innerHTML 
+          }, '*');
+        }
+      });
+    } else {
+      // Propagar cliques para o parent apenas em modo não editável
+      document.body.addEventListener('click', (e) => {
+        window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
+      });
+    }
   </script>
 </body>
 </html>
@@ -67,11 +117,25 @@ export const IframePreview = ({
       if (event.data?.type === 'eficode-iframe-click') {
         onClick?.();
       }
+      if (event.data?.type === 'eficode-html-change') {
+        onHtmlChange?.(event.data.html);
+      }
+      if (event.data?.type === 'eficode-edit-end') {
+        onHtmlChange?.(event.data.html);
+        onEditEnd?.();
+      }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onClick, minHeight]);
+  }, [onClick, minHeight, onHtmlChange, onEditEnd]);
+
+  // Focus iframe when entering edit mode
+  useEffect(() => {
+    if (editable && iframeRef.current) {
+      iframeRef.current.focus();
+    }
+  }, [editable]);
 
   return (
     <div className={`relative ${className}`} style={{ minHeight: `${minHeight}px` }}>
@@ -81,13 +145,13 @@ export const IframePreview = ({
         className="w-full border-0 block"
         style={{ 
           height: `${height}px`,
-          pointerEvents: onClick ? 'auto' : 'none',
+          pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
         }}
         title="HTML Preview"
         sandbox="allow-scripts allow-same-origin"
       />
-      {/* Overlay invisível para capturar cliques quando em modo edição */}
-      {onClick && (
+      {/* Overlay invisível para capturar cliques quando NÃO está em modo de edição */}
+      {!editable && onClick && (
         <div 
           className="absolute inset-0 cursor-pointer" 
           onClick={onClick}
