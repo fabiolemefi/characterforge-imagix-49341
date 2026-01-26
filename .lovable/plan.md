@@ -1,75 +1,109 @@
 
-# Plano: Limpar CSS Tailwind do Campo global_css
+# Plano: Remover CSS Hardcoded e Corrigir Cache do globalCss
 
 ## Problema Identificado
 
-O campo `global_css` na tabela `efi_code_config` contém todo o CSS do Tailwind v4 (aproximadamente 30KB de CSS minificado). Isso está sendo exportado junto com o HTML porque a função `generateFullHtml` injeta o conteúdo de `global_css` diretamente no arquivo exportado.
+O HTML exportado contém dois tipos de CSS indesejado:
 
-### Causa Raiz
+1. **CSS basico hardcoded** (linhas 110-128 do `efiCodeHtmlGenerator.ts`):
+   - Reset CSS (`* { box-sizing: border-box; ... }`)
+   - Estilos do body (font-family, background-color, etc.)
+   - Classe `.page-container`
+   - Regra `img { max-width: 100%; }`
 
-O CSS do Tailwind foi salvo acidentalmente no campo `global_css`. Isso pode ter acontecido de duas formas:
-1. Durante a importação de um bloco HTML que continha uma tag `<style>` com Tailwind
-2. Ao copiar/colar CSS de outra fonte que incluía o Tailwind
-
-### Evidência
-
-```sql
-SELECT global_css FROM efi_code_config LIMIT 1;
--- Resultado: "/*! tailwindcss v4.1.18 | MIT License..."  (30KB+)
-```
+2. **CSS do Tailwind no `globalCss`**: O React Query pode ter cacheado o valor antigo antes de limparmos o banco. Precisa de invalidacao ou refetch.
 
 ## Solucao
 
-### Parte 1: Limpar o Banco de Dados
+### Parte 1: Remover CSS Hardcoded da Funcao de Exportacao
 
-Executar uma migration para resetar o campo `global_css` para vazio ou para o CSS personalizado real (se houver):
+Modificar `src/lib/efiCodeHtmlGenerator.ts` para:
+- Remover o bloco de estilos basicos hardcoded
+- Manter apenas o `globalCss` passado como parametro
+- Remover tambem a estrutura `.page-container` se o usuario quiser HTML limpo
 
-```sql
-UPDATE efi_code_config SET global_css = '';
+**Codigo atual (problematico):**
+```typescript
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { ... }
+  .page-container { ... }
+  img { max-width: 100%; }
+  
+  /* CSS Global do Efi Code */
+  ${globalCss}
+</style>
 ```
 
-### Parte 2: Prevenir Futuros Problemas (Opcional)
+**Codigo novo (limpo):**
+```typescript
+// Apenas incluir tag style se houver globalCss
+${globalCss ? `<style>
+  ${globalCss}
+</style>` : ''}
+```
 
-Adicionar validacao no hook `useEfiCodeConfig` ou no formulario de edicao para:
-- Alertar se o CSS for muito grande (>10KB por exemplo)
-- Bloquear CSS que contenha `tailwindcss` no conteudo
+### Parte 2: Forcar Refetch do globalCss
+
+Adicionar `staleTime: 0` e `refetchOnMount: true` no hook `useEfiCodeConfig` para garantir que o valor seja sempre buscado do banco.
+
+### Parte 3: Remover Wrapper .page-container do Body
+
+Se o HTML exportado nao deve ter wrapper, modificar o template para exportar apenas o conteudo dos blocos.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| Migration SQL | Limpar o campo `global_css` |
-| `src/hooks/useEfiCodeConfig.ts` (opcional) | Adicionar validacao de tamanho |
+| `src/lib/efiCodeHtmlGenerator.ts` | Remover CSS hardcoded, exportar apenas globalCss se existir |
+| `src/hooks/useEfiCodeConfig.ts` | Adicionar `staleTime: 0` para evitar cache |
 
-## Fluxo
+## Template Exportado Apos Correcao
+
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nome do Site</title>
+  <!-- Meta tags de SEO se definidas -->
+  <!-- Scripts de tracking se definidos -->
+  <!-- customHeadCode se definido -->
+  <!-- Apenas se globalCss existir: -->
+  <style>
+    /* CSS Global do Efi Code */
+    [conteudo do globalCss do banco]
+  </style>
+</head>
+<body>
+[conteudo dos blocos HTML]
+</body>
+</html>
+```
+
+## Fluxo Corrigido
 
 ```text
 ANTES:
-┌────────────────────────────────────────────┐
-│ efi_code_config.global_css                 │
-│ = "/*! tailwindcss v4.1.18..." (30KB)     │
-└────────────────────────────────────────────┘
-            ↓ exportar
-┌────────────────────────────────────────────┐
-│ HTML exportado inclui 30KB de Tailwind    │
-│ (desnecessario e incorreto)               │
-└────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ generateFullHtml sempre inclui:                     │
+│   - CSS reset hardcoded                             │
+│   - body { font-family... }                         │
+│   - .page-container { max-width... }                │
+│   - globalCss (pode estar cacheado com Tailwind)    │
+└─────────────────────────────────────────────────────┘
 
 DEPOIS:
-┌────────────────────────────────────────────┐
-│ efi_code_config.global_css = ""           │
-│ (ou CSS personalizado pequeno)            │
-└────────────────────────────────────────────┘
-            ↓ exportar
-┌────────────────────────────────────────────┐
-│ HTML exportado limpo, apenas estilos      │
-│ basicos + CSS personalizado               │
-└────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ generateFullHtml inclui APENAS:                     │
+│   - globalCss do banco (se existir)                 │
+│   - Sem CSS reset                                   │
+│   - Sem estilos de body/container                   │
+│   - Sempre busca valor fresco do banco              │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Resultado Esperado
 
-O HTML exportado tera apenas:
-- Estilos basicos do Efi Code (box-sizing, body, page-container)
-- CSS personalizado definido pelo usuario (se houver)
-- Nenhum CSS de framework externo
+Se o campo `global_css` no banco estiver vazio, o HTML exportado nao tera nenhuma tag `<style>`. Se tiver conteudo customizado, apenas esse conteudo sera incluido.
