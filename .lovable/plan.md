@@ -1,40 +1,82 @@
 
-# Plano: Atualizar Comentário no index.html
+# Plano: Aplicar CSS Global no Editor do Efi Code
 
-## Situação Atual
+## Problema
 
-O comentário já existe no arquivo `index.html` na linha 38, porém com grafia diferente do desejado.
+O CSS Global configurado em `/admin/efi-code-blocks` está sendo carregado corretamente, mas **não é aplicado visualmente** enquanto o usuário está construindo a página no editor (`/efi-code/:id`).
 
-## Alteração
+O usuário define classes como `.minha-classe { color: red; }` no admin, mas ao usar essas classes nos blocos HTML, elas não têm efeito visual no editor - apenas na prévia e exportação.
 
-Atualizar o texto do comentário para a versão correta:
+## Causa
 
-| Antes | Depois |
-|-------|--------|
-| ESPIRANDO | ESPIANDO |
-| VIBE | VAIBE |
+O CSS Global só é injetado:
+- Na exportação HTML (`generateFullHtml`)
+- Na página de preview (`EfiCodePreview.tsx`)
+
+Mas **não é injetado no DOM** do editor visual.
+
+## Solução
+
+Injetar o CSS Global dinamicamente no `<head>` do documento durante a edição, usando um `useEffect` no componente `EfiCodeEditor.tsx`.
 
 ## Implementação
 
-Editar a linha 38 do `index.html`:
+### Arquivo: `src/pages/EfiCodeEditor.tsx`
 
-```html
-<!-- De: -->
-<!-- IIHH, ALÁ UM DEV ESPIRANDO MEUS VIBE CODY! SAI PRA LÁ SEU DEBUGADOR! -->
+Adicionar um `useEffect` que:
+1. Cria uma tag `<style>` com id único (`efi-code-global-css`)
+2. Insere o conteúdo do `globalCss` nessa tag
+3. Remove a tag quando o componente é desmontado (cleanup)
 
-<!-- Para: -->
-<!-- IIHH, ALÁ UM DEV ESPIANDO MEUS VAIBE CODY! SAI PRA LÁ SEU DEBUGADOR! -->
+```typescript
+// Após a linha 66 (depois dos estados)
+useEffect(() => {
+  // Cria ou atualiza a tag de estilo global
+  const styleId = 'efi-code-global-css';
+  let styleTag = document.getElementById(styleId) as HTMLStyleElement;
+  
+  if (!styleTag) {
+    styleTag = document.createElement('style');
+    styleTag.id = styleId;
+    document.head.appendChild(styleTag);
+  }
+  
+  styleTag.textContent = globalCss;
+  
+  // Cleanup: remove a tag quando o componente é desmontado
+  return () => {
+    const tag = document.getElementById(styleId);
+    if (tag) {
+      tag.remove();
+    }
+  };
+}, [globalCss]);
 ```
+
+## Fluxo Após Implementação
+
+```text
+Usuário abre /efi-code/:id
+         │
+         ▼
+useEfiCodeConfig() carrega CSS do banco
+         │
+         ▼
+useEffect injeta CSS no <head>
+         │
+         ▼
+Classes CSS ficam ativas no editor
+         │
+         ▼
+Ao sair da página, CSS é removido
+```
+
+## Benefícios
+
+- **WYSIWYG real**: O que o usuário vê no editor é exatamente o que será exportado
+- **Feedback imediato**: Ao salvar CSS no admin e recarregar o editor, as classes funcionam
+- **Sem conflitos**: A tag é removida ao sair do editor, evitando vazamento de estilos
 
 ## Nota Técnica
 
-Se o comentário está desaparecendo após o deploy, isso pode ocorrer porque:
-
-1. **Minificação do HTML**: Alguns processos de build removem comentários HTML para reduzir o tamanho do arquivo
-2. **Cache do CDN**: A versão cacheada pode estar sendo servida
-
-O Vite por padrão preserva comentários em arquivos HTML, então o comentário deve persistir após o deploy com esta atualização.
-
----
-
-**Arquivo a ser editado:** `index.html` (linha 38)
+O CSS será aplicado globalmente na página durante a edição. Isso é intencional pois permite que os blocos HTML usem qualquer classe definida no CSS Global. O cleanup garante que esses estilos não persistam em outras partes da aplicação.
