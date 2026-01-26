@@ -1,5 +1,15 @@
 import { PageSettings } from '@/hooks/useEfiCodeSites';
 
+// Função para sanitizar HTML removendo atributos de edição
+const sanitizeHtmlForExport = (html: string): string => {
+  return html
+    .replace(/\s*contenteditable=["'][^"']*["']/gi, '')
+    .replace(/\s*data-gramm=["'][^"']*["']/gi, '')
+    .replace(/\s*data-gramm_editor=["'][^"']*["']/gi, '')
+    .replace(/\s*spellcheck=["'][^"']*["']/gi, '')
+    .replace(/\s*data-placeholder=["'][^"']*["']/gi, '');
+};
+
 // Função para gerar HTML a partir dos nodes serializados do Craft.js
 export const generateHtmlFromNodes = (nodes: Record<string, any>, nodeId: string = 'ROOT'): string => {
   const node = nodes[nodeId];
@@ -45,8 +55,9 @@ ${allChildrenHtml}
 
     case 'HtmlBlock':
     case 'Bloco HTML':
-      // Retorna o HTML diretamente do template armazenado
-      return props.htmlTemplate || props.html || '';
+      // Retorna o HTML sanitizado (remove contenteditable, etc.)
+      const rawHtml = props.htmlTemplate || props.html || '';
+      return sanitizeHtmlForExport(rawHtml);
 
     default:
       return allChildrenHtml;
@@ -62,6 +73,28 @@ export const generateFullHtml = (
 ): string => {
   const bodyContent = generateHtmlFromNodes(nodes, 'ROOT');
   
+  // Gerar estilos do body baseado em pageSettings
+  const bodyStyles = [
+    `background-color: ${pageSettings.backgroundColor || '#ffffff'}`,
+    'min-height: 100vh',
+    'margin: 0',
+    'padding: 0',
+  ];
+
+  // Adicionar imagem de fundo se existir
+  if (pageSettings.backgroundImage) {
+    bodyStyles.push(
+      `background-image: url('${pageSettings.backgroundImage}')`,
+      `background-size: ${pageSettings.backgroundSize || 'cover'}`,
+      `background-position: ${pageSettings.backgroundPosition || 'center'}`,
+      `background-attachment: ${pageSettings.backgroundAttachment || 'scroll'}`,
+      `background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'}`
+    );
+  }
+
+  // Estilos do container wrapper
+  const containerStyles = `max-width: ${pageSettings.containerMaxWidth || '1200'}px; margin: 0 auto;`;
+
   // Google Analytics script
   const gaScript = pageSettings.googleAnalyticsId ? `
   <!-- Google Analytics -->
@@ -95,6 +128,9 @@ export const generateFullHtml = (
   const metaDescription = pageSettings.description ? `<meta name="description" content="${pageSettings.description}">` : '';
   const metaKeywords = pageSettings.keywords ? `<meta name="keywords" content="${pageSettings.keywords}">` : '';
 
+  // Sanitizar o conteúdo do body também
+  const sanitizedBodyContent = sanitizeHtmlForExport(bodyContent);
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -111,8 +147,10 @@ export const generateFullHtml = (
     ${globalCss}
   </style>` : ''}
 </head>
-<body>
-${bodyContent}
+<body style="${bodyStyles.join('; ')}">
+  <div style="${containerStyles}">
+${sanitizedBodyContent}
+  </div>
 </body>
 </html>`;
 };
