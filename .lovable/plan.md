@@ -1,126 +1,112 @@
 
-# Plano: Corrigir Edição no Iframe (Evitar Re-render)
+# Plano: Corrigir Exportação HTML do Efi Code
 
 ## Problema Identificado
 
-O "piscar" ocorre porque a cada digitação:
-1. O iframe envia o novo HTML via `postMessage`
-2. O `HtmlBlock` chama `setProp` que atualiza o state do Craft.js
-3. O React re-renderiza o componente
-4. O `srcdoc` é recriado (porque depende do `html`)
-5. O iframe recarrega completamente, perdendo foco e causando o "piscar"
+Ao exportar o HTML, o conteúdo dos blocos `HtmlBlock` não está sendo incluído porque a função `generateHtmlFromNodes` não tem um caso específico para este tipo de componente.
+
+### Diagnóstico Técnico
 
 ```text
-Usuário digita → postMessage → setProp → re-render → srcdoc muda → IFRAME RECARREGA → pisca
+Função: generateHtmlFromNodes (src/lib/efiCodeHtmlGenerator.ts)
+
+Switch cases existentes:
+- Container ✓
+- Heading ✓
+- Text ✓
+- Button ✓
+- Image ✓
+- Divider ✓
+- Spacer ✓
+- HtmlBlock ✗ (FALTANDO!)
+
+Quando o tipo é 'HtmlBlock', cai no default:
+  return allChildrenHtml; // <- vazio para HtmlBlock!
 ```
 
-## Solução: Não Recriar o Iframe Durante Edição
+O `HtmlBlock` armazena seu conteúdo na prop `htmlTemplate` ou `html`, mas a função de exportação ignora isso completamente.
 
-A solução é **não atualizar o `srcdoc` enquanto estiver editando**. As mudanças ficam apenas dentro do iframe até que a edição termine.
+## Solução
 
-### Estratégia
+Adicionar um case `'HtmlBlock'` no switch da função `generateHtmlFromNodes` que retorna diretamente o valor de `props.htmlTemplate` ou `props.html`.
 
-1. **Durante edição**: Manter o `srcdoc` estável (não atualizar com o novo HTML)
-2. **Ao terminar edição**: Só então sincronizar o HTML final com o Craft.js state
-3. **Usar `useMemo`**: Memorizar o `srcdoc` e só recalcular quando `editable` mudar para `false`
+### Alteração Necessária
 
-## Alterações Propostas
+Arquivo: `src/lib/efiCodeHtmlGenerator.ts`
 
-### 1. `IframePreview.tsx` - Estabilizar srcdoc durante edição
+Adicionar no switch (antes do `default:`):
 
 ```typescript
-// Memorizar o HTML inicial quando entra em modo de edição
-const [editingStartHtml, setEditingStartHtml] = useState<string | null>(null);
-
-// Quando editable muda para true, salvar o HTML atual
-useEffect(() => {
-  if (editable) {
-    setEditingStartHtml(html);
-  } else {
-    setEditingStartHtml(null);
-  }
-}, [editable]);
-
-// Usar o HTML "travado" durante edição para evitar recriação do iframe
-const stableHtml = editable && editingStartHtml !== null ? editingStartHtml : html;
-
-// srcdoc agora usa stableHtml em vez de html
-const srcdoc = `...${stableHtml}...`;
+case 'HtmlBlock':
+  // Retorna o HTML diretamente do template armazenado
+  return props.htmlTemplate || props.html || '';
 ```
 
-### 2. `HtmlBlock.tsx` - Atualizar state apenas ao final da edição
+### Código Completo do Switch Atualizado
 
 ```typescript
-// Não atualizar o state durante a edição (remove handleHtmlChange do onInput)
-// Só atualizar quando a edição terminar
-
-const handleEditEnd = useCallback((finalHtml: string) => {
-  // Atualiza o state do Craft.js apenas quando termina
-  setProp((props: any) => {
-    props.htmlTemplate = finalHtml;
-    props.html = finalHtml;
-  });
-  setIsEditing(false);
-}, [setProp]);
-
-// Não passar onHtmlChange para evitar updates durante digitação
-<IframePreview 
-  html={template}
-  editable={isEditing}
-  onEditEnd={handleEditEnd}  // Recebe HTML final aqui
-  onClick={handleIframeClick}
-/>
-```
-
-### 3. `IframePreview.tsx` - Modificar onEditEnd para enviar HTML
-
-O `onEditEnd` já recebe o HTML no evento, mas precisamos garantir que o callback seja chamado corretamente:
-
-```typescript
-if (event.data?.type === 'eficode-edit-end') {
-  onEditEnd?.(event.data.html);  // Passa o HTML final
+switch (componentType) {
+  case 'Container':
+    // ... existente
+    
+  case 'Heading':
+    // ... existente
+    
+  case 'Text':
+    // ... existente
+    
+  case 'Button':
+    // ... existente
+    
+  case 'Image':
+    // ... existente
+    
+  case 'Divider':
+    // ... existente
+    
+  case 'Spacer':
+    // ... existente
+    
+  case 'HtmlBlock':
+  case 'Bloco HTML':  // Alias para compatibilidade
+    // Retorna o HTML diretamente - já contém todo o conteúdo formatado
+    return props.htmlTemplate || props.html || '';
+    
+  default:
+    return allChildrenHtml;
 }
 ```
 
-## Diagrama do Fluxo Corrigido
+## Fluxo Corrigido
 
 ```text
 ANTES (problemático):
-┌─────────────────────────────────────────────────────┐
-│ Digita → postMessage → setProp → re-render         │
-│        → srcdoc muda → IFRAME RECARREGA → PISCA!   │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ HtmlBlock no editor                              │
+│   props.htmlTemplate = "<div>Meu conteúdo</div>" │
+│                                                  │
+│ Exportação:                                      │
+│   switch('HtmlBlock') → default → return ''     │
+│   Resultado: HTML vazio!                         │
+└──────────────────────────────────────────────────┘
 
 DEPOIS (corrigido):
-┌─────────────────────────────────────────────────────┐
-│ Entra em edição:                                    │
-│   → Salva HTML inicial em "editingStartHtml"        │
-│   → srcdoc usa editingStartHtml (travado)           │
-│                                                     │
-│ Durante edição:                                     │
-│   → Digita livremente no iframe                     │
-│   → Mudanças ficam APENAS no DOM do iframe          │
-│   → Nenhum update no React, nenhum re-render        │
-│                                                     │
-│ Sai da edição (blur/Escape):                        │
-│   → postMessage com HTML final                      │
-│   → onEditEnd(finalHtml)                            │
-│   → setProp atualiza Craft.js                       │
-│   → editingStartHtml = null                         │
-│   → srcdoc atualiza com novo HTML                   │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ HtmlBlock no editor                              │
+│   props.htmlTemplate = "<div>Meu conteúdo</div>" │
+│                                                  │
+│ Exportação:                                      │
+│   switch('HtmlBlock') → return htmlTemplate      │
+│   Resultado: "<div>Meu conteúdo</div>"          │
+└──────────────────────────────────────────────────┘
 ```
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/user-components/IframePreview.tsx` | Adicionar `editingStartHtml` state para estabilizar srcdoc durante edição |
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Remover `onHtmlChange`, atualizar apenas no `onEditEnd` |
+| `src/lib/efiCodeHtmlGenerator.ts` | Adicionar case 'HtmlBlock' no switch |
 
-## Considerações
+## Resultado Esperado
 
-1. **Sem atualização em tempo real**: O Craft.js state só atualiza quando termina a edição
-2. **Sem piscar**: O iframe não recarrega durante a digitação
-3. **Performance**: Menos re-renders = melhor performance
-4. **Desvantagem**: O painel de Settings (código HTML) não atualiza em tempo real, só quando sai do modo de edição
+Após a correção, o HTML exportado incluirá corretamente todo o conteúdo do `HtmlBlock`, com seus estilos e estrutura preservados.
