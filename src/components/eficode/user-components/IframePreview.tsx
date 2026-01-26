@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useEfiCodeContext } from '@/components/eficode/EfiCodeContext';
 
 interface IframePreviewProps {
@@ -24,24 +24,30 @@ export const IframePreview = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(minHeight);
   
-  // Memorizar o HTML inicial quando entra em modo de edição
-  // Isso evita que o srcdoc seja recriado a cada digitação
-  const [editingStartHtml, setEditingStartHtml] = useState<string | null>(null);
+  // Ref para armazenar o HTML "travado" durante edição
+  // Isso evita recriação do srcdoc enquanto o usuário edita
+  const lockedHtmlRef = useRef<string | null>(null);
   
-  // Quando editable muda para true, salvar o HTML atual
+  // Quando entra em modo de edição, travar o HTML atual
+  // Quando sai, liberar
   useEffect(() => {
     if (editable) {
-      setEditingStartHtml(html);
+      lockedHtmlRef.current = html;
     } else {
-      setEditingStartHtml(null);
+      lockedHtmlRef.current = null;
     }
   }, [editable]); // Propositalmente não inclui html como dependência
   
   // Usar o HTML "travado" durante edição para evitar recriação do iframe
-  const stableHtml = editable && editingStartHtml !== null ? editingStartHtml : html;
+  const stableHtml = useMemo(() => {
+    if (editable && lockedHtmlRef.current !== null) {
+      return lockedHtmlRef.current;
+    }
+    return html;
+  }, [editable, html]);
 
-  // Build the complete HTML document for the iframe
-  const srcdoc = `
+  // Build the complete HTML document for the iframe - memoizado
+  const srcdoc = useMemo(() => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -86,17 +92,22 @@ export const IframePreview = ({
       document.body.contentEditable = 'true';
       document.body.focus();
       
-      // Enviar mudanças de HTML para o parent
+      // Enviar mudanças de HTML para o parent com debounce
+      let debounceTimer;
       document.body.addEventListener('input', () => {
-        window.parent.postMessage({ 
-          type: 'eficode-html-change', 
-          html: document.body.innerHTML 
-        }, '*');
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          window.parent.postMessage({ 
+            type: 'eficode-html-change', 
+            html: document.body.innerHTML 
+          }, '*');
+        }, 100);
         sendHeight();
       });
       
       // Detectar quando perde o foco
       document.body.addEventListener('blur', () => {
+        clearTimeout(debounceTimer);
         window.parent.postMessage({ 
           type: 'eficode-edit-end',
           html: document.body.innerHTML 
@@ -106,6 +117,7 @@ export const IframePreview = ({
       // Escape para sair do modo de edição
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          clearTimeout(debounceTimer);
           window.parent.postMessage({ 
             type: 'eficode-edit-end',
             html: document.body.innerHTML 
@@ -121,7 +133,7 @@ export const IframePreview = ({
   </script>
 </body>
 </html>
-  `;
+  `, [globalCss, stableHtml, editable]);
 
   // Listen for messages from the iframe
   useEffect(() => {

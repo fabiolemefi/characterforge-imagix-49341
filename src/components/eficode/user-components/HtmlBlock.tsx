@@ -179,6 +179,15 @@ interface HtmlBlockProps {
   [key: string]: any;
 }
 
+// Função para normalizar HTML - remove formatação extra do contentEditable
+const normalizeHtml = (html: string): string => {
+  return html
+    .replace(/\n\s*\n+/g, '\n')           // Remover linhas em branco consecutivas
+    .replace(/^\s+|\s+$/g, '')             // Trim início e fim
+    .replace(/>\s{2,}</g, '> <')           // Normalizar espaços entre tags (manter 1)
+    .replace(/\s+$/gm, '');                // Remover espaços no final de cada linha
+};
+
 export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
   const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
     selected: state.events.selected,
@@ -187,21 +196,31 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
   
   const [isEditing, setIsEditing] = useState(false);
   const template = htmlTemplate || html || '';
+  
+  // Ref para guardar o template antes de começar a editar
+  const originalTemplateRef = useRef<string>(template);
 
   // Handler quando clica no bloco já selecionado
   const handleIframeClick = useCallback(() => {
     if (enabled && selected && !isEditing) {
+      // Salvar o template atual antes de começar a editar
+      originalTemplateRef.current = template;
       setIsEditing(true);
     }
-  }, [enabled, selected, isEditing]);
+  }, [enabled, selected, isEditing, template]);
 
   // Handler quando edição termina - atualiza o state apenas no final
   const handleEditEnd = useCallback((finalHtml: string) => {
-    // Atualiza o state do Craft.js apenas quando termina a edição
-    setProp((props: any) => {
-      props.htmlTemplate = finalHtml;
-      props.html = finalHtml;
-    });
+    const normalized = normalizeHtml(finalHtml);
+    const currentNormalized = normalizeHtml(originalTemplateRef.current);
+    
+    // Só atualizar se realmente mudou (evita loops de re-render)
+    if (normalized !== currentNormalized) {
+      setProp((props: any) => {
+        props.htmlTemplate = normalized;
+        props.html = normalized;
+      });
+    }
     setIsEditing(false);
   }, [setProp]);
 
