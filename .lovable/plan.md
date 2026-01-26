@@ -1,172 +1,132 @@
 
-# Plano: Corrigir Persistência do HtmlBlock no Efi Code
 
-## Problema Identificado
+# Plano: Área do Editor Transparente - Apenas Blocos HTML
 
-O componente `HtmlBlock` desaparece após salvar ou mudar de aba porque o Craft.js não está conseguindo deserializar o componente corretamente. 
+## Problema Atual
 
-### Análise do Problema
+A área do editor possui duas camadas de fundo branco:
+1. Um container externo com classes `bg-white shadow-lg rounded-lg`
+2. O Frame interno do Craft.js com `background="#ffffff"` e conteúdo de boas-vindas
 
-Ao analisar o JSON salvo no banco de dados, identifiquei que:
-
-1. **Componentes que funcionam** (Button, Heading, etc.) têm:
-   - `type: { resolvedName: "Button" }` - corresponde à chave no resolver
-
-2. **HtmlBlock** está sendo serializado de forma diferente porque é criado através do wrapper `<Element is={HtmlBlock}>` no Toolbox.tsx
-
-3. O `resolvedName` do HtmlBlock pode estar sendo serializado como "HtmlBlock" mas o componente pode não estar sendo encontrado no `resolver` durante a deserialização, possivelmente devido a uma incompatibilidade entre como o `Element` wrapper afeta a serialização.
-
-### Causa Raiz
-
-No arquivo `Toolbox.tsx` (linhas 184-190), o HtmlBlock é criado assim:
-
-```typescript
-return (
-  <Element 
-    is={HtmlBlock} 
-    htmlTemplate={block.html_content} 
-    {...dynamicProps} 
-  />
-);
-```
-
-Enquanto outros componentes simples são criados diretamente:
-```typescript
-return <Heading {...defaultProps} />;
-return <Button {...defaultProps} />;
-```
-
-O uso do `Element` wrapper está causando um problema de resolução durante a deserialização.
+Isso cria uma área branca fixa que não reflete a configuração real da página.
 
 ## Solução
 
-### Modificação 1: Toolbox.tsx
+Remover os estilos de fundo e conteúdo padrão, deixando a área do editor como uma zona de drop transparente que mostra apenas os blocos arrastados. O fundo será controlado pelas `pageSettings` já configuradas.
 
-Mudar a forma como o `HtmlBlock` é criado para usar o componente diretamente ao invés do wrapper `Element`:
+## Alterações
+
+### Arquivo: `src/pages/EfiCodeEditor.tsx`
+
+**1. Remover estilos do container externo (linhas 222-233)**
 
 ```typescript
-// ANTES (problemático)
-if (block.html_content) {
-  const dynamicProps = (block.default_props as Record<string, any>) || {};
-  return (
-    <Element 
-      is={HtmlBlock} 
-      htmlTemplate={block.html_content} 
-      {...dynamicProps} 
+// ANTES
+<div
+  className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all duration-300"
+  style={{ 
+    minHeight: '600px',
+    maxWidth: viewportSize === 'desktop' 
+      ? `${pageSettings.containerMaxWidth}px` 
+      : viewportWidths[viewportSize],
+    width: viewportWidths[viewportSize],
+  }}
+>
+
+// DEPOIS
+<div
+  className="mx-auto overflow-hidden transition-all duration-300"
+  style={{ 
+    minHeight: '600px',
+    maxWidth: viewportSize === 'desktop' 
+      ? `${pageSettings.containerMaxWidth}px` 
+      : viewportWidths[viewportSize],
+    width: viewportWidths[viewportSize],
+  }}
+>
+```
+
+**2. Modificar EditorFrame para container transparente e vazio (linhas 293-311)**
+
+```typescript
+// ANTES
+return (
+  <Frame>
+    <Element
+      is={Container}
+      canvas
+      background="#ffffff"
+      padding={24}
+      minHeight={600}
+    >
+      <Heading text="Bem-vindo ao Efi Code" level="h1" textAlign="center" />
+      <Spacer height={16} />
+      <Text 
+        text="Arraste componentes da barra lateral para começar a construir sua página." 
+        textAlign="center"
+        color="#64748b"
+      />
+    </Element>
+  </Frame>
+);
+
+// DEPOIS
+return (
+  <Frame>
+    <Element
+      is={Container}
+      canvas
+      background="transparent"
+      padding={0}
+      minHeight={400}
     />
-  );
-}
-
-// DEPOIS (corrigido)
-if (block.html_content) {
-  const dynamicProps = (block.default_props as Record<string, any>) || {};
-  return (
-    <HtmlBlock 
-      htmlTemplate={block.html_content} 
-      {...dynamicProps} 
-    />
-  );
-}
+  </Frame>
+);
 ```
 
-Isso garante que o `resolvedName` seja serializado corretamente como "HtmlBlock".
-
-### Modificação 2: EfiCodeEditor.tsx - Adicionar logging de debug
-
-Adicionar um log no momento da deserialização para identificar problemas:
-
-```typescript
-useEffect(() => {
-  if (editorState) {
-    try {
-      console.log('[EfiCode] Deserializando estado:', JSON.parse(editorState));
-      actions.deserialize(editorState);
-    } catch (error) {
-      console.error('Erro ao restaurar estado:', error);
-    }
-  }
-}, [editorState, actions]);
-```
-
-### Modificação 3: Verificar resolver aliases
-
-Garantir que o `resolver` tenha todos os aliases necessários:
-
-```typescript
-const resolvers = {
-  Container,
-  Text,
-  Heading,
-  Button: CraftButton,
-  Image,
-  Divider,
-  Spacer,
-  HtmlBlock,
-  'Bloco HTML': HtmlBlock,
-  'Element': Container, // Fallback para Elements genéricos
-};
-```
-
-## Fluxo de Correção
+## Resultado Visual
 
 ```text
-Antes:
-┌─────────────────────────────────────────────────────────────┐
-│  1. Usuário arrasta HtmlBlock da Toolbox                    │
-│  2. Craft.js cria nó com <Element is={HtmlBlock}>          │
-│  3. Serializa com resolvedName incorreto/problemático       │
-│  4. Salva no banco de dados                                 │
-│  5. Ao recarregar, Craft.js não encontra no resolver       │
-│  6. Bloco some! ❌                                          │
-└─────────────────────────────────────────────────────────────┘
+ANTES:
+┌────────────────────────────────────────────┐
+│          ÁREA CINZA (page bg)              │
+│  ┌──────────────────────────────────────┐  │
+│  │     CAIXA BRANCA com shadow          │  │
+│  │  ┌────────────────────────────────┐  │  │
+│  │  │   "Bem-vindo ao Efi Code"      │  │  │
+│  │  │   "Arraste componentes..."     │  │  │
+│  │  │                                │  │  │
+│  │  └────────────────────────────────┘  │  │
+│  └──────────────────────────────────────┘  │
+└────────────────────────────────────────────┘
 
-Depois:
-┌─────────────────────────────────────────────────────────────┐
-│  1. Usuário arrasta HtmlBlock da Toolbox                    │
-│  2. Craft.js cria nó com <HtmlBlock> diretamente           │
-│  3. Serializa com resolvedName: "HtmlBlock"                │
-│  4. Salva no banco de dados                                 │
-│  5. Ao recarregar, encontra "HtmlBlock" no resolver        │
-│  6. Bloco aparece normalmente! ✅                           │
-└─────────────────────────────────────────────────────────────┘
+DEPOIS:
+┌────────────────────────────────────────────┐
+│          ÁREA (page backgroundColor)        │
+│                                            │
+│    ┌──────────────────────────────────┐    │
+│    │  (zona de drop transparente)     │    │
+│    │                                  │    │
+│    │   [blocos HTML arrastados]       │    │
+│    │                                  │    │
+│    └──────────────────────────────────┘    │
+│                                            │
+└────────────────────────────────────────────┘
 ```
+
+## Considerações
+
+- O fundo da página é controlado por `pageSettings.backgroundColor` no elemento `<main>`
+- Os blocos HTML arrastados terão seus próprios fundos definidos no HTML
+- A área de drop fica visualmente integrada com o design da página
+- Mantém-se a responsividade com `maxWidth` e `viewportWidths`
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/editor/Toolbox.tsx` | Remover wrapper `Element` do HtmlBlock e usar o componente diretamente |
-| `src/pages/EfiCodeEditor.tsx` | Adicionar logs de debug e verificar resolver |
+| `src/pages/EfiCodeEditor.tsx` | Remover `bg-white shadow-lg rounded-lg` do container |
+| | Mudar background do Container para `transparent` |
+| | Remover conteúdo padrão de boas-vindas |
+| | Ajustar padding para 0 |
 
-## Considerações Adicionais
-
-1. **Dados existentes**: Os blocos já salvos no banco podem precisar de uma correção manual ou um script de migração para atualizar o `resolvedName` nos nós HtmlBlock existentes.
-
-2. **Teste**: Após a correção, será necessário:
-   - Criar um novo site
-   - Adicionar um HtmlBlock
-   - Salvar
-   - Recarregar a página
-   - Verificar se o bloco persiste
-
-## Seção Técnica
-
-### Por que o `Element` wrapper causa problemas?
-
-O componente `Element` do Craft.js é um wrapper especial que cria nós na árvore. Quando você usa `<Element is={ComponentX}>`, o Craft.js pode:
-1. Serializar usando o nome da função/componente passada em `is`
-2. Se esse nome não corresponder exatamente à chave no resolver, falha silenciosamente
-
-### Solução alternativa (caso a primeira não funcione)
-
-Se a modificação do Toolbox não resolver, pode ser necessário:
-1. Definir explicitamente o `name` no craft config:
-```typescript
-HtmlBlock.craft = {
-  displayName: 'HtmlBlock',
-  name: 'HtmlBlock', // Força o resolvedName
-  props: { ... },
-};
-```
-
-2. Ou usar o método `createElement` do connectors com o nome explícito.
