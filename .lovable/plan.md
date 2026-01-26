@@ -1,130 +1,139 @@
 
 
-# Plano: Exportar Configurações da Página e Remover Editabilidade
+# Plano: Corrigir Flickering e Linhas em Branco no Editor
 
-## Problemas Identificados
+## Problema Identificado
 
-### Problema 1: Configurações de Fundo Não Exportadas
+O problema ocorre devido a um ciclo vicioso de atualizações de estado quando o bloco HTML é re-selecionado:
 
-A função `generateFullHtml` recebe `pageSettings` mas **não aplica** as configurações visuais:
-- `backgroundColor` - Cor de fundo
-- `backgroundImage` - Imagem de fundo
-- `backgroundSize`, `backgroundPosition`, `backgroundAttachment`, `backgroundRepeat` - Propriedades da imagem
-- `containerMaxWidth` - Largura máxima do container
+### Causa Raiz
 
-O template atual apenas exporta `<body>` sem nenhum estilo inline.
+1. **Quando o bloco perde foco**: O evento `blur` dentro do iframe dispara `onEditEnd` com o HTML atual
+2. **onEditEnd atualiza o state do Craft.js**: Chama `setProp` para atualizar `htmlTemplate` e `html`
+3. **Craft.js re-renderiza o componente**: A mudança de props causa re-render do HtmlBlock
+4. **O textarea do SettingsPanel tambem reage**: O valor do template muda, causando re-render do painel
+5. **Ao clicar novamente no bloco**: O srcdoc do iframe e recriado com HTML que pode ter sido modificado pelo contentEditable do navegador (que adiciona elementos extras ou formatacao)
+6. **Loop**: O processo se repete, cada vez adicionando mais caracteres/linhas
 
-### Problema 2: HTML Exportado Editável
+### Sintomas Observados
 
-Os blocos HTML podem conter atributos `contenteditable="true"` residuais se foram editados no editor. Precisamos sanitizar o HTML removendo esses atributos antes de exportar.
+- **Flickering**: O iframe sendo recriado a cada mudanca de estado
+- **Linhas em branco**: O `innerHTML` do body do iframe inclui formatacao adicional do contentEditable (newlines, espacos)
 
-## Solução
+## Fluxo Problematico Atual
 
-### Parte 1: Aplicar Configurações de Fundo no Body
-
-Modificar `src/lib/efiCodeHtmlGenerator.ts` para gerar estilos inline no `<body>`:
-
-```typescript
-// Gerar estilos do body baseado em pageSettings
-const bodyStyles = [
-  `background-color: ${pageSettings.backgroundColor || '#ffffff'}`,
-  `min-height: 100vh`,
-  `margin: 0`,
-  `padding: 0`,
-];
-
-// Adicionar imagem de fundo se existir
-if (pageSettings.backgroundImage) {
-  bodyStyles.push(
-    `background-image: url('${pageSettings.backgroundImage}')`,
-    `background-size: ${pageSettings.backgroundSize || 'cover'}`,
-    `background-position: ${pageSettings.backgroundPosition || 'center'}`,
-    `background-attachment: ${pageSettings.backgroundAttachment || 'scroll'}`,
-    `background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'}`
-  );
-}
-
-// Gerar container wrapper
-const containerStyles = `max-width: ${pageSettings.containerMaxWidth || '1200'}px; margin: 0 auto;`;
+```text
+Usuario clica fora do bloco
+         |
+         v
+    blur event no iframe
+         |
+         v
+ postMessage('eficode-edit-end', innerHTML)
+         |
+         v
+  onEditEnd atualiza props do Craft.js
+         |
+         v
+   HtmlBlock re-renderiza
+         |
+         v
+IframePreview recria o srcdoc (CAUSA O FLICKER)
+         |
+         v
+Usuario clica no bloco novamente
+         |
+         v
+  O HTML agora tem linhas extras do contentEditable
+         |
+         v
+    Ciclo se repete
 ```
 
-**Template Atualizado:**
-```html
-<body style="${bodyStyles.join('; ')}">
-  <div style="${containerStyles}">
-    ${bodyContent}
-  </div>
-</body>
-```
+## Solucao
 
-### Parte 2: Sanitizar HTML Exportado
+### Parte 1: Evitar Re-criacao do Iframe Durante Edicao
 
-Adicionar função para remover atributos de edição:
+Modificar `IframePreview.tsx` para:
+- Usar `useRef` para armazenar o HTML inicial quando entra em modo de edicao
+- Nao recriar o srcdoc se o HTML nao mudou significativamente
+- Adicionar debounce nas atualizacoes
 
-```typescript
-const sanitizeHtmlForExport = (html: string): string => {
-  return html
-    .replace(/\s*contenteditable=["'][^"']*["']/gi, '')
-    .replace(/\s*data-gramm=["'][^"']*["']/gi, '')
-    .replace(/\s*data-gramm_editor=["'][^"']*["']/gi, '')
-    .replace(/\s*spellcheck=["'][^"']*["']/gi, '');
-};
-```
+### Parte 2: Sanitizar HTML ao Sair do Modo de Edicao
 
-Aplicar essa sanitização no retorno do `HtmlBlock` no `generateHtmlFromNodes`:
+Modificar `HtmlBlock.tsx` para:
+- Normalizar o HTML recebido do iframe (remover espacos extras, linhas em branco consecutivas)
+- Comparar HTML novo com o antigo antes de atualizar o state
 
-```typescript
-case 'HtmlBlock':
-case 'Bloco HTML':
-  const rawHtml = props.htmlTemplate || props.html || '';
-  return sanitizeHtmlForExport(rawHtml);
-```
+### Parte 3: Desacoplar Textarea do SettingsPanel
+
+O problema das linhas em branco no painel direito e porque:
+1. O usuario edita visualmente no iframe
+2. O textarea do settings mostra o HTML que esta sendo modificado em tempo real
+3. A cada keystroke, o innerHTML do body tem formatacao diferente
+
+Solucao: Atualizar o textarea apenas quando o usuario termina de editar (onEditEnd), nao durante a edicao
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/efiCodeHtmlGenerator.ts` | Aplicar estilos do body/container e sanitizar HTML |
+| `src/components/eficode/user-components/IframePreview.tsx` | Estabilizar srcdoc durante edicao |
+| `src/components/eficode/user-components/HtmlBlock.tsx` | Sanitizar HTML e controlar atualizacoes |
+
+## Codigo Proposto
+
+### IframePreview.tsx - Estabilizar Durante Edicao
+
+```typescript
+// Usar ref para "travar" o HTML quando entra em modo de edicao
+const [lockedHtml, setLockedHtml] = useState<string | null>(null);
+
+useEffect(() => {
+  if (editable && !lockedHtml) {
+    // Ao entrar em modo de edicao, travar o HTML atual
+    setLockedHtml(html);
+  } else if (!editable && lockedHtml) {
+    // Ao sair do modo de edicao, liberar
+    setLockedHtml(null);
+  }
+}, [editable]);
+
+// Usar o HTML travado durante edicao para evitar recriacao do iframe
+const stableHtml = lockedHtml || html;
+```
+
+### HtmlBlock.tsx - Sanitizar e Evitar Updates Desnecessarios
+
+```typescript
+// Funcao para normalizar HTML
+const normalizeHtml = (html: string): string => {
+  return html
+    .replace(/\n\s*\n/g, '\n')  // Remover linhas em branco consecutivas
+    .replace(/^\s+|\s+$/g, '')   // Trim
+    .replace(/>\s+</g, '><');    // Remover espacos entre tags
+};
+
+const handleEditEnd = useCallback((finalHtml: string) => {
+  const normalized = normalizeHtml(finalHtml);
+  const currentNormalized = normalizeHtml(template);
+  
+  // So atualizar se realmente mudou
+  if (normalized !== currentNormalized) {
+    setProp((props: any) => {
+      props.htmlTemplate = normalized;
+      props.html = normalized;
+    });
+  }
+  setIsEditing(false);
+}, [setProp, template]);
+```
 
 ## Resultado Esperado
 
-### HTML Exportado Antes (Problemático):
-```html
-<body>
-  <div contenteditable="true">Texto editável...</div>
-</body>
-```
-
-### HTML Exportado Depois (Correto):
-```html
-<body style="background-color: #1d1d1d; min-height: 100vh; margin: 0; padding: 0;">
-  <div style="max-width: 1200px; margin: 0 auto;">
-    <div>Texto não editável...</div>
-  </div>
-</body>
-```
-
-## Fluxo Completo de Exportação
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ 1. Usuário configura no painel esquerdo:           │
-│    - Cor de fundo: #1d1d1d                         │
-│    - Largura máxima: 1200px                        │
-│    - Imagem de fundo (opcional)                    │
-│    - SEO, Analytics, etc.                          │
-├─────────────────────────────────────────────────────┤
-│ 2. Usuário clica em "Exportar HTML"               │
-├─────────────────────────────────────────────────────┤
-│ 3. generateFullHtml recebe pageSettings            │
-├─────────────────────────────────────────────────────┤
-│ 4. Função aplica configurações:                    │
-│    - Body: background-color, background-image...   │
-│    - Container: max-width, margin auto             │
-│    - Head: title, meta, scripts                    │
-│    - Sanitiza HTML removendo contenteditable       │
-├─────────────────────────────────────────────────────┤
-│ 5. HTML final exportado com todas as configurações │
-└─────────────────────────────────────────────────────┘
-```
+Apos as correcoes:
+- Bloco nao pisca ao re-selecionar
+- Codigo HTML no painel direito permanece estavel
+- Edicao visual funciona suavemente
+- Nao ha acumulo de linhas em branco
 
