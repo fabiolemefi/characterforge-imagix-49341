@@ -10,16 +10,24 @@ import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-// Helper functions for image management
+// Placeholder SVG for broken images
+const PLACEHOLDER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E`;
+
+// Helper functions for image management - filters duplicates
 const extractImagesFromHtml = (html: string): { src: string; index: number }[] => {
   const images: { src: string; index: number }[] = [];
+  const seenSrcs = new Set<string>();
   const regex = /<img[^>]+src=["']([^"']+)["']/gi;
   let match;
   let index = 0;
   
   while ((match = regex.exec(html)) !== null) {
-    images.push({ src: match[1], index });
-    index++;
+    const src = match[1];
+    if (!seenSrcs.has(src)) {
+      seenSrcs.add(src);
+      images.push({ src, index });
+      index++;
+    }
   }
   
   return images;
@@ -178,6 +186,7 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
   const [showToolbar, setShowToolbar] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const template = htmlTemplate || html || '';
   const contentRef = useRef(template);
@@ -186,6 +195,50 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
   useEffect(() => {
     contentRef.current = template;
   }, [template]);
+
+  // Handle broken images in the viewport - replace with placeholder
+  useEffect(() => {
+    if (!containerRef.current || !enabled) return;
+    
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement;
+      if (img.dataset.placeholderApplied) return;
+      
+      img.dataset.placeholderApplied = 'true';
+      img.src = PLACEHOLDER_SVG;
+      img.style.backgroundColor = '#f3f4f6';
+      img.style.objectFit = 'contain';
+      img.style.padding = '20px';
+      img.style.minWidth = '60px';
+      img.style.minHeight = '60px';
+    };
+    
+    const checkAndSetupImages = () => {
+      const images = containerRef.current?.querySelectorAll('img');
+      images?.forEach(img => {
+        // Check if already broken or not loaded
+        if (img.complete && img.naturalHeight === 0 && !img.dataset.placeholderApplied) {
+          handleImageError({ target: img } as unknown as Event);
+        }
+        img.addEventListener('error', handleImageError);
+      });
+    };
+    
+    // Initial check
+    checkAndSetupImages();
+    
+    // Re-check when template changes
+    const observer = new MutationObserver(checkAndSetupImages);
+    observer.observe(containerRef.current, { childList: true, subtree: true });
+    
+    return () => {
+      observer.disconnect();
+      const imgs = containerRef.current?.querySelectorAll('img');
+      imgs?.forEach(img => {
+        img.removeEventListener('error', handleImageError);
+      });
+    };
+  }, [template, enabled]);
 
   // Execute formatting command
   const executeCommand = useCallback((e: React.MouseEvent, command: string, value?: string) => {
@@ -236,6 +289,7 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
   return (
     <div
       ref={(ref) => {
+        containerRef.current = ref;
         if (ref) {
           connect(drag(ref));
         }
