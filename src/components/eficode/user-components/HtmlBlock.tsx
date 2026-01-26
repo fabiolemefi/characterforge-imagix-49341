@@ -187,6 +187,7 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
   const [showToolbar, setShowToolbar] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const template = htmlTemplate || html || '';
@@ -197,9 +198,26 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
     contentRef.current = template;
   }, [template]);
 
+  // Reset inline editing when deselected
+  useEffect(() => {
+    if (!selected) {
+      setIsInlineEditing(false);
+      setShowToolbar(false);
+      setIsEditing(false);
+    }
+  }, [selected]);
+
+  // Handle iframe click - enters inline editing mode on second click
+  const handleIframeClick = useCallback(() => {
+    if (enabled && selected) {
+      // If already selected, enter inline editing mode
+      setIsInlineEditing(true);
+    }
+  }, [enabled, selected]);
+
   // Handle broken images in the viewport - replace with placeholder
   useEffect(() => {
-    if (!containerRef.current || !enabled) return;
+    if (!containerRef.current || !enabled || !isInlineEditing) return;
     
     const handleImageError = (e: Event) => {
       const img = e.target as HTMLImageElement;
@@ -239,7 +257,7 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
         img.removeEventListener('error', handleImageError);
       });
     };
-  }, [template, enabled]);
+  }, [template, enabled, isInlineEditing]);
 
   // Execute formatting command
   const executeCommand = useCallback((e: React.MouseEvent, command: string, value?: string) => {
@@ -274,17 +292,30 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps 
     setTimeout(() => {
       setShowToolbar(false);
       setIsEditing(false);
+      setIsInlineEditing(false); // Return to iframe view
     }, 200);
   }, []);
 
-  // Read-only mode (editor disabled) - use iframe for CSS isolation
-  if (!enabled) {
+  // Use iframe for visualization when:
+  // - Editor is disabled (read-only mode)
+  // - OR editor is enabled but not in inline editing mode
+  if (!enabled || (enabled && !isInlineEditing)) {
     return (
-      <IframePreview 
-        html={template} 
-        className={className}
-        minHeight={50}
-      />
+      <div
+        ref={(ref) => {
+          if (ref && enabled) {
+            connect(drag(ref));
+          }
+        }}
+        className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+      >
+        <IframePreview 
+          html={template} 
+          className=""
+          minHeight={50}
+          onClick={enabled ? handleIframeClick : undefined}
+        />
+      </div>
     );
   }
 
