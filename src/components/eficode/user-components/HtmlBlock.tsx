@@ -5,7 +5,164 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Bold, Italic, Heading1, Heading2, List, ListOrdered, Underline, Link } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, List, ListOrdered, Underline, Link, ImageIcon, Upload, Library, Loader2 } from 'lucide-react';
+import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+// Helper functions for image management
+const extractImagesFromHtml = (html: string): { src: string; index: number }[] => {
+  const images: { src: string; index: number }[] = [];
+  const regex = /<img[^>]+src=["']([^"']+)["']/gi;
+  let match;
+  let index = 0;
+  
+  while ((match = regex.exec(html)) !== null) {
+    images.push({ src: match[1], index });
+    index++;
+  }
+  
+  return images;
+};
+
+const replaceImageSrc = (html: string, oldSrc: string, newSrc: string): string => {
+  const escapedOldSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(src=["'])${escapedOldSrc}(["'])`, 'g');
+  return html.replace(regex, `$1${newSrc}$2`);
+};
+
+const sanitizeFileName = (name: string): string => {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .toLowerCase();
+};
+
+// Image Item Component for Settings Panel
+interface ImageItemProps {
+  src: string;
+  index: number;
+  onReplace: (newUrl: string) => void;
+}
+
+const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
+  const [hasError, setHasError] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const sanitizedName = sanitizeFileName(file.name.replace(/\.[^/.]+$/, ''));
+      const fileName = `htmlblock/${Date.now()}_${sanitizedName}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('efi-code-assets')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('efi-code-assets')
+        .getPublicUrl(fileName);
+
+      onReplace(publicUrl);
+      setHasError(false);
+      toast.success('Imagem atualizada!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Erro ao fazer upload da imagem');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleLibrarySelect = (image: { url: string }) => {
+    onReplace(image.url);
+    setHasError(false);
+    setShowLibrary(false);
+    toast.success('Imagem atualizada!');
+  };
+
+  const displayName = src.split('/').pop()?.substring(0, 25) || `Imagem ${index + 1}`;
+
+  return (
+    <>
+      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border">
+        <div className="w-12 h-12 rounded overflow-hidden bg-muted flex-shrink-0 border">
+          {hasError ? (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+            </div>
+          ) : (
+            <img
+              src={src}
+              alt={`Imagem ${index + 1}`}
+              className="w-full h-full object-cover"
+              onError={() => setHasError(true)}
+            />
+          )}
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground truncate" title={src}>
+            {displayName}
+          </p>
+          {hasError && (
+            <p className="text-[10px] text-destructive">Imagem não encontrada</p>
+          )}
+          <div className="flex gap-1 mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Upload className="h-3 w-3" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setShowLibrary(true)}
+              disabled={uploading}
+            >
+              <Library className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+        
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleUpload}
+          className="hidden"
+        />
+      </div>
+      
+      <ImagePickerModal
+        open={showLibrary}
+        onOpenChange={setShowLibrary}
+        onSelectImage={handleLibrarySelect}
+      />
+    </>
+  );
+};
 
 interface HtmlBlockProps {
   html?: string;
@@ -195,14 +352,46 @@ export const HtmlBlockSettings = () => {
 
   const template = nodeProps.htmlTemplate || nodeProps.html || '';
 
+  // Extract images from template
+  const images = React.useMemo(() => extractImagesFromHtml(template), [template]);
+
   // Extract placeholders from template
   const placeholders = React.useMemo(() => {
     const matches = template.match(/\[([^\]]+)\]/g) || [];
     return [...new Set(matches.map((m: string) => m.slice(1, -1)))];
   }, [template]);
 
+  // Handler to replace image URL in HTML
+  const handleReplaceImage = (oldSrc: string, newSrc: string) => {
+    const newTemplate = replaceImageSrc(template, oldSrc, newSrc);
+    setProp((props: any) => {
+      props.htmlTemplate = newTemplate;
+      props.html = newTemplate;
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {/* Images Section */}
+      {images.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <ImageIcon className="h-3.5 w-3.5" />
+            Imagens do Bloco ({images.length})
+          </Label>
+          <div className="space-y-2">
+            {images.map((img, idx) => (
+              <ImageItem
+                key={`${img.src}-${idx}`}
+                src={img.src}
+                index={idx}
+                onReplace={(newUrl) => handleReplaceImage(img.src, newUrl)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Template editor */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Código HTML</Label>
@@ -216,7 +405,7 @@ export const HtmlBlockSettings = () => {
           }}
           placeholder="<div>Seu HTML aqui</div>"
           rows={12}
-          className="font-mono text-xs bg-[#1e1e1e] text-[#d4d4d4] border-gray-700"
+          className="font-mono text-xs bg-secondary/50 border-border"
         />
       </div>
 
