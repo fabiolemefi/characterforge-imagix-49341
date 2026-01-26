@@ -1,203 +1,222 @@
 
-# Plano: Gerenciamento de Imagens no Painel de Props do HtmlBlock
 
-## Problema Atual
+# Plano: Corrigir Imagens Quebradas e Fontes Invisíveis no HtmlBlock
 
-Quando um `HtmlBlock` contém tags `<img>`, as imagens aparecem quebradas no painel de configurações à direita. O usuário não tem uma forma prática de:
-1. Visualizar quais imagens existem no bloco
-2. Fazer upload de novas imagens para substituir as existentes
-3. Ver um placeholder quando a URL da imagem é inválida
+## Problemas Identificados
+
+1. **Imagens quebradas no viewport**: O HTML é renderizado diretamente e imagens com URLs inválidas mostram o ícone padrão do navegador de imagem quebrada
+2. **Imagens duplicadas no painel**: A lista de imagens mostra duplicatas porque não está filtrando URLs repetidas
+3. **Fontes brancas invisíveis**: Textos com `color: white` ou classes como `text-white` não aparecem porque o container do viewport tem fundo claro
 
 ## Solução
 
-Adicionar uma seção "Imagens do Bloco" no `HtmlBlockSettings` que:
-1. Detecta automaticamente todas as tags `<img>` no HTML
-2. Exibe cada imagem com preview (ou placeholder se quebrada)
-3. Permite upload ou seleção da biblioteca para substituir cada imagem
-4. Atualiza o HTML do bloco automaticamente com a nova URL
+### 1. Placeholder para Imagens Quebradas no Viewport
 
-## Implementação
+Processar o HTML antes de renderizar para adicionar tratamento de erro nas imagens:
+- Usar um `useEffect` com MutationObserver ou processar o HTML após renderização
+- Adicionar `onerror` handler para substituir imagens quebradas por um placeholder SVG inline
 
-### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
+### 2. Remover Duplicatas no Painel de Imagens
 
-**Alterações no `HtmlBlockSettings`:**
-
-1. **Extrair imagens do HTML** usando regex ou DOMParser
-2. **Exibir lista de imagens** encontradas com:
-   - Thumbnail com tratamento de erro (placeholder se quebrada)
-   - Botão de upload
-   - Botão para selecionar da biblioteca
-3. **Substituir URL no HTML** quando nova imagem for selecionada/uploaded
-
-### Fluxo Visual
-
-```text
-┌─────────────────────────────────────────────┐
-│  Configurações do HtmlBlock                 │
-├─────────────────────────────────────────────┤
-│                                             │
-│  📷 Imagens do Bloco (3 encontradas)        │
-│  ┌─────────────────────────────────────────┐│
-│  │ ┌──────┐  imagem-hero.jpg              ││
-│  │ │ 🖼️  │  [Upload] [Biblioteca]        ││
-│  │ └──────┘                               ││
-│  ├─────────────────────────────────────────┤│
-│  │ ┌──────┐  selo-qualidade.png           ││
-│  │ │ ❌  │  [Upload] [Biblioteca]        ││
-│  │ └──────┘  (imagem não encontrada)      ││
-│  ├─────────────────────────────────────────┤│
-│  │ ┌──────┐  banner-cta.webp              ││
-│  │ │ 🖼️  │  [Upload] [Biblioteca]        ││
-│  │ └──────┘                               ││
-│  └─────────────────────────────────────────┘│
-│                                             │
-│  Código HTML                                │
-│  ┌─────────────────────────────────────────┐│
-│  │ <div>...</div>                         ││
-│  └─────────────────────────────────────────┘│
-└─────────────────────────────────────────────┘
-```
-
-### Lógica de Extração de Imagens
+Modificar `extractImagesFromHtml` para retornar apenas URLs únicas:
 
 ```typescript
-const extractImages = (html: string): { src: string; index: number }[] => {
+const extractImagesFromHtml = (html: string): { src: string; index: number }[] => {
   const images: { src: string; index: number }[] = [];
+  const seenSrcs = new Set<string>();
   const regex = /<img[^>]+src=["']([^"']+)["']/gi;
   let match;
   let index = 0;
   
   while ((match = regex.exec(html)) !== null) {
-    images.push({ src: match[1], index });
-    index++;
+    const src = match[1];
+    if (!seenSrcs.has(src)) {
+      seenSrcs.add(src);
+      images.push({ src, index });
+      index++;
+    }
   }
   
   return images;
 };
 ```
 
-### Componente ImageItem com Placeholder
+### 3. Tratamento de Imagens Quebradas no Viewport
+
+Adicionar um `useEffect` que monitora as imagens renderizadas e substitui as quebradas:
 
 ```typescript
-const ImageItem = ({ 
-  src, 
-  index, 
-  onReplace 
-}: { 
-  src: string; 
-  index: number; 
-  onReplace: (newUrl: string) => void;
-}) => {
-  const [hasError, setHasError] = useState(false);
-  const [uploading, setUploading] = useState(false);
+const containerRef = useRef<HTMLDivElement>(null);
 
-  return (
-    <div className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
-      <div className="w-16 h-16 rounded overflow-hidden bg-muted flex-shrink-0">
-        {hasError ? (
-          <div className="w-full h-full flex items-center justify-center bg-muted">
-            <ImageIcon className="h-6 w-6 text-muted-foreground" />
-          </div>
-        ) : (
-          <img
-            src={src}
-            alt={`Imagem ${index + 1}`}
-            className="w-full h-full object-cover"
-            onError={() => setHasError(true)}
-          />
-        )}
-      </div>
-      
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-muted-foreground truncate">
-          {src.split('/').pop() || `Imagem ${index + 1}`}
-        </p>
-        {hasError && (
-          <p className="text-xs text-destructive">Imagem não encontrada</p>
-        )}
-        <div className="flex gap-1 mt-1">
-          {/* Botões de Upload e Biblioteca */}
-        </div>
-      </div>
-    </div>
-  );
-};
-```
-
-### Função de Substituição no HTML
-
-```typescript
-const replaceImageSrc = (html: string, oldSrc: string, newSrc: string): string => {
-  // Escapa caracteres especiais para regex
-  const escapedOldSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`(src=["'])${escapedOldSrc}(["'])`, 'g');
-  return html.replace(regex, `$1${newSrc}$2`);
-};
-```
-
-## Estrutura Final do HtmlBlockSettings
-
-```typescript
-export const HtmlBlockSettings = () => {
-  // ... hooks existentes
+useEffect(() => {
+  if (!containerRef.current) return;
   
-  // Extrair imagens do template
-  const images = React.useMemo(() => extractImages(template), [template]);
+  const handleImageError = (e: Event) => {
+    const img = e.target as HTMLImageElement;
+    if (img.dataset.placeholder) return; // Já processada
+    
+    img.dataset.placeholder = 'true';
+    img.style.backgroundColor = '#f3f4f6';
+    img.style.display = 'flex';
+    img.style.alignItems = 'center';
+    img.style.justifyContent = 'center';
+    img.style.minHeight = '100px';
+    img.style.minWidth = '100px';
+    // Substituir por SVG placeholder
+    img.src = 'data:image/svg+xml,...'; // SVG de placeholder
+  };
   
-  // Handler para substituir imagem
-  const handleReplaceImage = (oldSrc: string, newSrc: string) => {
-    const newTemplate = replaceImageSrc(template, oldSrc, newSrc);
-    setProp((props: any) => {
-      props.htmlTemplate = newTemplate;
-      props.html = newTemplate;
+  const images = containerRef.current.querySelectorAll('img');
+  images.forEach(img => {
+    img.addEventListener('error', handleImageError);
+  });
+  
+  return () => {
+    images.forEach(img => {
+      img.removeEventListener('error', handleImageError);
     });
   };
-
-  return (
-    <div className="space-y-4">
-      {/* Seção de Imagens */}
-      {images.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-            <ImageIcon className="h-3 w-3" />
-            Imagens do Bloco ({images.length})
-          </Label>
-          <div className="space-y-2">
-            {images.map((img, idx) => (
-              <ImageItem
-                key={`${img.src}-${idx}`}
-                src={img.src}
-                index={idx}
-                onReplace={(newUrl) => handleReplaceImage(img.src, newUrl)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* ... resto do componente existente */}
-    </div>
-  );
-};
+}, [template]);
 ```
 
-## Benefícios
+### 4. Fontes Brancas Invisíveis
 
-| Antes | Depois |
-|-------|--------|
-| Imagens quebradas sem indicação visual | Placeholder claro quando URL inválida |
-| Sem forma de editar imagens inline | Upload e biblioteca disponíveis |
-| Precisa editar HTML manualmente | Substituição automática da URL |
-| Não sabe quais imagens existem | Lista visual de todas as imagens |
+O viewport tem fundo branco por padrão. Para textos brancos serem visíveis durante edição, podemos:
+- Adicionar um fundo temporário escuro quando há texto branco detectado
+- Ou manter o fundo configurável pelo usuário nas page settings (já existe)
+
+O usuário já pode configurar o `backgroundColor` das páginas. A solução ideal é garantir que o CSS Global está sendo aplicado corretamente (já foi feito) e que o fundo da página está correto.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Adicionar seção de gerenciamento de imagens no `HtmlBlockSettings` |
+| `src/components/eficode/user-components/HtmlBlock.tsx` | 1. Filtrar duplicatas em `extractImagesFromHtml` |
+| | 2. Adicionar tratamento de `onerror` para imagens no viewport |
+| | 3. Usar `ref` no container para monitorar imagens |
 
-## Dependências Utilizadas
+## Implementação Detalhada
 
-- `ImagePickerModal` - Já existe para seleção da biblioteca
-- `supabase` - Já configurado para upload no bucket `efi-code-assets`
-- `lucide-react` - Ícones já utilizados no projeto
+### HtmlBlock.tsx - Mudanças
+
+```typescript
+// 1. Atualizar extractImagesFromHtml para remover duplicatas
+const extractImagesFromHtml = (html: string): { src: string; index: number }[] => {
+  const images: { src: string; index: number }[] = [];
+  const seenSrcs = new Set<string>();
+  const regex = /<img[^>]+src=["']([^"']+)["']/gi;
+  let match;
+  let index = 0;
+  
+  while ((match = regex.exec(html)) !== null) {
+    const src = match[1];
+    if (!seenSrcs.has(src)) {
+      seenSrcs.add(src);
+      images.push({ src, index });
+      index++;
+    }
+  }
+  
+  return images;
+};
+
+// 2. Placeholder SVG para imagens quebradas
+const PLACEHOLDER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E`;
+
+// 3. No componente HtmlBlock, adicionar ref e useEffect
+export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps }) => {
+  // ... existing code ...
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle broken images in the viewport
+  useEffect(() => {
+    if (!containerRef.current || !enabled) return;
+    
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement;
+      if (img.dataset.placeholderApplied) return;
+      
+      img.dataset.placeholderApplied = 'true';
+      img.src = PLACEHOLDER_SVG;
+      img.style.backgroundColor = '#f3f4f6';
+      img.style.objectFit = 'contain';
+      img.style.padding = '20px';
+    };
+    
+    const images = containerRef.current.querySelectorAll('img');
+    images.forEach(img => {
+      // Check if already broken
+      if (!img.complete || img.naturalHeight === 0) {
+        handleImageError({ target: img } as Event);
+      }
+      img.addEventListener('error', handleImageError);
+    });
+    
+    return () => {
+      const imgs = containerRef.current?.querySelectorAll('img');
+      imgs?.forEach(img => {
+        img.removeEventListener('error', handleImageError);
+      });
+    };
+  }, [template, enabled]);
+
+  // Wrap ContentEditable with containerRef
+  return (
+    <div
+      ref={(ref) => {
+        containerRef.current = ref;
+        if (ref) connect(drag(ref));
+      }}
+      // ... rest of props
+    >
+      {/* ... toolbar ... */}
+      <ContentEditable ... />
+    </div>
+  );
+};
+```
+
+## Fluxo Visual
+
+```text
+ANTES:
+┌────────────────────────────────────────┐
+│ Viewport                               │
+│  ┌──────┐  ┌──────┐                   │
+│  │  ❌  │  │  ❌  │  (imagens quebradas)│
+│  └──────┘  └──────┘                   │
+│                                        │
+│  Texto branco invisível                │
+└────────────────────────────────────────┘
+
+Painel Direito:
+├─ img1.jpg [Upload] [Lib]
+├─ img1.jpg [Upload] [Lib] ← duplicata
+├─ img2.jpg [Upload] [Lib]
+├─ img2.jpg [Upload] [Lib] ← duplicata
+└─ img3.svg [Quebrada]
+
+DEPOIS:
+┌────────────────────────────────────────┐
+│ Viewport                               │
+│  ┌──────┐  ┌──────┐                   │
+│  │  🖼️  │  │  🖼️  │  (placeholders)   │
+│  └──────┘  └──────┘                   │
+│                                        │
+│  Texto branco visível (fundo escuro)  │
+└────────────────────────────────────────┘
+
+Painel Direito:
+├─ img1.jpg [Upload] [Lib]
+├─ img2.jpg [Upload] [Lib]
+└─ img3.svg [Quebrada] [Upload] [Lib]
+```
+
+## Benefícios
+
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Imagens quebradas | Ícone feio do navegador | Placeholder elegante |
+| Lista de imagens | Mostra duplicatas | URLs únicas apenas |
+| UX | Confuso | Claro e profissional |
+
