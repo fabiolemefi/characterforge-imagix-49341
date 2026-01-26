@@ -1,109 +1,80 @@
 
-# Plano: Remover CSS Hardcoded e Corrigir Cache do globalCss
+
+# Plano: Restaurar CSS Global do Efi Code
 
 ## Problema Identificado
 
-O HTML exportado contém dois tipos de CSS indesejado:
+O CSS global foi removido do banco de dados, mas ele era **necessário** para os blocos HTML funcionarem corretamente. Os blocos importados (como o formulário de pesquisa da Efí Bank) usam classes CSS que dependem desse CSS global.
 
-1. **CSS basico hardcoded** (linhas 110-128 do `efiCodeHtmlGenerator.ts`):
-   - Reset CSS (`* { box-sizing: border-box; ... }`)
-   - Estilos do body (font-family, background-color, etc.)
-   - Classe `.page-container`
-   - Regra `img { max-width: 100%; }`
+### Situacao Atual
 
-2. **CSS do Tailwind no `globalCss`**: O React Query pode ter cacheado o valor antigo antes de limparmos o banco. Precisa de invalidacao ou refetch.
+```text
+┌─────────────────────────────────────────────────────┐
+│ Blocos HTML importados:                             │
+│   - Usam classes: bg-elevation-2, text-base-medium  │
+│   - Essas classes vêm do CSS Tailwind v4            │
+│                                                     │
+│ Campo global_css:                                   │
+│   - Foi limpo (vazio)                               │
+│   - Resultado: blocos sem estilização               │
+└─────────────────────────────────────────────────────┘
+```
+
+## Causa do Problema
+
+O CSS do Tailwind v4 que estava no campo `global_css` **não era lixo** - ele é o CSS necessário para os blocos HTML funcionarem. Quando um bloco HTML é importado com classes Tailwind, o CSS correspondente deve estar no campo `global_css` para que essas classes sejam interpretadas.
 
 ## Solucao
 
-### Parte 1: Remover CSS Hardcoded da Funcao de Exportacao
+### Opcao 1: Restaurar CSS via Admin (Recomendado)
 
-Modificar `src/lib/efiCodeHtmlGenerator.ts` para:
-- Remover o bloco de estilos basicos hardcoded
-- Manter apenas o `globalCss` passado como parametro
-- Remover tambem a estrutura `.page-container` se o usuario quiser HTML limpo
+1. Acesse: **Admin > Plugins > Efi Code Blocos** (ícone de engrenagem)
+2. Clique no botão **"CSS Global"**
+3. Cole o CSS do Tailwind v4 (ou o CSS personalizado que seus blocos precisam)
+4. Clique em **"Salvar CSS"**
 
-**Codigo atual (problematico):**
-```typescript
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { ... }
-  .page-container { ... }
-  img { max-width: 100%; }
-  
-  /* CSS Global do Efi Code */
-  ${globalCss}
-</style>
+### Opcao 2: Restaurar CSS via Banco de Dados
+
+Executar SQL para restaurar o CSS diretamente no banco:
+
+```sql
+UPDATE efi_code_config 
+SET global_css = '[conteúdo do CSS do Tailwind v4]', 
+    updated_at = now();
 ```
 
-**Codigo novo (limpo):**
-```typescript
-// Apenas incluir tag style se houver globalCss
-${globalCss ? `<style>
-  ${globalCss}
-</style>` : ''}
-```
-
-### Parte 2: Forcar Refetch do globalCss
-
-Adicionar `staleTime: 0` e `refetchOnMount: true` no hook `useEfiCodeConfig` para garantir que o valor seja sempre buscado do banco.
-
-### Parte 3: Remover Wrapper .page-container do Body
-
-Se o HTML exportado nao deve ter wrapper, modificar o template para exportar apenas o conteudo dos blocos.
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/lib/efiCodeHtmlGenerator.ts` | Remover CSS hardcoded, exportar apenas globalCss se existir |
-| `src/hooks/useEfiCodeConfig.ts` | Adicionar `staleTime: 0` para evitar cache |
-
-## Template Exportado Apos Correcao
-
-```html
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nome do Site</title>
-  <!-- Meta tags de SEO se definidas -->
-  <!-- Scripts de tracking se definidos -->
-  <!-- customHeadCode se definido -->
-  <!-- Apenas se globalCss existir: -->
-  <style>
-    /* CSS Global do Efi Code */
-    [conteudo do globalCss do banco]
-  </style>
-</head>
-<body>
-[conteudo dos blocos HTML]
-</body>
-</html>
-```
-
-## Fluxo Corrigido
+## Fluxo Correto de Uso
 
 ```text
-ANTES:
 ┌─────────────────────────────────────────────────────┐
-│ generateFullHtml sempre inclui:                     │
-│   - CSS reset hardcoded                             │
-│   - body { font-family... }                         │
-│   - .page-container { max-width... }                │
-│   - globalCss (pode estar cacheado com Tailwind)    │
-└─────────────────────────────────────────────────────┘
-
-DEPOIS:
-┌─────────────────────────────────────────────────────┐
-│ generateFullHtml inclui APENAS:                     │
-│   - globalCss do banco (se existir)                 │
-│   - Sem CSS reset                                   │
-│   - Sem estilos de body/container                   │
-│   - Sempre busca valor fresco do banco              │
+│ 1. Admin importa bloco HTML com classes Tailwind   │
+│    (ex: classes bg-elevation-2, text-base-medium)  │
+├─────────────────────────────────────────────────────┤
+│ 2. Admin cadastra CSS correspondente em:           │
+│    Admin > Efi Code Blocos > CSS Global            │
+├─────────────────────────────────────────────────────┤
+│ 3. CSS é armazenado em efi_code_config.global_css  │
+├─────────────────────────────────────────────────────┤
+│ 4. Editor e exportação usam esse CSS:              │
+│    - Editor: injeta via <style> no viewport        │
+│    - Exportação: inclui no <head> do HTML final    │
 └─────────────────────────────────────────────────────┘
 ```
 
 ## Resultado Esperado
 
-Se o campo `global_css` no banco estiver vazio, o HTML exportado nao tera nenhuma tag `<style>`. Se tiver conteudo customizado, apenas esse conteudo sera incluido.
+Apos restaurar o CSS global:
+- Editor mostrará os blocos estilizados corretamente
+- Exportação incluirá o CSS no arquivo HTML final
+- Os blocos serão renderizados como esperado
+
+## Acao Imediata
+
+Para resolver agora, você pode:
+1. Ir em **Admin > Plugins** (ícone de engrenagem ao lado de Efi Code)
+2. Clicar em **"CSS Global"** 
+3. Colar o CSS do Tailwind v4 que seus blocos usam
+4. Salvar
+
+Isso restaurará a estilização tanto no editor quanto na exportação.
+
