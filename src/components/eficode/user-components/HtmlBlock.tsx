@@ -1,11 +1,10 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNode, useEditor } from '@craftjs/core';
-import ContentEditable from 'react-contenteditable';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Bold, Italic, Heading1, Heading2, List, ListOrdered, Underline, Link, ImageIcon, Upload, Library, Loader2 } from 'lucide-react';
+import { ImageIcon, Upload, Library, Loader2 } from 'lucide-react';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -180,257 +179,33 @@ interface HtmlBlockProps {
   [key: string]: any;
 }
 
-export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps }: HtmlBlockProps) => {
-  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
+export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
+  const { connectors: { connect, drag }, selected } = useNode((state) => ({
     selected: state.events.selected,
   }));
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
-  const [showToolbar, setShowToolbar] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isInlineEditing, setIsInlineEditing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const template = htmlTemplate || html || '';
-  const contentRef = useRef(template);
 
-  // Keep contentRef in sync with props
-  useEffect(() => {
-    contentRef.current = template;
-  }, [template]);
-
-  // Reset inline editing when deselected
-  useEffect(() => {
-    if (!selected) {
-      setIsInlineEditing(false);
-      setShowToolbar(false);
-      setIsEditing(false);
-    }
-  }, [selected]);
-
-  // Handle iframe click - enters inline editing mode on second click
-  const handleIframeClick = useCallback(() => {
-    if (enabled && selected) {
-      // If already selected, enter inline editing mode
-      setIsInlineEditing(true);
-    }
-  }, [enabled, selected]);
-
-  // Handle broken images in the viewport - replace with placeholder
-  useEffect(() => {
-    if (!containerRef.current || !enabled || !isInlineEditing) return;
-    
-    const handleImageError = (e: Event) => {
-      const img = e.target as HTMLImageElement;
-      if (img.dataset.placeholderApplied) return;
-      
-      img.dataset.placeholderApplied = 'true';
-      img.src = PLACEHOLDER_SVG;
-      img.style.backgroundColor = '#f3f4f6';
-      img.style.objectFit = 'contain';
-      img.style.padding = '20px';
-      img.style.minWidth = '60px';
-      img.style.minHeight = '60px';
-    };
-    
-    const checkAndSetupImages = () => {
-      const images = containerRef.current?.querySelectorAll('img');
-      images?.forEach(img => {
-        // Check if already broken or not loaded
-        if (img.complete && img.naturalHeight === 0 && !img.dataset.placeholderApplied) {
-          handleImageError({ target: img } as unknown as Event);
-        }
-        img.addEventListener('error', handleImageError);
-      });
-    };
-    
-    // Initial check
-    checkAndSetupImages();
-    
-    // Re-check when template changes
-    const observer = new MutationObserver(checkAndSetupImages);
-    observer.observe(containerRef.current, { childList: true, subtree: true });
-    
-    return () => {
-      observer.disconnect();
-      const imgs = containerRef.current?.querySelectorAll('img');
-      imgs?.forEach(img => {
-        img.removeEventListener('error', handleImageError);
-      });
-    };
-  }, [template, enabled, isInlineEditing]);
-
-  // Execute formatting command
-  const executeCommand = useCallback((e: React.MouseEvent, command: string, value?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    document.execCommand(command, false, value);
-  }, []);
-
-  // Format block (h1, h2, p, etc.)
-  const formatBlock = useCallback((e: React.MouseEvent, tag: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    document.execCommand('formatBlock', false, tag);
-  }, []);
-
-  // Sync changes back to Craft.js state
-  const handleChange = useCallback((evt: any) => {
-    contentRef.current = evt.target.value;
-    setProp((props: any) => {
-      props.htmlTemplate = evt.target.value;
-      props.html = evt.target.value;
-    });
-  }, [setProp]);
-
-  const handleFocus = useCallback(() => {
-    setShowToolbar(true);
-    setIsEditing(true);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    // Delay hiding toolbar to allow button clicks
-    setTimeout(() => {
-      setShowToolbar(false);
-      setIsEditing(false);
-      setIsInlineEditing(false); // Return to iframe view
-    }, 200);
-  }, []);
-
-  // Use iframe for visualization when:
-  // - Editor is disabled (read-only mode)
-  // - OR editor is enabled but not in inline editing mode
-  if (!enabled || (enabled && !isInlineEditing)) {
-    return (
-      <div
-        ref={(ref) => {
-          if (ref && enabled) {
-            connect(drag(ref));
-          }
-        }}
-        className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
-      >
-        <IframePreview 
-          html={template} 
-          className=""
-          minHeight={50}
-          onClick={enabled ? handleIframeClick : undefined}
-        />
-      </div>
-    );
-  }
-
+  // Always use IframePreview for CSS isolation - editing is done via Settings panel
   return (
     <div
       ref={(ref) => {
-        containerRef.current = ref;
-        if (ref) {
+        if (ref && enabled) {
           connect(drag(ref));
         }
       }}
-      className={`relative ${className} ${selected && !isEditing ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+      className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
     >
-      {/* Floating Toolbar */}
-      {showToolbar && (
-        <div 
-          className="absolute -top-12 left-0 z-50 flex gap-0.5 rounded-lg border bg-background p-1 shadow-lg"
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => executeCommand(e, 'bold')}
-            title="Negrito"
-          >
-            <Bold className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => executeCommand(e, 'italic')}
-            title="Itálico"
-          >
-            <Italic className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => executeCommand(e, 'underline')}
-            title="Sublinhado"
-          >
-            <Underline className="h-4 w-4" />
-          </Button>
-          <div className="w-px bg-border mx-1" />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => formatBlock(e, 'h1')}
-            title="Título 1"
-          >
-            <Heading1 className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => formatBlock(e, 'h2')}
-            title="Título 2"
-          >
-            <Heading2 className="h-4 w-4" />
-          </Button>
-          <div className="w-px bg-border mx-1" />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => executeCommand(e, 'insertUnorderedList')}
-            title="Lista com marcadores"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => executeCommand(e, 'insertOrderedList')}
-            title="Lista numerada"
-          >
-            <ListOrdered className="h-4 w-4" />
-          </Button>
-          <div className="w-px bg-border mx-1" />
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 w-8 p-0"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const url = prompt('Digite a URL do link:');
-              if (url) {
-                document.execCommand('createLink', false, url);
-              }
-            }}
-            title="Inserir link"
-          >
-            <Link className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-      
-      <ContentEditable
-        html={contentRef.current}
-        onChange={handleChange}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        className="outline-none min-h-[20px]"
-        data-no-dnd="true"
+      <IframePreview 
+        html={template} 
+        className=""
+        minHeight={50}
       />
     </div>
   );
 };
+
 
 export const HtmlBlockSettings = () => {
   const { actions: { setProp }, ...nodeProps } = useNode((node) => ({
