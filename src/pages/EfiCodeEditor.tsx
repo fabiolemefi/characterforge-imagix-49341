@@ -40,6 +40,7 @@ const resolvers = {
   Spacer,
   HtmlBlock,
   'Bloco HTML': HtmlBlock, // Alias for backward compatibility
+  'Element': Container, // Fallback for generic Elements
 };
 
 type ViewMode = 'visual' | 'code';
@@ -272,9 +273,19 @@ function EditorFrame({ editorState }: { editorState: string | null }) {
   useEffect(() => {
     if (editorState) {
       try {
+        const parsed = JSON.parse(editorState);
+        console.log('[EfiCode] Deserializando estado:', parsed);
+        
+        // Log component types for debugging
+        Object.entries(parsed).forEach(([nodeId, node]: [string, any]) => {
+          if (node?.type?.resolvedName) {
+            console.log(`[EfiCode] Node ${nodeId}: ${node.type.resolvedName}`);
+          }
+        });
+        
         actions.deserialize(editorState);
       } catch (error) {
-        console.error('Erro ao restaurar estado:', error);
+        console.error('[EfiCode] Erro ao restaurar estado:', error);
       }
     }
   }, [editorState, actions]);
