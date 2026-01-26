@@ -106,35 +106,13 @@ export const generateFullHtml = (
   ${faviconLink}
   ${gaScript}
   ${fbScript}
-  ${pageSettings.customHeadCode || ''}
+  ${pageSettings.customHeadCode || ''}${globalCss ? `
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-      background-color: ${pageSettings.backgroundColor || '#ffffff'};
-      ${pageSettings.backgroundImage ? `
-      background-image: url('${pageSettings.backgroundImage}');
-      background-size: ${pageSettings.backgroundSize || 'cover'};
-      background-position: ${pageSettings.backgroundPosition || 'center'};
-      background-attachment: ${pageSettings.backgroundAttachment || 'scroll'};
-      background-repeat: ${pageSettings.backgroundRepeat || 'no-repeat'};
-      ` : ''}
-      min-height: 100vh;
-    }
-    .page-container {
-      max-width: ${pageSettings.containerMaxWidth || '1200'}px;
-      margin: 0 auto;
-    }
-    img { max-width: 100%; }
-    
-    /* CSS Global do Efi Code */
     ${globalCss}
-  </style>
+  </style>` : ''}
 </head>
 <body>
-  <div class="page-container">
 ${bodyContent}
-  </div>
 </body>
 </html>`;
 };

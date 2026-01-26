@@ -24,6 +24,8 @@ export const useEfiCodeConfig = () => {
       if (error) throw error;
       return data as EfiCodeConfig;
     },
+    staleTime: 0,
+    refetchOnMount: true,
   });
 
   const updateConfig = useMutation({
