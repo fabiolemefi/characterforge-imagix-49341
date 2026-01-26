@@ -19,6 +19,7 @@ export const IframePreview = ({
   const [height, setHeight] = useState(minHeight);
 
   // Build the complete HTML document for the iframe
+  // Não aplicamos nenhum reset - deixamos o globalCss controlar 100% dos estilos
   const srcdoc = `
 <!DOCTYPE html>
 <html>
@@ -26,19 +27,7 @@ export const IframePreview = ({
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Reset básico */
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-    
-    html, body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: transparent;
-    }
-    
-    /* Global CSS do admin */
+    /* Global CSS do admin - controla 100% dos estilos */
     ${globalCss}
   </style>
 </head>
