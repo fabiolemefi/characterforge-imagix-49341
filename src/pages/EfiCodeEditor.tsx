@@ -284,6 +284,13 @@ function EditorFrame({ editorState }: { editorState: string | null }) {
         });
         
         actions.deserialize(editorState);
+        
+        // Force ROOT to have transparent background to inherit from pageSettings
+        setTimeout(() => {
+          actions.setProp('ROOT', (props: any) => {
+            props.background = 'transparent';
+          });
+        }, 0);
       } catch (error) {
         console.error('[EfiCode] Erro ao restaurar estado:', error);
       }
