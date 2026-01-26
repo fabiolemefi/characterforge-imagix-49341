@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useNode, useEditor } from '@craftjs/core';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -180,14 +180,41 @@ interface HtmlBlockProps {
 }
 
 export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
-  const { connectors: { connect, drag }, selected } = useNode((state) => ({
+  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
     selected: state.events.selected,
   }));
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
-
+  
+  const [isEditing, setIsEditing] = useState(false);
   const template = htmlTemplate || html || '';
 
-  // Always use IframePreview for CSS isolation - editing is done via Settings panel
+  // Handler quando clica no bloco já selecionado
+  const handleIframeClick = useCallback(() => {
+    if (enabled && selected && !isEditing) {
+      setIsEditing(true);
+    }
+  }, [enabled, selected, isEditing]);
+
+  // Handler quando HTML é alterado dentro do iframe
+  const handleHtmlChange = useCallback((newHtml: string) => {
+    setProp((props: any) => {
+      props.htmlTemplate = newHtml;
+      props.html = newHtml;
+    });
+  }, [setProp]);
+
+  // Handler quando edição termina
+  const handleEditEnd = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
+  // Desativar edição quando desseleciona
+  useEffect(() => {
+    if (!selected) {
+      setIsEditing(false);
+    }
+  }, [selected]);
+
   return (
     <div
       ref={(ref) => {
@@ -201,6 +228,10 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
         html={template} 
         className=""
         minHeight={50}
+        editable={isEditing}
+        onHtmlChange={handleHtmlChange}
+        onEditEnd={handleEditEnd}
+        onClick={enabled ? handleIframeClick : undefined}
       />
     </div>
   );
