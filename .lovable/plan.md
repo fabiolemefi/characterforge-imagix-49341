@@ -1,157 +1,203 @@
 
-
-# Plano: Habilitar Edição Visual no HtmlBlock do Efi Code
+# Plano: Gerenciamento de Imagens no Painel de Props do HtmlBlock
 
 ## Problema Atual
 
-O componente `HtmlBlock` renderiza HTML usando `dangerouslySetInnerHTML`, o que impede qualquer edição visual. O usuário só consegue editar o código HTML através do textarea no painel de configurações, que é pouco prático para alterações rápidas de texto, formatação e reordenação de elementos.
+Quando um `HtmlBlock` contém tags `<img>`, as imagens aparecem quebradas no painel de configurações à direita. O usuário não tem uma forma prática de:
+1. Visualizar quais imagens existem no bloco
+2. Fazer upload de novas imagens para substituir as existentes
+3. Ver um placeholder quando a URL da imagem é inválida
 
-## Solução Proposta
+## Solução
 
-Transformar o `HtmlBlock` em um componente editável inline usando `contentEditable`, similar aos componentes `Heading` e `Text` que já existem no projeto. Quando o bloco estiver selecionado no editor, o usuário poderá:
-
-1. **Editar textos** clicando diretamente neles
-2. **Aplicar formatação** (negrito, itálico, etc.) via toolbar flutuante
-3. **Reorganizar divs** arrastando ou usando comandos de teclado
-
-## Abordagem Técnica
-
-### Opção Escolhida: ContentEditable com Toolbar Flutuante
-
-Usar `react-contenteditable` (já instalado no projeto) com uma toolbar que aparece quando o bloco está selecionado, permitindo formatação sem sair do contexto visual.
+Adicionar uma seção "Imagens do Bloco" no `HtmlBlockSettings` que:
+1. Detecta automaticamente todas as tags `<img>` no HTML
+2. Exibe cada imagem com preview (ou placeholder se quebrada)
+3. Permite upload ou seleção da biblioteca para substituir cada imagem
+4. Atualiza o HTML do bloco automaticamente com a nova URL
 
 ## Implementação
 
 ### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-**Mudanças principais:**
+**Alterações no `HtmlBlockSettings`:**
 
-1. Substituir `dangerouslySetInnerHTML` por `ContentEditable`
-2. Adicionar toolbar de formatação flutuante
-3. Sincronizar alterações de volta para o estado do Craft.js
-4. Manter o modo de visualização para quando o editor estiver desabilitado
+1. **Extrair imagens do HTML** usando regex ou DOMParser
+2. **Exibir lista de imagens** encontradas com:
+   - Thumbnail com tratamento de erro (placeholder se quebrada)
+   - Botão de upload
+   - Botão para selecionar da biblioteca
+3. **Substituir URL no HTML** quando nova imagem for selecionada/uploaded
 
+### Fluxo Visual
+
+```text
+┌─────────────────────────────────────────────┐
+│  Configurações do HtmlBlock                 │
+├─────────────────────────────────────────────┤
+│                                             │
+│  📷 Imagens do Bloco (3 encontradas)        │
+│  ┌─────────────────────────────────────────┐│
+│  │ ┌──────┐  imagem-hero.jpg              ││
+│  │ │ 🖼️  │  [Upload] [Biblioteca]        ││
+│  │ └──────┘                               ││
+│  ├─────────────────────────────────────────┤│
+│  │ ┌──────┐  selo-qualidade.png           ││
+│  │ │ ❌  │  [Upload] [Biblioteca]        ││
+│  │ └──────┘  (imagem não encontrada)      ││
+│  ├─────────────────────────────────────────┤│
+│  │ ┌──────┐  banner-cta.webp              ││
+│  │ │ 🖼️  │  [Upload] [Biblioteca]        ││
+│  │ └──────┘                               ││
+│  └─────────────────────────────────────────┘│
+│                                             │
+│  Código HTML                                │
+│  ┌─────────────────────────────────────────┐│
+│  │ <div>...</div>                         ││
+│  └─────────────────────────────────────────┘│
+└─────────────────────────────────────────────┘
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  HtmlBlock (selecionado)                                    │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ [B] [I] [H1] [H2] [•] [1.] ← Toolbar flutuante        │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                             │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │                                                        │ │
-│  │  ContentEditable (o usuário clica e edita)            │ │
-│  │                                                        │ │
-│  │  Uma cobrança, três formas de pagar                   │ │
-│  │  O Pix Automático, disponível...                      │ │
-│  │                                                        │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
 
-### Código da Solução
+### Lógica de Extração de Imagens
 
 ```typescript
-import React, { useRef, useState, useCallback } from 'react';
-import { useNode, useEditor } from '@craftjs/core';
-import ContentEditable from 'react-contenteditable';
-import { Button } from '@/components/ui/button';
-import { Bold, Italic, Heading1, Heading2, List, ListOrdered } from 'lucide-react';
-// ... outros imports
-
-export const HtmlBlock = ({ html, htmlTemplate, className = '', ...dynamicProps }) => {
-  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
-    selected: state.events.selected,
-  }));
-  const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
-  const [showToolbar, setShowToolbar] = useState(false);
+const extractImages = (html: string): { src: string; index: number }[] => {
+  const images: { src: string; index: number }[] = [];
+  const regex = /<img[^>]+src=["']([^"']+)["']/gi;
+  let match;
+  let index = 0;
   
-  const template = htmlTemplate || html || '';
-  const contentRef = useRef(template);
-
-  // Comandos de formatação
-  const executeCommand = useCallback((command: string, value?: string) => {
-    document.execCommand(command, false, value);
-  }, []);
-
-  const formatBlock = useCallback((tag: string) => {
-    document.execCommand('formatBlock', false, tag);
-  }, []);
-
-  // Sincronizar alterações
-  const handleChange = useCallback((evt: any) => {
-    contentRef.current = evt.target.value;
-    setProp((props: any) => {
-      props.htmlTemplate = evt.target.value;
-      props.html = evt.target.value;
-    });
-  }, [setProp]);
-
-  // Modo visualização (editor desabilitado)
-  if (!enabled) {
-    return (
-      <div
-        className={className}
-        dangerouslySetInnerHTML={{ __html: template }}
-      />
-    );
+  while ((match = regex.exec(html)) !== null) {
+    images.push({ src: match[1], index });
+    index++;
   }
+  
+  return images;
+};
+```
+
+### Componente ImageItem com Placeholder
+
+```typescript
+const ImageItem = ({ 
+  src, 
+  index, 
+  onReplace 
+}: { 
+  src: string; 
+  index: number; 
+  onReplace: (newUrl: string) => void;
+}) => {
+  const [hasError, setHasError] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   return (
-    <div
-      ref={(ref) => ref && connect(drag(ref))}
-      className={`relative ${className} ${selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
-    >
-      {/* Toolbar flutuante */}
-      {showToolbar && (
-        <div className="absolute -top-12 left-0 z-50 flex gap-1 rounded-lg border bg-background p-1 shadow-lg">
-          <Button variant="ghost" size="sm" onClick={() => executeCommand('bold')}>
-            <Bold className="h-4 w-4" />
-          </Button>
-          {/* ... outros botões */}
-        </div>
-      )}
+    <div className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
+      <div className="w-16 h-16 rounded overflow-hidden bg-muted flex-shrink-0">
+        {hasError ? (
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+          </div>
+        ) : (
+          <img
+            src={src}
+            alt={`Imagem ${index + 1}`}
+            className="w-full h-full object-cover"
+            onError={() => setHasError(true)}
+          />
+        )}
+      </div>
       
-      <ContentEditable
-        html={contentRef.current}
-        onChange={handleChange}
-        onFocus={() => setShowToolbar(true)}
-        onBlur={() => setTimeout(() => setShowToolbar(false), 200)}
-        className="outline-none"
-        data-no-dnd="true"
-      />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground truncate">
+          {src.split('/').pop() || `Imagem ${index + 1}`}
+        </p>
+        {hasError && (
+          <p className="text-xs text-destructive">Imagem não encontrada</p>
+        )}
+        <div className="flex gap-1 mt-1">
+          {/* Botões de Upload e Biblioteca */}
+        </div>
+      </div>
     </div>
   );
 };
 ```
 
-## Funcionalidades da Toolbar
+### Função de Substituição no HTML
 
-| Botão | Comando | Função |
-|-------|---------|--------|
-| **B** | bold | Negrito |
-| *I* | italic | Itálico |
-| H1 | formatBlock h1 | Título principal |
-| H2 | formatBlock h2 | Subtítulo |
-| • | insertUnorderedList | Lista com marcadores |
-| 1. | insertOrderedList | Lista numerada |
+```typescript
+const replaceImageSrc = (html: string, oldSrc: string, newSrc: string): string => {
+  // Escapa caracteres especiais para regex
+  const escapedOldSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(src=["'])${escapedOldSrc}(["'])`, 'g');
+  return html.replace(regex, `$1${newSrc}$2`);
+};
+```
 
-## Comportamento Esperado
+## Estrutura Final do HtmlBlockSettings
 
-1. **Clique simples** no bloco: seleciona para arrastar
-2. **Duplo clique** ou **foco no texto**: ativa modo de edição, mostra toolbar
-3. **Blur** (clicar fora): esconde toolbar, salva alterações
-4. **Arrastar**: funciona normalmente para reposicionar o bloco
+```typescript
+export const HtmlBlockSettings = () => {
+  // ... hooks existentes
+  
+  // Extrair imagens do template
+  const images = React.useMemo(() => extractImages(template), [template]);
+  
+  // Handler para substituir imagem
+  const handleReplaceImage = (oldSrc: string, newSrc: string) => {
+    const newTemplate = replaceImageSrc(template, oldSrc, newSrc);
+    setProp((props: any) => {
+      props.htmlTemplate = newTemplate;
+      props.html = newTemplate;
+    });
+  };
 
-## Considerações
+  return (
+    <div className="space-y-4">
+      {/* Seção de Imagens */}
+      {images.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+            <ImageIcon className="h-3 w-3" />
+            Imagens do Bloco ({images.length})
+          </Label>
+          <div className="space-y-2">
+            {images.map((img, idx) => (
+              <ImageItem
+                key={`${img.src}-${idx}`}
+                src={img.src}
+                index={idx}
+                onReplace={(newUrl) => handleReplaceImage(img.src, newUrl)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* ... resto do componente existente */}
+    </div>
+  );
+};
+```
 
-- O atributo `data-no-dnd="true"` impede que o sistema de drag-and-drop interfira na seleção de texto
-- O `setTimeout` no onBlur garante que cliques na toolbar sejam processados antes de esconder
-- As alterações são salvas automaticamente no estado do Craft.js via `setProp`
+## Benefícios
+
+| Antes | Depois |
+|-------|--------|
+| Imagens quebradas sem indicação visual | Placeholder claro quando URL inválida |
+| Sem forma de editar imagens inline | Upload e biblioteca disponíveis |
+| Precisa editar HTML manualmente | Substituição automática da URL |
+| Não sabe quais imagens existem | Lista visual de todas as imagens |
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Substituir implementação para usar ContentEditable com toolbar |
+| `src/components/eficode/user-components/HtmlBlock.tsx` | Adicionar seção de gerenciamento de imagens no `HtmlBlockSettings` |
 
+## Dependências Utilizadas
+
+- `ImagePickerModal` - Já existe para seleção da biblioteca
+- `supabase` - Já configurado para upload no bucket `efi-code-assets`
+- `lucide-react` - Ícones já utilizados no projeto
