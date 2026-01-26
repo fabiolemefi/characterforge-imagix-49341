@@ -1,112 +1,75 @@
 
-# Plano: Corrigir Exportação HTML do Efi Code
+# Plano: Limpar CSS Tailwind do Campo global_css
 
 ## Problema Identificado
 
-Ao exportar o HTML, o conteúdo dos blocos `HtmlBlock` não está sendo incluído porque a função `generateHtmlFromNodes` não tem um caso específico para este tipo de componente.
+O campo `global_css` na tabela `efi_code_config` contém todo o CSS do Tailwind v4 (aproximadamente 30KB de CSS minificado). Isso está sendo exportado junto com o HTML porque a função `generateFullHtml` injeta o conteúdo de `global_css` diretamente no arquivo exportado.
 
-### Diagnóstico Técnico
+### Causa Raiz
 
-```text
-Função: generateHtmlFromNodes (src/lib/efiCodeHtmlGenerator.ts)
+O CSS do Tailwind foi salvo acidentalmente no campo `global_css`. Isso pode ter acontecido de duas formas:
+1. Durante a importação de um bloco HTML que continha uma tag `<style>` com Tailwind
+2. Ao copiar/colar CSS de outra fonte que incluía o Tailwind
 
-Switch cases existentes:
-- Container ✓
-- Heading ✓
-- Text ✓
-- Button ✓
-- Image ✓
-- Divider ✓
-- Spacer ✓
-- HtmlBlock ✗ (FALTANDO!)
+### Evidência
 
-Quando o tipo é 'HtmlBlock', cai no default:
-  return allChildrenHtml; // <- vazio para HtmlBlock!
+```sql
+SELECT global_css FROM efi_code_config LIMIT 1;
+-- Resultado: "/*! tailwindcss v4.1.18 | MIT License..."  (30KB+)
 ```
 
-O `HtmlBlock` armazena seu conteúdo na prop `htmlTemplate` ou `html`, mas a função de exportação ignora isso completamente.
+## Solucao
 
-## Solução
+### Parte 1: Limpar o Banco de Dados
 
-Adicionar um case `'HtmlBlock'` no switch da função `generateHtmlFromNodes` que retorna diretamente o valor de `props.htmlTemplate` ou `props.html`.
+Executar uma migration para resetar o campo `global_css` para vazio ou para o CSS personalizado real (se houver):
 
-### Alteração Necessária
-
-Arquivo: `src/lib/efiCodeHtmlGenerator.ts`
-
-Adicionar no switch (antes do `default:`):
-
-```typescript
-case 'HtmlBlock':
-  // Retorna o HTML diretamente do template armazenado
-  return props.htmlTemplate || props.html || '';
+```sql
+UPDATE efi_code_config SET global_css = '';
 ```
 
-### Código Completo do Switch Atualizado
+### Parte 2: Prevenir Futuros Problemas (Opcional)
 
-```typescript
-switch (componentType) {
-  case 'Container':
-    // ... existente
-    
-  case 'Heading':
-    // ... existente
-    
-  case 'Text':
-    // ... existente
-    
-  case 'Button':
-    // ... existente
-    
-  case 'Image':
-    // ... existente
-    
-  case 'Divider':
-    // ... existente
-    
-  case 'Spacer':
-    // ... existente
-    
-  case 'HtmlBlock':
-  case 'Bloco HTML':  // Alias para compatibilidade
-    // Retorna o HTML diretamente - já contém todo o conteúdo formatado
-    return props.htmlTemplate || props.html || '';
-    
-  default:
-    return allChildrenHtml;
-}
-```
+Adicionar validacao no hook `useEfiCodeConfig` ou no formulario de edicao para:
+- Alertar se o CSS for muito grande (>10KB por exemplo)
+- Bloquear CSS que contenha `tailwindcss` no conteudo
 
-## Fluxo Corrigido
+## Arquivos a Modificar
 
-```text
-ANTES (problemático):
-┌──────────────────────────────────────────────────┐
-│ HtmlBlock no editor                              │
-│   props.htmlTemplate = "<div>Meu conteúdo</div>" │
-│                                                  │
-│ Exportação:                                      │
-│   switch('HtmlBlock') → default → return ''     │
-│   Resultado: HTML vazio!                         │
-└──────────────────────────────────────────────────┘
-
-DEPOIS (corrigido):
-┌──────────────────────────────────────────────────┐
-│ HtmlBlock no editor                              │
-│   props.htmlTemplate = "<div>Meu conteúdo</div>" │
-│                                                  │
-│ Exportação:                                      │
-│   switch('HtmlBlock') → return htmlTemplate      │
-│   Resultado: "<div>Meu conteúdo</div>"          │
-└──────────────────────────────────────────────────┘
-```
-
-## Arquivo a Modificar
-
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/efiCodeHtmlGenerator.ts` | Adicionar case 'HtmlBlock' no switch |
+| Migration SQL | Limpar o campo `global_css` |
+| `src/hooks/useEfiCodeConfig.ts` (opcional) | Adicionar validacao de tamanho |
+
+## Fluxo
+
+```text
+ANTES:
+┌────────────────────────────────────────────┐
+│ efi_code_config.global_css                 │
+│ = "/*! tailwindcss v4.1.18..." (30KB)     │
+└────────────────────────────────────────────┘
+            ↓ exportar
+┌────────────────────────────────────────────┐
+│ HTML exportado inclui 30KB de Tailwind    │
+│ (desnecessario e incorreto)               │
+└────────────────────────────────────────────┘
+
+DEPOIS:
+┌────────────────────────────────────────────┐
+│ efi_code_config.global_css = ""           │
+│ (ou CSS personalizado pequeno)            │
+└────────────────────────────────────────────┘
+            ↓ exportar
+┌────────────────────────────────────────────┐
+│ HTML exportado limpo, apenas estilos      │
+│ basicos + CSS personalizado               │
+└────────────────────────────────────────────┘
+```
 
 ## Resultado Esperado
 
-Após a correção, o HTML exportado incluirá corretamente todo o conteúdo do `HtmlBlock`, com seus estilos e estrutura preservados.
+O HTML exportado tera apenas:
+- Estilos basicos do Efi Code (box-sizing, body, page-container)
+- CSS personalizado definido pelo usuario (se houver)
+- Nenhum CSS de framework externo
