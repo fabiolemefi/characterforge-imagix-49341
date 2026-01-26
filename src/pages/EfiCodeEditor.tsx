@@ -220,8 +220,8 @@ export default function EfiCodeEditor() {
             
             {viewMode === 'visual' ? (
               <div
-                className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all duration-300"
-                style={{ 
+                className="mx-auto overflow-hidden transition-all duration-300"
+                style={{
                   minHeight: '600px',
                   maxWidth: viewportSize === 'desktop' 
                     ? `${pageSettings.containerMaxWidth}px` 
@@ -295,18 +295,10 @@ function EditorFrame({ editorState }: { editorState: string | null }) {
       <Element
         is={Container}
         canvas
-        background="#ffffff"
-        padding={24}
-        minHeight={600}
-      >
-        <Heading text="Bem-vindo ao Efi Code" level="h1" textAlign="center" />
-        <Spacer height={16} />
-        <Text 
-          text="Arraste componentes da barra lateral para começar a construir sua página." 
-          textAlign="center"
-          color="#64748b"
-        />
-      </Element>
+        background="transparent"
+        padding={0}
+        minHeight={400}
+      />
     </Frame>
   );
 }
