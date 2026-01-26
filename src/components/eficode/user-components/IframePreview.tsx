@@ -8,7 +8,7 @@ interface IframePreviewProps {
   minHeight?: number;
   editable?: boolean;
   onHtmlChange?: (html: string) => void;
-  onEditEnd?: () => void;
+  onEditEnd?: (html: string) => void;
 }
 
 export const IframePreview = ({ 
@@ -23,6 +23,22 @@ export const IframePreview = ({
   const { globalCss } = useEfiCodeContext();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(minHeight);
+  
+  // Memorizar o HTML inicial quando entra em modo de edição
+  // Isso evita que o srcdoc seja recriado a cada digitação
+  const [editingStartHtml, setEditingStartHtml] = useState<string | null>(null);
+  
+  // Quando editable muda para true, salvar o HTML atual
+  useEffect(() => {
+    if (editable) {
+      setEditingStartHtml(html);
+    } else {
+      setEditingStartHtml(null);
+    }
+  }, [editable]); // Propositalmente não inclui html como dependência
+  
+  // Usar o HTML "travado" durante edição para evitar recriação do iframe
+  const stableHtml = editable && editingStartHtml !== null ? editingStartHtml : html;
 
   // Build the complete HTML document for the iframe
   const srcdoc = `
@@ -47,7 +63,7 @@ export const IframePreview = ({
   </style>
 </head>
 <body>
-  ${html}
+  ${stableHtml}
   <script>
     const EDITABLE_MODE = ${editable};
     
@@ -121,8 +137,7 @@ export const IframePreview = ({
         onHtmlChange?.(event.data.html);
       }
       if (event.data?.type === 'eficode-edit-end') {
-        onHtmlChange?.(event.data.html);
-        onEditEnd?.();
+        onEditEnd?.(event.data.html);
       }
     };
 
