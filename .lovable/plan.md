@@ -1,82 +1,89 @@
 
-# Plano: Aplicar CSS Global no Editor do Efi Code
+# Plano: Isolar CSS Global no Viewport do Efi Code Editor
 
-## Problema
+## Problema Identificado
 
-O CSS Global configurado em `/admin/efi-code-blocks` está sendo carregado corretamente, mas **não é aplicado visualmente** enquanto o usuário está construindo a página no editor (`/efi-code/:id`).
+O CSS Global está sendo injetado no `document.head`, mas:
 
-O usuário define classes como `.minha-classe { color: red; }` no admin, mas ao usar essas classes nos blocos HTML, elas não têm efeito visual no editor - apenas na prévia e exportação.
+1. O projeto já possui Tailwind CSS carregado via `src/index.css`
+2. O CSS injetado dinamicamente é carregado **antes** do CSS do Vite, fazendo com que o CSS do projeto tenha precedência
+3. As variáveis CSS do projeto (como `--background`, `--foreground`) sobrescrevem as do CSS injetado
 
-## Causa
-
-O CSS Global só é injetado:
-- Na exportação HTML (`generateFullHtml`)
-- Na página de preview (`EfiCodePreview.tsx`)
-
-Mas **não é injetado no DOM** do editor visual.
+Resultado: os estilos do CSS Global não aparecem corretamente no editor.
 
 ## Solução
 
-Injetar o CSS Global dinamicamente no `<head>` do documento durante a edição, usando um `useEffect` no componente `EfiCodeEditor.tsx`.
+Aplicar o CSS Global usando uma tag `<style>` **dentro do próprio viewport do editor**, não no `document.head`. Isso garante:
+
+- Escopo isolado para o viewport
+- Sem conflitos com o CSS do projeto principal
+- Os estilos são aplicados apenas onde importa: na área de edição
 
 ## Implementação
 
 ### Arquivo: `src/pages/EfiCodeEditor.tsx`
 
-Adicionar um `useEffect` que:
-1. Cria uma tag `<style>` com id único (`efi-code-global-css`)
-2. Insere o conteúdo do `globalCss` nessa tag
-3. Remove a tag quando o componente é desmontado (cleanup)
+**1. Remover a injeção no `document.head`** (linhas 79-98)
+
+**2. Adicionar a tag `<style>` diretamente no container do viewport:**
 
 ```typescript
-// Após a linha 66 (depois dos estados)
-useEffect(() => {
-  // Cria ou atualiza a tag de estilo global
-  const styleId = 'efi-code-global-css';
-  let styleTag = document.getElementById(styleId) as HTMLStyleElement;
+{/* Center - Viewport */}
+<main 
+  className="flex-1 overflow-auto p-8"
+  style={{ backgroundColor: pageSettings.backgroundColor }}
+>
+  {/* Inject Global CSS scoped to viewport */}
+  <style dangerouslySetInnerHTML={{ __html: globalCss }} />
   
-  if (!styleTag) {
-    styleTag = document.createElement('style');
-    styleTag.id = styleId;
-    document.head.appendChild(styleTag);
-  }
-  
-  styleTag.textContent = globalCss;
-  
-  // Cleanup: remove a tag quando o componente é desmontado
-  return () => {
-    const tag = document.getElementById(styleId);
-    if (tag) {
-      tag.remove();
-    }
-  };
-}, [globalCss]);
+  {viewMode === 'visual' ? (
+    <div
+      className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all duration-300"
+      ...
+    >
+      <EditorFrame editorState={editorState} />
+    </div>
+  ) : (
+    // Code view...
+  )}
+</main>
 ```
 
-## Fluxo Após Implementação
+## Fluxo Visual
 
 ```text
-Usuário abre /efi-code/:id
-         │
-         ▼
-useEfiCodeConfig() carrega CSS do banco
-         │
-         ▼
-useEffect injeta CSS no <head>
-         │
-         ▼
-Classes CSS ficam ativas no editor
-         │
-         ▼
-Ao sair da página, CSS é removido
+┌─────────────────────────────────────────────────────────┐
+│ EfiCodeEditor                                           │
+│  ┌───────────┬────────────────────────┬──────────────┐ │
+│  │ Toolbox   │   Viewport (main)      │ Settings     │ │
+│  │           │   ┌──────────────────┐ │              │ │
+│  │           │   │ <style>globalCss │ │              │ │
+│  │           │   │ ┌──────────────┐ │ │              │ │
+│  │           │   │ │ Editor Frame │ │ │              │ │
+│  │           │   │ │ (blocos)     │ │ │              │ │
+│  │           │   │ └──────────────┘ │ │              │ │
+│  │           │   └──────────────────┘ │              │ │
+│  └───────────┴────────────────────────┴──────────────┘ │
+└─────────────────────────────────────────────────────────┘
+
+CSS Global aplicado APENAS dentro do <main> do viewport
 ```
 
 ## Benefícios
 
-- **WYSIWYG real**: O que o usuário vê no editor é exatamente o que será exportado
-- **Feedback imediato**: Ao salvar CSS no admin e recarregar o editor, as classes funcionam
-- **Sem conflitos**: A tag é removida ao sair do editor, evitando vazamento de estilos
+| Antes | Depois |
+|-------|--------|
+| CSS injetado no `<head>` global | CSS injetado dentro do viewport |
+| Conflitos com Tailwind do projeto | Sem conflitos (escopo isolado) |
+| Ordem de carregamento problemática | CSS sempre presente no momento correto |
+| Estilos vazam para outras partes | Estilos confinados ao editor |
+
+## Arquivos a Modificar
+
+- `src/pages/EfiCodeEditor.tsx`:
+  - Remover o `useEffect` que injeta CSS no `document.head` (linhas 79-98)
+  - Adicionar `<style dangerouslySetInnerHTML={{ __html: globalCss }} />` dentro do `<main>` do viewport (linha 234)
 
 ## Nota Técnica
 
-O CSS será aplicado globalmente na página durante a edição. Isso é intencional pois permite que os blocos HTML usem qualquer classe definida no CSS Global. O cleanup garante que esses estilos não persistam em outras partes da aplicação.
+Esta abordagem usa CSS em cascata naturalmente - os estilos definidos no CSS Global terão efeito sobre todos os elementos dentro do `<main>`, incluindo os blocos HTML renderizados pelo Craft.js. Como o `<style>` está dentro do DOM do viewport, os estilos são aplicados corretamente sem interferir no resto da aplicação.
