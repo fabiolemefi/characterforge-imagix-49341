@@ -76,26 +76,6 @@ export default function EfiCodeEditor() {
     }
   }, [site]);
 
-  // Inject Global CSS into the document head for WYSIWYG editing
-  useEffect(() => {
-    const styleId = 'efi-code-global-css';
-    let styleTag = document.getElementById(styleId) as HTMLStyleElement;
-    
-    if (!styleTag) {
-      styleTag = document.createElement('style');
-      styleTag.id = styleId;
-      document.head.appendChild(styleTag);
-    }
-    
-    styleTag.textContent = globalCss;
-    
-    return () => {
-      const tag = document.getElementById(styleId);
-      if (tag) {
-        tag.remove();
-      }
-    };
-  }, [globalCss]);
 
   const handleSave = useCallback(async (query: any) => {
     if (!id) return;
@@ -234,6 +214,9 @@ export default function EfiCodeEditor() {
             className="flex-1 overflow-auto p-8"
             style={{ backgroundColor: pageSettings.backgroundColor }}
           >
+            {/* Inject Global CSS scoped to viewport */}
+            <style dangerouslySetInnerHTML={{ __html: globalCss }} />
+            
             {viewMode === 'visual' ? (
               <div
                 className="mx-auto bg-white shadow-lg rounded-lg overflow-hidden transition-all duration-300"
