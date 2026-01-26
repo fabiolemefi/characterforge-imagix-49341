@@ -195,18 +195,15 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
     }
   }, [enabled, selected, isEditing]);
 
-  // Handler quando HTML é alterado dentro do iframe
-  const handleHtmlChange = useCallback((newHtml: string) => {
+  // Handler quando edição termina - atualiza o state apenas no final
+  const handleEditEnd = useCallback((finalHtml: string) => {
+    // Atualiza o state do Craft.js apenas quando termina a edição
     setProp((props: any) => {
-      props.htmlTemplate = newHtml;
-      props.html = newHtml;
+      props.htmlTemplate = finalHtml;
+      props.html = finalHtml;
     });
-  }, [setProp]);
-
-  // Handler quando edição termina
-  const handleEditEnd = useCallback(() => {
     setIsEditing(false);
-  }, []);
+  }, [setProp]);
 
   // Desativar edição quando desseleciona
   useEffect(() => {
@@ -229,7 +226,6 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
         className=""
         minHeight={50}
         editable={isEditing}
-        onHtmlChange={handleHtmlChange}
         onEditEnd={handleEditEnd}
         onClick={enabled ? handleIframeClick : undefined}
       />
