@@ -1,132 +1,111 @@
 
-# Plano: Corrigir Erro de CORS no Redirect do Encurtador
+# Plano: Corrigir Detecção da Extensão no EfiLink
 
-## Problema
+## Problema Identificado
 
-O endpoint `https://shortener.gerencianet.com.br` está retornando um **redirect (301/302)** para `https://sejaefi.com.br/`. Como a extensão não tem permissão para esse domínio de destino, o CORS bloqueia a requisição.
+O modal de criação de link no plugin EfiLink mostra "Extensão não detectada" mesmo quando a extensão está funcionando. Isso acontece porque:
+
+1. O **popup da extensão** testa as APIs diretamente (background.js)
+2. O **modal EfiLink** testa a comunicação via content script (page → content.js → background.js)
+
+Se a página não foi recarregada após instalar/atualizar a extensão, o content script não está injetado e a comunicação falha.
 
 ## Solução
 
-Precisamos fazer três correções:
+Vamos melhorar a detecção da extensão para:
+1. Adicionar uma verificação inicial mais robusta que escuta o evento `SFMC_PROXY_READY` enviado pelo content script
+2. Reduzir o timeout da verificação inicial para feedback mais rápido
+3. Adicionar uma mensagem mais informativa sugerindo recarregar a página
 
-### 1. Adicionar permissão para `sejaefi.com.br` no manifest
+## Arquivos a Modificar
 
-**Arquivo:** `chrome-extension-sfmc-proxy/manifest.json`
+### 1. `src/lib/extensionProxy.ts`
 
-```json
-"host_permissions": [
-  "https://*.exacttargetapis.com/*",
-  "https://*.salesforce.com/*",
-  "https://*.marketingcloudapis.com/*",
-  "https://gnetbr.com/*",
-  "https://shortener.gerencianet.com.br/*",
-  "https://*.gerencianet.com.br/*",
-  "https://sejaefi.com.br/*",
-  "https://*.sejaefi.com.br/*"
-]
-```
+Adicionar uma verificação baseada no evento `SFMC_PROXY_READY` que o content script já envia:
 
-### 2. Adicionar regra de CORS para `sejaefi.com.br`
+```typescript
+// Adicionar variável para rastrear se a extensão sinalizou estar pronta
+let extensionReady = false;
 
-**Arquivo:** `chrome-extension-sfmc-proxy/rules.json`
-
-Adicionar uma nova regra para cobrir o domínio de destino do redirect:
-
-```json
-[
-  {
-    "id": 1,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "requestHeaders": [
-        { "header": "Origin", "operation": "remove" },
-        { "header": "Referer", "operation": "set", "value": "https://gerencianet.com.br/" },
-        { "header": "Sec-Fetch-Dest", "operation": "set", "value": "empty" },
-        { "header": "Sec-Fetch-Mode", "operation": "set", "value": "cors" },
-        { "header": "Sec-Fetch-Site", "operation": "set", "value": "same-origin" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "shortener.gerencianet.com.br",
-      "resourceTypes": ["xmlhttprequest"]
+// Escutar o evento de ready do content script
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event) => {
+    if (event.data?.target === 'SFMC_PROXY_READY') {
+      extensionReady = true;
     }
-  },
-  {
-    "id": 2,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "requestHeaders": [
-        { "header": "Origin", "operation": "remove" },
-        { "header": "Referer", "operation": "set", "value": "https://sejaefi.com.br/" },
-        { "header": "Sec-Fetch-Dest", "operation": "set", "value": "empty" },
-        { "header": "Sec-Fetch-Mode", "operation": "set", "value": "cors" },
-        { "header": "Sec-Fetch-Site", "operation": "set", "value": "same-origin" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "sejaefi.com.br",
-      "resourceTypes": ["xmlhttprequest"]
-    }
-  }
-]
-```
-
-### 3. Usar `redirect: 'follow'` explícito e adicionar credentials
-
-**Arquivo:** `chrome-extension-sfmc-proxy/background.js`
-
-Modificar a função `shortenUrl()` para lidar melhor com redirects:
-
-```javascript
-async function shortenUrl(url) {
-  console.log("[Efí Link] Encurtando URL:", url);
-
-  const response = await fetch("https://shortener.gerencianet.com.br", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    },
-    body: JSON.stringify({ url }),
-    redirect: 'follow',
-    credentials: 'omit',
-    mode: 'cors',
   });
+}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("[Efí Link] Erro ao encurtar:", errorText);
-    throw new Error(`Erro ao encurtar URL: ${response.status}`);
+// Modificar checkExtensionInstalled para:
+// 1. Verificar primeiro se já recebeu SFMC_PROXY_READY
+// 2. Usar timeout mais curto (3 segundos)
+// 3. Retornar true se qualquer um dos métodos funcionar
+export async function checkExtensionInstalled(): Promise<boolean> {
+  // Se já recebeu o evento de ready, extensão está disponível
+  if (extensionReady) {
+    return true;
   }
+  
+  // Tenta enviar mensagem com timeout curto
+  return new Promise((resolve) => {
+    const requestId = `check-${Date.now()}`;
+    
+    window.postMessage({
+      target: 'SFMC_PROXY',
+      requestId,
+      action: 'CHECK_EXTENSION',
+    }, '*');
 
-  const data = await response.json();
-  console.log("[Efí Link] URL encurtada:", data.shorted_url);
+    const handleResponse = (event: MessageEvent) => {
+      if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
+        window.removeEventListener('message', handleResponse);
+        extensionReady = true;
+        resolve(true);
+      }
+    };
 
-  return {
-    success: true,
-    id: data.id,
-    original_url: data.original_url,
-    shorted: data.shorted,
-    shorted_url: data.shorted_url,
-  };
+    window.addEventListener('message', handleResponse);
+
+    // Timeout curto de 3 segundos para feedback rápido
+    setTimeout(() => {
+      window.removeEventListener('message', handleResponse);
+      resolve(extensionReady);
+    }, 3000);
+  });
 }
 ```
 
-Aplicar as mesmas alterações em `testEfiLinkConnection()` (linhas 79-95).
+### 2. `src/components/efilink/EfiLinkFormModal.tsx`
+
+Melhorar a mensagem de erro para sugerir recarregar a página:
+
+```typescript
+{extensionAvailable === false && (
+  <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm space-y-2">
+    <p className="text-yellow-600 font-medium">
+      Extensão não detectada
+    </p>
+    <p className="text-yellow-600/80 text-xs">
+      Verifique se a extensão "Mágicas do Fábio" está instalada e tente 
+      <button 
+        onClick={() => window.location.reload()} 
+        className="underline font-medium mx-1"
+      >
+        recarregar a página
+      </button>
+      para restabelecer a conexão.
+    </p>
+  </div>
+)}
+```
 
 ## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `manifest.json` | Adicionar `sejaefi.com.br` e `*.sejaefi.com.br` às permissões |
-| `rules.json` | Adicionar nova regra de CORS bypass para `sejaefi.com.br` |
-| `background.js` | Adicionar opções de fetch: `redirect`, `credentials`, `mode` |
+| `src/lib/extensionProxy.ts` | Adicionar detecção via evento SFMC_PROXY_READY + timeout mais curto |
+| `src/components/efilink/EfiLinkFormModal.tsx` | Melhorar mensagem de erro com opção de recarregar página |
 
-## Após as Alterações
+## Ação Imediata (Sem Código)
 
-O usuário precisará **recarregar a extensão** no Chrome:
-1. Ir para `chrome://extensions`
-2. Clicar no botão de reload na extensão
-3. Testar novamente o encurtamento de URL
+Antes de implementar, tente **recarregar a página** (F5 ou Ctrl+R) enquanto está em `/efi-link`. Isso deve resolver o problema se for apenas uma questão de o content script não ter sido injetado após recarregar a extensão.
