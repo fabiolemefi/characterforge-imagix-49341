@@ -298,22 +298,117 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Cor de fundo</Label>
-                    <div className="flex gap-1">
-                      <Input
-                        type="color"
-                        value={settings.backgroundColor}
-                        onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
-                        className="w-10 h-8 p-1 cursor-pointer"
-                      />
-                      <Input
-                        value={settings.backgroundColor}
-                        onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
-                        placeholder="#ffffff"
-                        className="flex-1 h-8 text-xs"
-                      />
+                  {/* Padding da Página */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Padding da Página (px)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Superior</Label>
+                        <Input
+                          type="number"
+                          value={settings.paddingTop || '0'}
+                          onChange={(e) => handleSettingChange('paddingTop', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Inferior</Label>
+                        <Input
+                          type="number"
+                          value={settings.paddingBottom || '0'}
+                          onChange={(e) => handleSettingChange('paddingBottom', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Esquerda</Label>
+                        <Input
+                          type="number"
+                          value={settings.paddingLeft || '0'}
+                          onChange={(e) => handleSettingChange('paddingLeft', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Direita</Label>
+                        <Input
+                          type="number"
+                          value={settings.paddingRight || '0'}
+                          onChange={(e) => handleSettingChange('paddingRight', e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-xs"
+                        />
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Cor de fundo com Paleta Efí */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Cor de fundo</Label>
+                    
+                    {/* Checkbox transparente */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="transparent-bg"
+                        checked={settings.backgroundColor === 'transparent'}
+                        onChange={(e) => handleSettingChange('backgroundColor', e.target.checked ? 'transparent' : '#ffffff')}
+                        className="h-3 w-3 rounded border-muted-foreground"
+                      />
+                      <Label htmlFor="transparent-bg" className="text-[10px] text-muted-foreground cursor-pointer">
+                        Sem cor de fundo (transparente)
+                      </Label>
+                    </div>
+
+                    {settings.backgroundColor !== 'transparent' && (
+                      <>
+                        <div className="flex gap-1">
+                          <Input
+                            type="color"
+                            value={settings.backgroundColor || '#ffffff'}
+                            onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
+                            className="w-10 h-8 p-1 cursor-pointer"
+                          />
+                          <Input
+                            value={settings.backgroundColor || '#ffffff'}
+                            onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
+                            placeholder="#ffffff"
+                            className="flex-1 h-8 text-xs"
+                          />
+                        </div>
+
+                        {/* Paleta de cores Efí */}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Paleta de cores Efí</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {[
+                              { hex: '#f37021', name: 'Laranja Efí' },
+                              { hex: '#00809d', name: 'Verde-água Efí' },
+                              { hex: '#f6f8fc', name: 'Cinza Claro' },
+                              { hex: '#e8f0f8', name: 'Azul Gelo' },
+                              { hex: '#a4acbc', name: 'Cinza Médio' },
+                              { hex: '#1d1d1d', name: 'Preto' },
+                            ].map((color) => (
+                              <button
+                                key={color.hex}
+                                type="button"
+                                onClick={() => handleSettingChange('backgroundColor', color.hex)}
+                                className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                                  settings.backgroundColor === color.hex 
+                                    ? 'border-primary ring-2 ring-primary/30' 
+                                    : 'border-muted'
+                                }`}
+                                style={{ backgroundColor: color.hex }}
+                                title={color.name}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Imagem de fundo */}
