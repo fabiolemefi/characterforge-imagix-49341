@@ -377,25 +377,70 @@ export const HtmlBlockSettings = () => {
     ...node.data.props,
   }));
 
-  const template = nodeProps.htmlTemplate || nodeProps.html || '';
+  const propsTemplate = nodeProps.htmlTemplate || nodeProps.html || '';
 
-  // Extract images from template
-  const images = React.useMemo(() => extractImagesFromHtml(template), [template]);
+  // Local state for controlled textarea - fixes async Craft.js state race condition
+  const [localTemplate, setLocalTemplate] = useState(propsTemplate);
+  const isInternalUpdate = useRef(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync from Craft.js props to local state (only for external changes like image replacement)
+  useEffect(() => {
+    if (!isInternalUpdate.current) {
+      setLocalTemplate(propsTemplate);
+    }
+    isInternalUpdate.current = false;
+  }, [propsTemplate]);
+
+  // Handle textarea change with debounced Craft.js sync
+  const handleTemplateChange = useCallback((value: string) => {
+    setLocalTemplate(value);
+    
+    // Clear previous debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // Debounce the Craft.js update
+    debounceRef.current = setTimeout(() => {
+      isInternalUpdate.current = true;
+      setProp((props: any) => {
+        props.htmlTemplate = value;
+        props.html = value;
+      });
+    }, 300);
+  }, [setProp]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  // Extract images from template (use local for immediate UI feedback)
+  const images = React.useMemo(() => extractImagesFromHtml(localTemplate), [localTemplate]);
 
   // Extract placeholders from template
   const placeholders = React.useMemo(() => {
-    const matches = template.match(/\[([^\]]+)\]/g) || [];
+    const matches = localTemplate.match(/\[([^\]]+)\]/g) || [];
     return [...new Set(matches.map((m: string) => m.slice(1, -1)))];
-  }, [template]);
+  }, [localTemplate]);
 
-  // Handler to replace image URL in HTML
-  const handleReplaceImage = (oldSrc: string, newSrc: string) => {
-    const newTemplate = replaceImageSrc(template, oldSrc, newSrc);
+  // Handler to replace image URL in HTML - updates local state directly
+  const handleReplaceImage = useCallback((oldSrc: string, newSrc: string) => {
+    const newTemplate = replaceImageSrc(localTemplate, oldSrc, newSrc);
+    setLocalTemplate(newTemplate);
+    
+    // Immediately update Craft.js for image replacements
+    isInternalUpdate.current = true;
     setProp((props: any) => {
       props.htmlTemplate = newTemplate;
       props.html = newTemplate;
     });
-  };
+  }, [localTemplate, setProp]);
 
   return (
     <div className="space-y-4">
@@ -419,17 +464,12 @@ export const HtmlBlockSettings = () => {
         </div>
       )}
 
-      {/* Template editor */}
+      {/* Template editor - uses local state for immediate feedback */}
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Código HTML</Label>
         <Textarea
-          value={template}
-          onChange={(e) => {
-            setProp((props: any) => {
-              props.htmlTemplate = e.target.value;
-              props.html = e.target.value;
-            });
-          }}
+          value={localTemplate}
+          onChange={(e) => handleTemplateChange(e.target.value)}
           placeholder="<div>Seu HTML aqui</div>"
           rows={12}
           className="font-mono text-xs bg-secondary/50 border-border"
