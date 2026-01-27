@@ -11,7 +11,9 @@
     "https://*.exacttargetapis.com/*",
     "https://*.salesforce.com/*",
     "https://*.marketingcloudapis.com/*",
-    "https://gnetbr.com/*"
+    "https://gnetbr.com/*",
+    "https://shortener.gerencianet.com.br/*",
+    "https://*.gerencianet.com.br/*"
   ],
   "declarative_net_request": {
     "rule_resources": [
