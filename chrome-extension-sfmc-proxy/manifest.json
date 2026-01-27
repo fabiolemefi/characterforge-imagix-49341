@@ -13,7 +13,9 @@
     "https://*.marketingcloudapis.com/*",
     "https://gnetbr.com/*",
     "https://shortener.gerencianet.com.br/*",
-    "https://*.gerencianet.com.br/*"
+    "https://*.gerencianet.com.br/*",
+    "https://sejaefi.com.br/*",
+    "https://*.sejaefi.com.br/*"
   ],
   "declarative_net_request": {
     "rule_resources": [
