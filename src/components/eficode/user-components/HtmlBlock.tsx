@@ -4,10 +4,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ImageIcon, Upload, Library, Loader2 } from 'lucide-react';
+import { ImageIcon, Upload, Library, Loader2, Cloud } from 'lucide-react';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { sendToExtension, checkExtensionInstalled } from '@/lib/extensionProxy';
+
+// Helper to convert blob to base64
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]); // Remove data:xxx;base64, prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
 
 // Placeholder SVG for broken images
 const PLACEHOLDER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E`;
@@ -56,6 +70,7 @@ interface ImageItemProps {
 const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
   const [hasError, setHasError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingToMC, setUploadingToMC] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +115,70 @@ const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
     toast.success('Imagem atualizada!');
   };
 
+  const handleSendToContentBuilder = async () => {
+    setUploadingToMC(true);
+    try {
+      // Check if extension is connected
+      const isConnected = await checkExtensionInstalled();
+      if (!isConnected) {
+        toast.error('Extensão SFMC não conectada');
+        return;
+      }
+
+      // Fetch image and convert to base64
+      const response = await fetch(src);
+      if (!response.ok) throw new Error('Não foi possível carregar a imagem');
+      
+      const blob = await response.blob();
+      const base64 = await blobToBase64(blob);
+      
+      // Detect extension from URL or blob type
+      const urlExtension = src.split('.').pop()?.toLowerCase().split('?')[0] || '';
+      const blobType = blob.type.split('/')[1] || 'png';
+      const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
+      
+      let assetTypeId = 28; // png default
+      if (extension === 'jpg' || extension === 'jpeg') assetTypeId = 22;
+      else if (extension === 'gif') assetTypeId = 23;
+      
+      // Generate unique name
+      const timestamp = Date.now();
+      const fileName = `eficode_${timestamp}.${extension === 'jpeg' ? 'jpg' : extension}`;
+      const customerKey = `img_${timestamp.toString(36)}`;
+      
+      const imagePayload = {
+        assetType: { name: extension, id: assetTypeId },
+        name: fileName,
+        file: base64,
+        category: { id: 93941 }, // Default image category
+        customerKey,
+        fileProperties: { fileName, extension }
+      };
+      
+      // Send to SFMC
+      const result = await sendToExtension('UPLOAD_ASSET', imagePayload);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Falha ao enviar para Content Builder');
+      }
+      
+      // Get SFMC URL
+      const sfmcUrl = result.assetUrl || result.data?.fileProperties?.publishedURL;
+      
+      if (sfmcUrl) {
+        onReplace(sfmcUrl);
+        toast.success('Imagem enviada para o Content Builder!');
+      } else {
+        toast.warning('Upload realizado, mas URL não retornada');
+      }
+    } catch (error: any) {
+      console.error('Erro ao enviar para Content Builder:', error);
+      toast.error(error.message || 'Erro ao enviar para Content Builder');
+    } finally {
+      setUploadingToMC(false);
+    }
+  };
+
   const displayName = src.split('/').pop()?.substring(0, 25) || `Imagem ${index + 1}`;
 
   return (
@@ -133,7 +212,8 @@ const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
               size="sm"
               className="h-6 px-2 text-xs"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || uploadingToMC}
+              title="Upload de arquivo"
             >
               {uploading ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -146,9 +226,24 @@ const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
               size="sm"
               className="h-6 px-2 text-xs"
               onClick={() => setShowLibrary(true)}
-              disabled={uploading}
+              disabled={uploading || uploadingToMC}
+              title="Biblioteca de imagens"
             >
               <Library className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={handleSendToContentBuilder}
+              disabled={uploading || uploadingToMC || hasError}
+              title="Enviar para Content Builder"
+            >
+              {uploadingToMC ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Cloud className="h-3 w-3" />
+              )}
             </Button>
           </div>
         </div>
