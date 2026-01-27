@@ -1,147 +1,183 @@
 
-# Plano: Corrigir Envio de Imagens para Content Builder
+# Plano: Corrigir Race Condition no Salvamento do EfiCodeEditor
 
 ## Problema Identificado
 
-O erro "Imagem não encontrada" para `eficode_1769531515117.jpe` tem **duas causas**:
+Quando o usuário salva edições no EfiCode, as alterações são perdidas e o conteúdo original é recarregado. Isso acontece devido a uma **race condition** no fluxo de salvamento:
 
-### 1. Extensão `.jpe` não reconhecida
-O código extrai a extensão da URL e verifica se está em `['jpg', 'jpeg', 'png', 'gif']`. A extensão `.jpe` (formato JPEG antigo) não está na lista.
+### Fluxo Problemático Atual
 
-```typescript
-// Linha 138 - código atual
-const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
+```
+1. handleSave() chamado
+   |
+   v
+2. updateSite.mutateAsync() inicia
+   |
+   v
+3. Supabase atualiza o banco ✓
+   |
+   v
+4. onSuccess do updateSite dispara:
+   - invalidateQueries(['efi-code-site', id])
+   |
+   v
+5. React Query refetch automático
+   |
+   v
+6. useEffect(site) detecta mudança → 
+   justSavedRef.current ainda é FALSE! → 
+   Chama setEditorState(dados do banco) → 
+   ESTADO SOBRESCRITO COM DADOS ANTIGOS!
+   |
+   v
+7. Só AGORA mutateAsync resolve e 
+   justSavedRef.current = true (tarde demais!)
 ```
 
-### 2. Problema de CORS ou URL inválida
-O `fetch(src)` pode falhar se:
-- A imagem está em domínio externo sem CORS
-- A URL é inválida ou expirada
-- A imagem não existe mais
+### Por que acontece
 
-### 3. Botão desabilitado quando imagem não carrega
-O botão "Enviar para Content Builder" fica desabilitado quando `hasError = true`, impedindo até a tentativa de envio.
+O `onSuccess` do mutation executa **antes** do `mutateAsync` retornar. Isso significa que a invalidação da query e o refetch acontecem **durante** a execução assíncrona, não depois.
 
 ## Solução
 
-### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
+Mudar a lógica para definir `justSavedRef.current = true` **ANTES** de chamar `mutateAsync`, e usar uma abordagem mais robusta para gerenciar o estado do editor após o salvamento.
 
-### Alteração 1: Adicionar `.jpe` à lista de extensões válidas
+### Estratégia
 
-```typescript
-// Antes (linha 138)
-const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
+1. **Definir flag ANTES do save**: `justSavedRef.current = true` antes de `mutateAsync`
+2. **Manter flag por mais tempo**: Usar um timeout para resetar a flag, não apenas no próximo ciclo
+3. **Atualizar editorState com dados salvos**: Atualizar o `editorState` com o conteúdo que acabou de ser salvo, não com o que veio do banco
 
-// Depois - incluir jpe e normalizar para jpg
-const validExtensions = ['jpg', 'jpeg', 'jpe', 'png', 'gif'];
-let extension = validExtensions.includes(urlExtension) ? urlExtension : blobType;
+## Alterações
 
-// Normalizar jpe para jpeg (SFMC espera formato padrão)
-if (extension === 'jpe') extension = 'jpeg';
-```
+### Arquivo: `src/pages/EfiCodeEditor.tsx`
 
-### Alteração 2: Melhorar tratamento do assetTypeId
+#### Alteração 1: Marcar flag ANTES de salvar
 
 ```typescript
-// Incluir jpe no mapeamento
-let assetTypeId = 28; // png default
-if (['jpg', 'jpeg', 'jpe'].includes(extension)) assetTypeId = 22;
-else if (extension === 'gif') assetTypeId = 23;
-```
-
-### Alteração 3: Melhorar filename para SFMC
-
-```typescript
-// Normalizar extensão no filename também
-const normalizedExt = extension === 'jpe' ? 'jpg' : (extension === 'jpeg' ? 'jpg' : extension);
-const fileName = `eficode_${timestamp}.${normalizedExt}`;
-```
-
-### Alteração 4: Adicionar fallback com proxy ou mensagem mais clara
-
-```typescript
-// No catch do fetch
-const handleSendToContentBuilder = async () => {
-  setUploadingToMC(true);
+const handleSave = useCallback(async (query: any) => {
+  if (!id) return;
+  
+  setIsSaving(true);
+  const serialized = query.serialize();
+  
+  // Mark BEFORE save to prevent reload from query invalidation
+  justSavedRef.current = true;
+  
   try {
-    const isConnected = await checkExtensionInstalled();
-    if (!isConnected) {
-      toast.error('Extensão SFMC não conectada');
-      return;
+    await updateSite.mutateAsync({
+      id,
+      name: siteName,
+      content: JSON.parse(serialized),
+      page_settings: pageSettings
+    });
+    
+    // Update editorState with what we just saved (não depender do refetch)
+    setEditorState(serialized);
+    
+    // Reset original values after successful save
+    originalSiteNameRef.current = siteName;
+    originalPageSettingsRef.current = pageSettings;
+    setHasEditorChanges(false);
+    
+    toast.success('Site salvo com sucesso!');
+    
+    // Keep flag true for a bit longer to handle async refetch
+    setTimeout(() => {
+      justSavedRef.current = false;
+    }, 1000);
+    
+    // If there's a pending preview, open it
+    if (pendingPreviewRef.current) {
+      pendingPreviewRef.current = false;
+      window.open(`/efi-code/${id}/preview`, '_blank');
     }
-
-    // Tentar fetch com tratamento de erro mais específico
-    let blob: Blob;
-    try {
-      const response = await fetch(src, { mode: 'cors' });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      blob = await response.blob();
-    } catch (fetchError) {
-      // Mensagem mais clara sobre o problema
-      toast.error('Não foi possível acessar a imagem. Verifique se a URL é válida e acessível.');
-      console.error('Fetch failed for image:', src, fetchError);
-      return;
-    }
-
-    // Resto do código...
+  } catch (error) {
+    console.error('Erro ao salvar:', error);
+    justSavedRef.current = false; // Reset on error
+    pendingPreviewRef.current = false;
+  } finally {
+    setIsSaving(false);
   }
-};
+}, [id, siteName, pageSettings, updateSite]);
 ```
 
-### Alteração 5: Permitir tentativa mesmo com hasError (opcional)
+#### Alteração 2: Melhorar o useEffect que observa `site`
 
-O botão está desabilitado quando a imagem não carrega no preview. Podemos manter desabilitado mas adicionar um tooltip explicativo:
+O `useEffect` atual reseta a flag muito rápido. Precisamos também verificar se estamos no processo de salvamento:
 
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  className="h-6 px-2 text-xs"
-  onClick={handleSendToContentBuilder}
-  disabled={uploading || uploadingToMC || hasError}
-  title={hasError 
-    ? "Imagem não carregou - verifique a URL" 
-    : "Enviar para Content Builder"
+```typescript
+useEffect(() => {
+  if (site) {
+    // If we just saved OR are currently saving, don't reload the editor
+    if (justSavedRef.current || isSaving) {
+      return;
+    }
+    
+    setSiteName(site.name);
+    if (site.content && Object.keys(site.content).length > 0) {
+      setEditorState(JSON.stringify(site.content));
+    }
+    if (site.page_settings) {
+      setPageSettings(site.page_settings);
+    }
+    
+    // Set original refs on initial load
+    if (isInitialLoadRef.current) {
+      originalSiteNameRef.current = site.name;
+      originalPageSettingsRef.current = site.page_settings || defaultPageSettings;
+      isInitialLoadRef.current = false;
+    }
   }
->
+}, [site, isSaving]);
+```
+
+## Diagrama do Fluxo Corrigido
+
+```
+1. handleSave() chamado
+   |
+   v
+2. justSavedRef.current = TRUE  ← Definido ANTES!
+   |
+   v
+3. updateSite.mutateAsync() inicia
+   |
+   v
+4. Supabase atualiza o banco ✓
+   |
+   v
+5. onSuccess → invalidateQueries
+   |
+   v
+6. React Query refetch
+   |
+   v
+7. useEffect(site) detecta mudança →
+   justSavedRef.current é TRUE →
+   IGNORA a atualização! ✓
+   |
+   v
+8. mutateAsync resolve
+   |
+   v
+9. setEditorState(serialized) ← Estado local atualizado
+   |
+   v
+10. setTimeout 1000ms → justSavedRef.current = false
 ```
 
 ## Resumo das Mudanças
 
-| Problema | Solução |
-|----------|---------|
-| `.jpe` não reconhecido | Adicionar à lista e normalizar para `jpeg`/`jpg` |
-| CORS bloqueando fetch | Mensagem de erro mais clara |
-| Filename com `.jpe` | Normalizar para `.jpg` no nome enviado ao SFMC |
-| Tooltip não informativo | Explicar quando botão está desabilitado |
-
-## Fluxo Corrigido
-
-```text
-Usuário clica "Enviar para Content Builder"
-    |
-    v
-Verifica extensão conectada ✓
-    |
-    v
-Extrai extensão da URL (.jpe, .jpg, .png, etc.)
-    |
-    v
-Normaliza: jpe → jpeg, jpeg → jpg (para SFMC)
-    |
-    v
-Define assetTypeId correto (22 para jpe/jpg/jpeg)
-    |
-    v
-Tenta fetch da imagem
-    |
-    +-- Sucesso → Converte para base64 → Envia para SFMC
-    |
-    +-- Falha → Mensagem clara "Não foi possível acessar a imagem"
-```
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Momento da flag | Depois de `mutateAsync` | **Antes** de `mutateAsync` |
+| Reset da flag | Imediato no próximo ciclo | Timeout de 1 segundo |
+| Estado do editor | Dependia do refetch | Atualizado localmente após save |
+| Verificação no useEffect | Só `justSavedRef` | `justSavedRef` **OU** `isSaving` |
 
 ## Arquivos Modificados
 
-- `src/components/eficode/user-components/HtmlBlock.tsx` - função `handleSendToContentBuilder`
+- `src/pages/EfiCodeEditor.tsx`:
+  - Função `handleSave`: Mover flag para antes do save + atualizar estado local
+  - `useEffect` do `site`: Adicionar verificação de `isSaving`
