@@ -1,168 +1,147 @@
 
-# Plano: Corrigir Persistência de Edições no Código HTML do HtmlBlock
+# Plano: Corrigir Envio de Imagens para Content Builder
 
 ## Problema Identificado
 
-Quando o usuário edita o código HTML diretamente no Textarea do painel "Propriedades" (seção "Código HTML"), as alterações não são persistidas. Ao digitar e tentar salvar, o bloco recarrega com o conteúdo anterior.
+O erro "Imagem não encontrada" para `eficode_1769531515117.jpe` tem **duas causas**:
 
-## Análise Técnica
+### 1. Extensão `.jpe` não reconhecida
+O código extrai a extensão da URL e verifica se está em `['jpg', 'jpeg', 'png', 'gif']`. A extensão `.jpe` (formato JPEG antigo) não está na lista.
 
-O problema está na forma como o Textarea no `HtmlBlockSettings` gerencia o estado:
-
-```text
-+-------------------+     setProp()     +------------------+
-|    Textarea       | ----------------> |   Craft.js       |
-|  value={template} |                   |   Node Props     |
-+-------------------+                   +------------------+
-        ^                                       |
-        |                                       |
-        +----------- re-render -----------------+
+```typescript
+// Linha 138 - código atual
+const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
 ```
 
-**Causa raiz**: O Craft.js usa atualizações assíncronas via `setProp`. Quando o Textarea dispara `onChange`, ele chama `setProp`, mas antes que o Craft.js atualize as props, o React pode re-renderizar o componente com o valor antigo (pois `template` ainda não foi atualizado).
+### 2. Problema de CORS ou URL inválida
+O `fetch(src)` pode falhar se:
+- A imagem está em domínio externo sem CORS
+- A URL é inválida ou expirada
+- A imagem não existe mais
 
-Isso causa uma "corrida" onde:
-1. Usuário digita caractere
-2. `onChange` dispara `setProp`
-3. React re-renderiza antes do Craft.js atualizar
-4. Textarea recebe `value` antigo
-5. Edição é perdida
+### 3. Botão desabilitado quando imagem não carrega
+O botão "Enviar para Content Builder" fica desabilitado quando `hasError = true`, impedindo até a tentativa de envio.
 
 ## Solução
 
-Implementar um **estado local controlado** no `HtmlBlockSettings` que sincroniza com as props do Craft.js de forma debounced.
+### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-### Estratégia
-
-1. Criar estado local `localTemplate` para controlar o Textarea
-2. Sincronizar do Craft.js para o local ao montar/mudar seleção
-3. Debounce a sincronização do local para o Craft.js
-4. Evitar loops de atualização infinitos com uma flag de controle
-
-### Arquivo a Modificar
-
-**`src/components/eficode/user-components/HtmlBlock.tsx`**
-
-### Alterações no `HtmlBlockSettings`:
+### Alteração 1: Adicionar `.jpe` à lista de extensões válidas
 
 ```typescript
-export const HtmlBlockSettings = () => {
-  const { actions: { setProp }, ...nodeProps } = useNode((node) => ({
-    ...node.data.props,
-  }));
+// Antes (linha 138)
+const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
 
-  const propsTemplate = nodeProps.htmlTemplate || nodeProps.html || '';
-  
-  // Local state for controlled textarea
-  const [localTemplate, setLocalTemplate] = useState(propsTemplate);
-  const isInternalUpdate = useRef(false);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+// Depois - incluir jpe e normalizar para jpg
+const validExtensions = ['jpg', 'jpeg', 'jpe', 'png', 'gif'];
+let extension = validExtensions.includes(urlExtension) ? urlExtension : blobType;
 
-  // Sync from Craft.js props to local state (only external changes)
-  useEffect(() => {
-    if (!isInternalUpdate.current) {
-      setLocalTemplate(propsTemplate);
+// Normalizar jpe para jpeg (SFMC espera formato padrão)
+if (extension === 'jpe') extension = 'jpeg';
+```
+
+### Alteração 2: Melhorar tratamento do assetTypeId
+
+```typescript
+// Incluir jpe no mapeamento
+let assetTypeId = 28; // png default
+if (['jpg', 'jpeg', 'jpe'].includes(extension)) assetTypeId = 22;
+else if (extension === 'gif') assetTypeId = 23;
+```
+
+### Alteração 3: Melhorar filename para SFMC
+
+```typescript
+// Normalizar extensão no filename também
+const normalizedExt = extension === 'jpe' ? 'jpg' : (extension === 'jpeg' ? 'jpg' : extension);
+const fileName = `eficode_${timestamp}.${normalizedExt}`;
+```
+
+### Alteração 4: Adicionar fallback com proxy ou mensagem mais clara
+
+```typescript
+// No catch do fetch
+const handleSendToContentBuilder = async () => {
+  setUploadingToMC(true);
+  try {
+    const isConnected = await checkExtensionInstalled();
+    if (!isConnected) {
+      toast.error('Extensão SFMC não conectada');
+      return;
     }
-    isInternalUpdate.current = false;
-  }, [propsTemplate]);
 
-  // Handle textarea change with debounced Craft.js sync
-  const handleTemplateChange = (value: string) => {
-    setLocalTemplate(value);
-    
-    // Clear previous debounce
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    
-    // Debounce the Craft.js update
-    debounceRef.current = setTimeout(() => {
-      isInternalUpdate.current = true;
-      setProp((props: any) => {
-        props.htmlTemplate = value;
-        props.html = value;
-      });
-    }, 300); // 300ms debounce
-  };
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
+    // Tentar fetch com tratamento de erro mais específico
+    let blob: Blob;
+    try {
+      const response = await fetch(src, { mode: 'cors' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-    };
-  }, []);
+      blob = await response.blob();
+    } catch (fetchError) {
+      // Mensagem mais clara sobre o problema
+      toast.error('Não foi possível acessar a imagem. Verifique se a URL é válida e acessível.');
+      console.error('Fetch failed for image:', src, fetchError);
+      return;
+    }
 
-  // ... rest of component uses localTemplate instead of template
-  
-  return (
-    <div className="space-y-4">
-      {/* ... images section unchanged ... */}
-      
-      {/* Template editor - now uses localTemplate */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">Código HTML</Label>
-        <Textarea
-          value={localTemplate}
-          onChange={(e) => handleTemplateChange(e.target.value)}
-          placeholder="<div>Seu HTML aqui</div>"
-          rows={12}
-          className="font-mono text-xs bg-secondary/50 border-border"
-        />
-      </div>
-      
-      {/* ... placeholders and css classes unchanged ... */}
-    </div>
-  );
+    // Resto do código...
+  }
 };
 ```
 
-## Alterações Detalhadas
+### Alteração 5: Permitir tentativa mesmo com hasError (opcional)
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Estado do Textarea | Direto das props (`template`) | Local controlado (`localTemplate`) |
-| `onChange` | `setProp` imediato | Atualiza local + debounce para Craft.js |
-| Sincronização | Nenhuma | `useEffect` bidirecional com flag |
-| Debounce | Não havia | 300ms para reduzir re-renders |
+O botão está desabilitado quando a imagem não carrega no preview. Podemos manter desabilitado mas adicionar um tooltip explicativo:
+
+```tsx
+<Button
+  variant="outline"
+  size="sm"
+  className="h-6 px-2 text-xs"
+  onClick={handleSendToContentBuilder}
+  disabled={uploading || uploadingToMC || hasError}
+  title={hasError 
+    ? "Imagem não carregou - verifique a URL" 
+    : "Enviar para Content Builder"
+  }
+>
+```
+
+## Resumo das Mudanças
+
+| Problema | Solução |
+|----------|---------|
+| `.jpe` não reconhecido | Adicionar à lista e normalizar para `jpeg`/`jpg` |
+| CORS bloqueando fetch | Mensagem de erro mais clara |
+| Filename com `.jpe` | Normalizar para `.jpg` no nome enviado ao SFMC |
+| Tooltip não informativo | Explicar quando botão está desabilitado |
 
 ## Fluxo Corrigido
 
 ```text
-Usuário digita
-      |
-      v
-setLocalTemplate(value)  <-- Estado local atualizado IMEDIATO
-      |
-      +---> Textarea mostra valor correto
-      |
-      +---> setTimeout 300ms
-                |
-                v
-           isInternalUpdate = true
-                |
-                v
-           setProp() --> Craft.js atualiza
-                |
-                v
-           useEffect detecta mudança de propsTemplate
-                |
-                v
-           isInternalUpdate é true? SIM --> ignora sync
-                |
-                v
-           isInternalUpdate = false (reset)
+Usuário clica "Enviar para Content Builder"
+    |
+    v
+Verifica extensão conectada ✓
+    |
+    v
+Extrai extensão da URL (.jpe, .jpg, .png, etc.)
+    |
+    v
+Normaliza: jpe → jpeg, jpeg → jpg (para SFMC)
+    |
+    v
+Define assetTypeId correto (22 para jpe/jpg/jpeg)
+    |
+    v
+Tenta fetch da imagem
+    |
+    +-- Sucesso → Converte para base64 → Envia para SFMC
+    |
+    +-- Falha → Mensagem clara "Não foi possível acessar a imagem"
 ```
 
-## Benefícios
+## Arquivos Modificados
 
-1. **Resposta imediata**: O Textarea atualiza instantaneamente ao digitar
-2. **Sem perda de dados**: O estado local preserva as edições
-3. **Performance**: Debounce reduz atualizações ao Craft.js
-4. **Histórico funcional**: O `setProp` ainda é chamado, registrando no undo/redo
-5. **Sincronização correta**: Mudanças externas (ex: substituição de imagem) são refletidas
-
-## Impacto
-
-Esta correção afeta apenas o componente `HtmlBlockSettings`. O comportamento do `HtmlBlock` visual (contentEditable) permanece inalterado.
+- `src/components/eficode/user-components/HtmlBlock.tsx` - função `handleSendToContentBuilder`
