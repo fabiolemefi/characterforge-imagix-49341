@@ -106,6 +106,12 @@ export const generateFullHtml = (
     `padding-right: ${pageSettings.paddingRight || '0'}px`,
   ].join('; ');
 
+  // Classes adicionais do container
+  const containerClasses = pageSettings.containerClasses || '';
+
+  // Combinar CSS global com CSS inline da página
+  const allCss = [globalCss, pageSettings.inlineStyles].filter(Boolean).join('\n');
+
   // Google Analytics script
   const gaScript = pageSettings.googleAnalyticsId ? `
   <!-- Google Analytics -->
@@ -153,13 +159,13 @@ export const generateFullHtml = (
   ${faviconLink}
   ${gaScript}
   ${fbScript}
-  ${pageSettings.customHeadCode || ''}${globalCss ? `
+  ${pageSettings.customHeadCode || ''}${allCss ? `
   <style>
-    ${globalCss}
+    ${allCss}
   </style>` : ''}
 </head>
 <body style="${bodyStyles.join('; ')}">
-  <div style="${containerStyles}">
+  <div${containerClasses ? ` class="${containerClasses}"` : ''} style="${containerStyles}">
 ${sanitizedBodyContent}
   </div>
 </body>
