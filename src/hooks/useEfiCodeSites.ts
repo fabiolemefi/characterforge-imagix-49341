@@ -91,12 +91,13 @@ export const useEfiCodeSites = () => {
   });
 
   const createSite = useMutation({
-    mutationFn: async (site: { name: string; description?: string }) => {
+    mutationFn: async (site: { name: string; description?: string; html_content?: string }) => {
       const { data, error } = await supabase
         .from('efi_code_sites')
         .insert({
           name: site.name,
           description: site.description || null,
+          html_content: site.html_content || null,
           created_by: user?.id,
           content: {},
           page_settings: defaultPageSettings as unknown as Json,

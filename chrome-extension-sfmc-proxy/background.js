@@ -207,6 +207,78 @@ async function listEmailsFromSfmc(page = 1, pageSize = 25, searchQuery = "", cat
   };
 }
 
+// Listar Cloud Pages do SFMC (assetType.id = 205)
+async function listCloudPagesFromSfmc(page = 1, pageSize = 25, searchQuery = "", categoryId = null) {
+  const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
+
+  const url = `${restInstanceUrl}asset/v1/content/assets/query`;
+
+  console.log("[SFMC Proxy] Listando Cloud Pages, página:", page, "categoria:", categoryId);
+
+  // Query para Cloud Pages (assetType.id = 205)
+  let query = {
+    page: { page, pageSize },
+    query: {
+      property: "assetType.id",
+      simpleOperator: "equal",
+      value: 205,
+    },
+    sort: [{ property: "modifiedDate", direction: "DESC" }],
+    fields: ["id", "name", "assetType", "modifiedDate", "status", "customerKey", "category"],
+  };
+
+  // Adiciona filtro de nome se houver busca
+  if (searchQuery && searchQuery.trim()) {
+    query.query = {
+      leftOperand: query.query,
+      logicalOperator: "AND",
+      rightOperand: {
+        property: "name",
+        simpleOperator: "like",
+        value: `%${searchQuery}%`,
+      },
+    };
+  }
+
+  // Adiciona filtro de categoria/pasta
+  if (categoryId) {
+    query.query = {
+      leftOperand: query.query,
+      logicalOperator: "AND",
+      rightOperand: {
+        property: "category.id",
+        simpleOperator: "equal",
+        value: categoryId,
+      },
+    };
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(query),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("[SFMC Proxy] Erro ao listar Cloud Pages:", errorData);
+    throw new Error(errorData.message || `Erro ao listar Cloud Pages: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log("[SFMC Proxy] Cloud Pages encontradas:", data.count);
+
+  return {
+    items: data.items || [],
+    count: data.count || 0,
+    page: data.page || page,
+    pageSize: data.pageSize || pageSize,
+  };
+}
+
 // Buscar email específico do SFMC por ID
 async function getEmailFromSfmc(assetId) {
   const { accessToken, restInstanceUrl } = await getSfmcAccessToken();
@@ -472,6 +544,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case "DELETE_EMAIL":
           const deleteResult = await deleteEmailFromSfmc(message.payload?.assetId);
           return deleteResult;
+
+        case "LIST_CLOUDPAGES":
+          const cloudPagesResult = await listCloudPagesFromSfmc(
+            message.payload?.page || 1,
+            message.payload?.pageSize || 25,
+            message.payload?.search || "",
+            message.payload?.categoryId || null,
+          );
+          return { success: true, ...cloudPagesResult };
+
+        case "GET_CLOUDPAGE":
+          const cloudPageData = await getEmailFromSfmc(message.payload?.assetId);
+          return { success: true, ...cloudPageData };
+
+        case "DELETE_CLOUDPAGE":
+          const deleteCloudPageResult = await deleteEmailFromSfmc(message.payload?.assetId);
+          return deleteCloudPageResult;
 
         case "LIST_CATEGORIES":
           const categoriesResult = await listCategoriesFromSfmc();

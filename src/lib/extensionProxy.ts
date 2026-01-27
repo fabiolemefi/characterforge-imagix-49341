@@ -52,3 +52,51 @@ export async function shortenUrl(url: string): Promise<{
   const response = await sendToExtension('SHORTEN_URL', { url });
   return response;
 }
+
+// Cloud Pages types and functions
+export interface CloudPage {
+  id: number;
+  name: string;
+  assetType?: { id: number; name: string; displayName?: string };
+  modifiedDate?: string;
+  status?: { id: number; name: string };
+  customerKey?: string;
+  category?: { id: number; name: string; parentId?: number };
+}
+
+export async function listCloudPages(
+  page = 1, 
+  pageSize = 25, 
+  search = '', 
+  categoryId: number | null = null
+): Promise<{
+  success: boolean;
+  items?: CloudPage[];
+  count?: number;
+  page?: number;
+  pageSize?: number;
+  error?: string;
+}> {
+  return sendToExtension('LIST_CLOUDPAGES', { page, pageSize, search, categoryId });
+}
+
+export async function getCloudPage(assetId: number): Promise<{
+  success: boolean;
+  id?: number;
+  name?: string;
+  content?: string;
+  views?: any;
+  assetType?: { id: number; name: string };
+  status?: { id: number; name: string };
+  category?: { id: number; name: string };
+  error?: string;
+}> {
+  return sendToExtension('GET_CLOUDPAGE', { assetId });
+}
+
+export async function deleteCloudPage(assetId: number): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  return sendToExtension('DELETE_CLOUDPAGE', { assetId });
+}
