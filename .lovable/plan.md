@@ -1,227 +1,177 @@
 
-# Plano: Corrigir Bug de Transformação e Flickering de Blocos no Editor
+# Plano: Adicionar Padding de Página e Paleta de Cores Efí
 
-## Diagnóstico do Problema
+## Objetivo
 
-### Causa Raiz Identificada
+Adicionar controles de padding (superior, inferior, laterais) no accordion "Layout" e criar um dropdown de "Paleta de cores Efí" para facilitar a seleção de cores, além de permitir que o fundo seja transparente para exibir imagens de fundo.
 
-O bug ocorre devido à forma como o `connectors.create` do Craft.js é utilizado no `Toolbox.tsx`:
+## Mudanças Necessárias
+
+### 1. Atualizar Interface PageSettings
+
+**Arquivo:** `src/hooks/useEfiCodeSites.ts`
+
+Adicionar novos campos para padding:
+
+```typescript
+export interface PageSettings {
+  // ... campos existentes ...
+  paddingTop: string;      // Default: '0'
+  paddingBottom: string;   // Default: '0'
+  paddingLeft: string;     // Default: '0'
+  paddingRight: string;    // Default: '0'
+}
+
+export const defaultPageSettings: PageSettings = {
+  // ... valores existentes ...
+  paddingTop: '0',
+  paddingBottom: '0',
+  paddingLeft: '0',
+  paddingRight: '0',
+};
+```
+
+### 2. Modificar o Toolbox - Accordion Layout
+
+**Arquivo:** `src/components/eficode/editor/Toolbox.tsx`
+
+#### 2.1 Campos de Padding
+
+Adicionar 4 inputs para padding (em px):
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│ PROBLEMA: connectors.create recria componentes a cada re-render    │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│ 1. Usuário arrasta "Questionário de Avaliação" para o editor       │
-│    → Craft.js cria nó com htmlTemplate do Questionário             │
-│                                                                     │
-│ 2. Usuário clica no componente ou em qualquer lugar                │
-│    → Isso causa um re-render do Toolbox                            │
-│                                                                     │
-│ 3. Durante o re-render, connectors.create é chamado novamente      │
-│    → A função getComponent(block) é executada para cada bloco      │
-│    → O Craft.js pode "confundir" qual componente está selecionado  │
-│                                                                     │
-│ 4. O flickering ocorre porque:                                     │
-│    → dangerouslySetInnerHTML causa re-render quando props mudam    │
-│    → Qualquer clique fora causa o handleBlur que atualiza props    │
-│    → O ciclo se repete causando flash visual                       │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│ Layout                                     │
+├────────────────────────────────────────────┤
+│ Padding da Página                          │
+│ ┌─────────┐ ┌─────────┐                   │
+│ │ Superior│ │ Inferior│                   │
+│ │   0  px │ │   0  px │                   │
+│ └─────────┘ └─────────┘                   │
+│ ┌─────────┐ ┌─────────┐                   │
+│ │ Esquerda│ │ Direita │                   │
+│ │   0  px │ │   0  px │                   │
+│ └─────────┘ └─────────┘                   │
+├────────────────────────────────────────────┤
+│ Cor de fundo                               │
+│ ┌──────┐ ┌───────────────────────────────┐│
+│ │ 🎨   │ │ #ffffff             [Paleta ▼]││
+│ └──────┘ └───────────────────────────────┘│
+│                                            │
+│ [ ] Sem cor de fundo (transparente)        │
+└────────────────────────────────────────────┘
 ```
 
-### Por que "Hero com Imagem" especificamente?
+#### 2.2 Paleta de Cores Efí
 
-Analisando o banco de dados, "Hero com Imagem" é o **primeiro bloco** retornado pela query ordenada. Quando há uma dessincronização no Craft.js, ele pode estar usando o primeiro `HtmlBlock` registrado como fallback.
+Criar um dropdown/popover com as cores da marca:
 
-## Solução Proposta
+| Cor | Hex | Nome |
+|-----|-----|------|
+| 🟠 | #f37021 | Laranja Efí |
+| 🔵 | #00809d | Verde-água Efí |
+| ⬜ | #f6f8fc | Cinza Claro |
+| 🔲 | #e8f0f8 | Azul Gelo |
+| ⬛ | #a4acbc | Cinza Médio |
+| ⚫ | #1d1d1d | Preto |
 
-### 1. Memoizar a criação de componentes no Toolbox
+#### 2.3 Opção Transparente
 
-Usar `useMemo` para criar os componentes apenas quando os blocos mudarem, não a cada render:
-
-```typescript
-// Memoizar componentes para evitar recriação a cada render
-const memoizedComponents = useMemo(() => {
-  return blocks.reduce((acc, block) => {
-    acc[block.id] = getComponent(block);
-    return acc;
-  }, {} as Record<string, React.ReactElement>);
-}, [blocks]);
-```
-
-### 2. Usar callback ref estável para connectors.create
-
-Evitar que o `connectors.create` seja chamado múltiplas vezes com diferentes componentes:
+Adicionar checkbox para remover cor de fundo:
 
 ```typescript
-// Em vez de:
-ref={(ref) => ref && connectors.create(ref, getComponent(block))}
-
-// Usar:
-ref={(ref) => ref && connectors.create(ref, memoizedComponents[block.id])}
-```
-
-### 3. Corrigir o handleBlur no HtmlBlock
-
-O `handleBlur` atual está causando atualizações desnecessárias. Precisamos verificar se realmente houve mudança antes de atualizar:
-
-```typescript
-const handleBlur = useCallback((e: React.FocusEvent) => {
-  if (containerRef.current?.contains(e.relatedTarget as Node)) {
-    return;
+// Quando marcado, backgroundColor = 'transparent'
+<Checkbox
+  checked={settings.backgroundColor === 'transparent'}
+  onCheckedChange={(checked) => 
+    handleSettingChange('backgroundColor', checked ? 'transparent' : '#ffffff')
   }
-  
-  if (isEditing && containerRef.current) {
-    const newHtml = normalizeHtml(containerRef.current.innerHTML);
-    const currentNormalized = normalizeHtml(template);
-    
-    // Só atualiza se realmente mudou E não é string vazia
-    if (newHtml && newHtml !== currentNormalized) {
-      setProp((props: any) => {
-        props.htmlTemplate = newHtml;
-        props.html = newHtml;
-      });
-    }
-  }
-  setIsEditing(false);
-}, [isEditing, template, setProp]);
+/>
+<Label>Sem cor de fundo (transparente)</Label>
 ```
 
-### 4. Adicionar key único baseado no conteúdo do HtmlBlock
+### 3. Atualizar Gerador HTML
 
-Para garantir que o React identifique corretamente cada instância:
+**Arquivo:** `src/lib/efiCodeHtmlGenerator.ts`
+
+Modificar para aplicar padding no container:
 
 ```typescript
-// No HtmlBlock, usar uma key derivada do conteúdo
-const contentKey = useMemo(() => {
-  return template.slice(0, 100).replace(/\s/g, '').substring(0, 20);
-}, []);  // Nota: array vazio para fixar na montagem
+// Estilos do container wrapper com padding
+const containerStyles = [
+  `max-width: ${pageSettings.containerMaxWidth || '1200'}px`,
+  'margin: 0 auto',
+  `padding-top: ${pageSettings.paddingTop || '0'}px`,
+  `padding-bottom: ${pageSettings.paddingBottom || '0'}px`,
+  `padding-left: ${pageSettings.paddingLeft || '0'}px`,
+  `padding-right: ${pageSettings.paddingRight || '0'}px`,
+].join('; ');
+
+// Para cor de fundo, tratar 'transparent' corretamente
+const bodyStyles = [];
+if (pageSettings.backgroundColor && pageSettings.backgroundColor !== 'transparent') {
+  bodyStyles.push(`background-color: ${pageSettings.backgroundColor}`);
+}
+```
+
+### 4. Atualizar Preview do Editor
+
+**Arquivo:** `src/pages/EfiCodeEditor.tsx`
+
+Aplicar padding e transparência na área de preview:
+
+```typescript
+<main 
+  className="flex-1 overflow-auto" 
+  style={{
+    backgroundColor: pageSettings.backgroundColor === 'transparent' 
+      ? 'transparent' 
+      : pageSettings.backgroundColor,
+    backgroundImage: pageSettings.backgroundImage 
+      ? `url(${pageSettings.backgroundImage})` 
+      : undefined,
+    backgroundSize: pageSettings.backgroundSize,
+    backgroundPosition: pageSettings.backgroundPosition,
+  }}
+>
+  <div 
+    className="mx-auto"
+    style={{
+      paddingTop: `${pageSettings.paddingTop || 0}px`,
+      paddingBottom: `${pageSettings.paddingBottom || 0}px`,
+      paddingLeft: `${pageSettings.paddingLeft || 0}px`,
+      paddingRight: `${pageSettings.paddingRight || 0}px`,
+    }}
+  >
 ```
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/editor/Toolbox.tsx` | Memoizar componentes e usar refs estáveis |
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Corrigir handleBlur e adicionar estabilização |
+| `src/hooks/useEfiCodeSites.ts` | Adicionar campos de padding ao PageSettings |
+| `src/components/eficode/editor/Toolbox.tsx` | Adicionar inputs de padding, dropdown de paleta e checkbox transparente |
+| `src/lib/efiCodeHtmlGenerator.ts` | Aplicar padding no HTML exportado e tratar cor transparente |
+| `src/pages/EfiCodeEditor.tsx` | Aplicar padding e transparência no preview |
 
-## Implementação Detalhada
-
-### Toolbox.tsx - Mudanças
-
-```typescript
-import { useMemo, useCallback } from 'react';
-
-// Dentro do componente Toolbox:
-
-// Memoizar a função getComponent
-const getComponent = useCallback((block: EfiCodeBlock) => {
-  if (block.html_content) {
-    const dynamicProps = (block.default_props as Record<string, any>) || {};
-    return (
-      <HtmlBlock 
-        htmlTemplate={block.html_content} 
-        {...dynamicProps} 
-      />
-    );
-  }
-  // ... resto da lógica
-}, []);
-
-// Memoizar todos os componentes de uma vez
-const memoizedComponents = useMemo(() => {
-  const components: Record<string, React.ReactElement> = {};
-  blocks.forEach(block => {
-    components[block.id] = getComponent(block);
-  });
-  return components;
-}, [blocks, getComponent]);
-
-// Na renderização:
-<div
-  key={block.id}
-  ref={(ref) => {
-    if (ref && memoizedComponents[block.id]) {
-      connectors.create(ref, memoizedComponents[block.id]);
-    }
-  }}
->
-```
-
-### HtmlBlock.tsx - Mudanças
+## Paleta de Cores Efí
 
 ```typescript
-// Adicionar ref para o template inicial (montagem)
-const initialTemplateRef = useRef(template);
-
-// Modificar handleBlur para ser mais defensivo
-const handleBlur = useCallback((e: React.FocusEvent) => {
-  // Evitar blur se o foco foi para dentro do mesmo container
-  if (containerRef.current?.contains(e.relatedTarget as Node)) {
-    return;
-  }
-  
-  if (isEditing && containerRef.current) {
-    const rawHtml = containerRef.current.innerHTML;
-    // Verificar se não está vazio ou é apenas whitespace
-    if (!rawHtml || rawHtml.trim() === '') {
-      // Restaurar o template original se vazio
-      setIsEditing(false);
-      return;
-    }
-    
-    const newHtml = normalizeHtml(rawHtml);
-    const currentNormalized = normalizeHtml(originalTemplateRef.current);
-    
-    if (newHtml !== currentNormalized) {
-      setProp((props: any) => {
-        props.htmlTemplate = newHtml;
-        props.html = newHtml;
-      });
-    }
-  }
-  setIsEditing(false);
-}, [isEditing, setProp]);
-
-// Evitar que cliques no container pai causem problemas
-const handleContainerClick = useCallback((e: React.MouseEvent) => {
-  e.stopPropagation(); // Impedir propagação que pode causar re-renders
-  if (enabled && selected && !isEditing) {
-    originalTemplateRef.current = template;
-    setIsEditing(true);
-  }
-}, [enabled, selected, isEditing, template]);
-```
-
-## Fluxo Corrigido
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│ APÓS CORREÇÃO:                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│ 1. Toolbox renderiza e memoiza todos os componentes                │
-│    → Cada bloco tem seu componente criado uma única vez            │
-│                                                                     │
-│ 2. connectors.create recebe sempre o mesmo componente memoizado    │
-│    → Não há recriação durante re-renders                           │
-│                                                                     │
-│ 3. Usuário clica no componente                                     │
-│    → handleClick ativa edição com template correto                 │
-│    → stopPropagation evita re-renders desnecessários               │
-│                                                                     │
-│ 4. Usuário clica fora                                              │
-│    → handleBlur só atualiza se houve mudança real                  │
-│    → Sem flickering porque não há ciclo de atualizações            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+const EFI_COLOR_PALETTE = [
+  { hex: '#f37021', name: 'Laranja Efí' },
+  { hex: '#00809d', name: 'Verde-água Efí' },
+  { hex: '#f6f8fc', name: 'Cinza Claro' },
+  { hex: '#e8f0f8', name: 'Azul Gelo' },
+  { hex: '#a4acbc', name: 'Cinza Médio' },
+  { hex: '#1d1d1d', name: 'Preto' },
+];
 ```
 
 ## Resultado Esperado
 
-- Cada bloco mantém seu próprio `htmlTemplate` após ser arrastado
-- Clicar no bloco não causa transformação para outro componente
-- Sem flickering ao interagir com blocos
-- Edição direta funciona corretamente
-
+- Campos de padding (superior, inferior, esquerda, direita) com valor padrão 0
+- Dropdown "Paleta de cores Efí" com as 6 cores da marca
+- Ao clicar em uma cor, substitui a cor de fundo atual
+- Checkbox para remover cor de fundo (deixar transparente)
+- Imagem de fundo visível quando cor é transparente
+- Padding aplicado corretamente no preview e na exportação HTML
