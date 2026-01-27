@@ -35,8 +35,7 @@ export const Button = ({
       ref={(ref) => ref && connect(drag(ref))}
       style={{
         display: fullWidth ? 'block' : 'inline-block',
-        border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
-        padding: '4px',
+        boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
       }}
     >
       <a

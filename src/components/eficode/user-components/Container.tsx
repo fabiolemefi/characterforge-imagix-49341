@@ -26,7 +26,9 @@ export const Container = ({
   gap = 8,
   children,
 }: ContainerProps) => {
-  const { connectors: { connect, drag } } = useNode();
+  const { connectors: { connect, drag }, isActive } = useNode((node) => ({
+    isActive: node.events.selected,
+  }));
 
   return (
     <div
@@ -42,6 +44,7 @@ export const Container = ({
         justifyContent,
         alignItems,
         gap,
+        boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
       }}
     >
       {children}

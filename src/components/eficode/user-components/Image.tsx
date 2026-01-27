@@ -30,8 +30,7 @@ export const Image = ({
     <div
       ref={(ref) => ref && connect(drag(ref))}
       style={{
-        border: isActive ? '2px dashed #3b82f6' : '2px dashed transparent',
-        padding: '2px',
+        boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
       }}
     >
       <img

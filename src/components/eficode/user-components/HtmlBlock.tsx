@@ -256,7 +256,8 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
           connect(drag(ref));
         }
       }}
-      className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+      className={`relative ${className}`}
+      style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
       onClick={handleContainerClick}
     >
       <div
