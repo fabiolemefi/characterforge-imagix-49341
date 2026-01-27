@@ -133,8 +133,9 @@ export const useEfiCodeSites = () => {
       if (error) throw error;
       return toEfiCodeSite(data);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['efi-code-sites'] });
+      queryClient.invalidateQueries({ queryKey: ['efi-code-site', variables.id] });
     },
     onError: (error: any) => {
       toast.error('Erro ao atualizar site: ' + error.message);
