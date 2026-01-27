@@ -76,9 +76,18 @@ export default function EfiCodeEditor() {
   
   // Callback ref for preview after save
   const pendingPreviewRef = useRef(false);
+  
+  // Ref to prevent editor reload after save
+  const justSavedRef = useRef(false);
 
   useEffect(() => {
     if (site) {
+      // If we just saved, don't reload the editor (we already have the correct state)
+      if (justSavedRef.current) {
+        justSavedRef.current = false;
+        return;
+      }
+      
       setSiteName(site.name);
       if (site.content && Object.keys(site.content).length > 0) {
         setEditorState(JSON.stringify(site.content));
@@ -161,6 +170,9 @@ export default function EfiCodeEditor() {
         content: JSON.parse(serialized),
         page_settings: pageSettings
       });
+      
+      // Mark that we just saved to prevent editor reload
+      justSavedRef.current = true;
       
       // Reset original values after successful save
       originalSiteNameRef.current = siteName;

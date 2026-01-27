@@ -66,6 +66,7 @@ export const useEfiCodeBlocks = (onlyActive = false) => {
       if (error) throw error;
       return (data || []).map(row => toEfiCodeBlock(row as Record<string, unknown>));
     },
+    staleTime: 0, // Always fetch fresh data to avoid stale block cache
   });
 
   const createBlock = useMutation({
