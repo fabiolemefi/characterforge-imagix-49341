@@ -1,155 +1,116 @@
 
-# Plano: Adicionar Classes CSS e CSS Inline no Layout
 
-## Objetivo
+# Plano: Substituir Indicador de Seleção por Contorno Azul
 
-Adicionar dois novos campos no accordion "Layout" das configurações:
-1. **"Classes CSS adicionais no body"** - Classes para inserir na div container (a que tem largura máxima)
-2. **"CSS inline"** - Código CSS que será inserido como `<style>` no documento
+## Problema Identificado
 
-## Mudanças Necessárias
+Atualmente, quando um bloco é selecionado no editor Efi Code, o indicador visual usa classes `ring-2 ring-primary ring-offset-2` que criam um efeito de "anel" com espaçamento. O `ring-offset` gera linhas horizontais visíveis (as "barras" que você circulou) porque cria um espaço entre o conteúdo e o anel.
 
-### 1. Atualizar Interface PageSettings
+## Solução Proposta
 
-**Arquivo:** `src/hooks/useEfiCodeSites.ts`
-
-Adicionar dois novos campos:
-
-```typescript
-export interface PageSettings {
-  // ... campos existentes ...
-  containerClasses: string;   // Classes CSS adicionais para a div container
-  inlineStyles: string;       // CSS inline (será injetado como <style>)
-}
-
-export const defaultPageSettings: PageSettings = {
-  // ... valores existentes ...
-  containerClasses: '',
-  inlineStyles: '',
-};
-```
-
-### 2. Adicionar Campos no Toolbox - Accordion Layout
-
-**Arquivo:** `src/components/eficode/editor/Toolbox.tsx`
-
-Adicionar após os campos de padding, dentro do accordion Layout:
+Substituir o indicador `ring-*` por um `outline` sólido que contorne o bloco diretamente, sem espaçamento. Isso dará a impressão visual de "bloco selecionado" que você deseja.
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│ Layout                                                     │
-├────────────────────────────────────────────────────────────┤
-│ ... (campos existentes: largura, padding, cor)             │
-│                                                            │
-│ Classes CSS adicionais no body                             │
-│ ┌────────────────────────────────────────────────────────┐│
-│ │ container-custom my-class                              ││
-│ └────────────────────────────────────────────────────────┘│
-│ (texto de ajuda: Classes separadas por espaço)            │
-│                                                            │
-│ CSS inline                                                 │
-│ ┌────────────────────────────────────────────────────────┐│
-│ │ .size-40 {                                             ││
-│ │     width: inherit;                                    ││
-│ │     height: inherit;                                   ││
-│ │ }                                                      ││
-│ │ .h1 { color: red; }                                    ││
-│ └────────────────────────────────────────────────────────┘│
-│ (texto de ajuda: Estilos CSS que serão injetados)         │
-└────────────────────────────────────────────────────────────┘
+ANTES (ring com offset):
+┌─────────────────────────────────────┐ ← linha do ring
+│                                     │ ← espaço do offset
+│ ┌─────────────────────────────────┐ │
+│ │       Conteúdo do bloco         │ │
+│ └─────────────────────────────────┘ │
+│                                     │ ← espaço do offset
+└─────────────────────────────────────┘ ← linha do ring
+
+DEPOIS (outline direto):
+┌─────────────────────────────────────┐
+│       Conteúdo do bloco             │ ← outline azul diretamente
+└─────────────────────────────────────┘
 ```
 
-### 3. Aplicar no Preview do Editor
+## Estilo de Seleção Novo
 
-**Arquivo:** `src/pages/EfiCodeEditor.tsx`
+Vou usar `outline` que não afeta o layout e contorna o elemento diretamente:
 
-A div container já está na linha 317-330. Modificar para incluir as classes e o CSS:
+```css
+/* Antes */
+ring-2 ring-primary ring-offset-2
 
-**Classes no container:**
-```tsx
-<div 
-  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
-  style={{...}}
->
-```
-
-**CSS inline** (já existe o globalCss sendo injetado na linha 314, usar o mesmo mecanismo):
-```tsx
-// O globalCss já vem de useEfiCodeConfig() - linha 81
-// Precisamos combinar com o inlineStyles da pageSettings
-const combinedCss = `${globalCss}\n${pageSettings.inlineStyles || ''}`;
-<style dangerouslySetInnerHTML={{ __html: combinedCss }} />
-```
-
-### 4. Aplicar na Exportação HTML
-
-**Arquivo:** `src/lib/efiCodeHtmlGenerator.ts`
-
-Modificar a função `generateFullHtml` para:
-
-1. Adicionar classes na div container (linha 162):
-```typescript
-const containerClasses = pageSettings.containerClasses || '';
-// ...
-<div class="${containerClasses}" style="${containerStyles}">
-```
-
-2. Adicionar CSS inline no `<style>` (já existe o globalCss, combinar):
-```typescript
-const allCss = [globalCss, pageSettings.inlineStyles].filter(Boolean).join('\n');
-// ...
-${allCss ? `<style>${allCss}</style>` : ''}
+/* Depois */
+outline outline-2 outline-blue-500 outline-offset-0
+/* Ou com box-shadow para efeito mais suave */
+box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.8);
 ```
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useEfiCodeSites.ts` | Adicionar `containerClasses` e `inlineStyles` ao PageSettings |
-| `src/components/eficode/editor/Toolbox.tsx` | Adicionar 2 campos no accordion Layout |
-| `src/pages/EfiCodeEditor.tsx` | Aplicar classes e CSS combinado no preview |
-| `src/lib/efiCodeHtmlGenerator.ts` | Aplicar classes e CSS na exportação HTML |
+| Arquivo | Componente | Alteração |
+|---------|------------|-----------|
+| `src/components/eficode/user-components/HtmlBlock.tsx` | HtmlBlock | Trocar `ring-*` por `outline` ou `box-shadow` |
+| `src/components/eficode/user-components/Container.tsx` | Container | Adicionar indicador de seleção (atualmente não tem) |
+| `src/components/eficode/user-components/Divider.tsx` | Divider | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Heading.tsx` | Heading | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Text.tsx` | Text | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Button.tsx` | Button | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Image.tsx` | Image | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Spacer.tsx` | Spacer | Trocar `border dashed` por `outline` sólido |
 
-## Exemplo de Uso
+## Implementação Detalhada
 
-**Entrada do usuário no campo "CSS inline":**
-```css
-.size-40 {
-    width: inherit;
-    height: inherit;
-}
-.h1 { color: red; }
+### Estilo Padrão de Seleção
+
+Usarei `box-shadow` em vez de `outline` porque funciona melhor com elementos que têm `overflow: hidden` ou bordas arredondadas:
+
+```typescript
+// Constante para reutilização
+const SELECTION_STYLE = {
+  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8)', // Azul sólido
+  // Ou para efeito mais suave com "glow":
+  // boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8), 0 0 8px rgba(59, 130, 246, 0.4)',
+};
 ```
 
-**Entrada do usuário no campo "Classes CSS adicionais no body":**
-```
-container-fluid bg-pattern
-```
+### HtmlBlock.tsx (Linha 259)
 
-**Resultado no HTML exportado:**
-```html
-<head>
-  <!-- ... -->
-  <style>
-    .size-40 {
-        width: inherit;
-        height: inherit;
-    }
-    .h1 { color: red; }
-  </style>
-</head>
-<body style="...">
-  <div class="container-fluid bg-pattern" style="max-width: 1200px; margin: 0 auto; ...">
-    <!-- conteúdo -->
-  </div>
-</body>
+```tsx
+// Antes
+className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+
+// Depois - usando style inline
+className={`relative ${className}`}
+style={{
+  boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+}}
 ```
 
-## Resultado Esperado
+### Outros Componentes (Divider, Heading, Text, Button, Image, Spacer)
 
-- Dois novos campos no accordion Layout
-- Campo "Classes CSS adicionais no body" (Input simples)
-- Campo "CSS inline" (Textarea para múltiplas linhas)
-- Classes aplicadas na div container no editor e na exportação
-- CSS inline injetado como `<style>` no editor e na exportação
-- CSS inline combinado com o globalCss existente da configuração admin
+```tsx
+// Antes
+border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+
+// Depois
+boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+// Remover a borda tracejada
+```
+
+### Container.tsx (Adicionar indicador)
+
+```tsx
+// Adicionar isActive ao useNode
+const { connectors: { connect, drag }, isActive } = useNode((node) => ({
+  isActive: node.events.selected,
+}));
+
+// Adicionar style
+style={{
+  // ... estilos existentes ...
+  boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+}}
+```
+
+## Resultado Visual Esperado
+
+- Bloco selecionado terá um contorno azul sólido de 2px
+- Sem espaçamento entre o contorno e o conteúdo
+- Visual limpo e moderno, similar a editores como Figma ou Notion
+- Cor azul `#3b82f6` (blue-500 do Tailwind) com 80% de opacidade
+
