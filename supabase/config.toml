@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.og-site-metadata]
 verify_jwt = false
+
+[functions.analyze-html-blocks]
+verify_jwt = true
