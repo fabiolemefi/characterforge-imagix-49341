@@ -38,7 +38,7 @@ export async function sendToExtension(action: string, payload?: any): Promise<Ex
 
 export async function checkExtensionInstalled(): Promise<boolean> {
   const response = await sendToExtension('CHECK_EXTENSION');
-  return response.success;
+  return response.configured === true;
 }
 
 export async function shortenUrl(url: string): Promise<{ 
