@@ -452,7 +452,7 @@ async function updateAssetInSfmc(assetId, assetData) {
 async function shortenUrl(url) {
   console.log("[Efí Link] Encurtando URL:", url);
 
-  const response = await fetch("https://shortener.gerencianet.com.br", {
+  const response = await fetch("https://shortener.gerencianet.com.br/shortener", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
