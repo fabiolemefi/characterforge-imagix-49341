@@ -1,111 +1,103 @@
 
-# Plano: Corrigir Detecção da Extensão no EfiLink
+# Plano: Corrigir Parsing de Resposta do Shortener
 
 ## Problema Identificado
 
-O modal de criação de link no plugin EfiLink mostra "Extensão não detectada" mesmo quando a extensão está funcionando. Isso acontece porque:
+O endpoint `https://shortener.gerencianet.com.br` está retornando **HTTP 200 com conteúdo HTML** em vez de JSON. Isso acontece quando:
 
-1. O **popup da extensão** testa as APIs diretamente (background.js)
-2. O **modal EfiLink** testa a comunicação via content script (page → content.js → background.js)
+1. O endpoint faz um redirect que termina em uma página HTML
+2. O servidor retorna uma página de erro com status 200
+3. A API mudou o formato de resposta
 
-Se a página não foi recarregada após instalar/atualizar a extensão, o content script não está injetado e a comunicação falha.
+O código atual assume que se `response.ok` é `true`, o conteúdo é JSON válido. Quando tenta fazer `response.json()` em HTML, ocorre o erro:
+```
+SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+```
 
 ## Solução
 
-Vamos melhorar a detecção da extensão para:
-1. Adicionar uma verificação inicial mais robusta que escuta o evento `SFMC_PROXY_READY` enviado pelo content script
-2. Reduzir o timeout da verificação inicial para feedback mais rápido
-3. Adicionar uma mensagem mais informativa sugerindo recarregar a página
+Adicionar validação do `Content-Type` da resposta antes de tentar fazer parse como JSON, com mensagens de erro mais descritivas.
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
-### 1. `src/lib/extensionProxy.ts`
+### `chrome-extension-sfmc-proxy/background.js`
 
-Adicionar uma verificação baseada no evento `SFMC_PROXY_READY` que o content script já envia:
+**Função `shortenUrl()` (linhas 452-483)**
 
-```typescript
-// Adicionar variável para rastrear se a extensão sinalizou estar pronta
-let extensionReady = false;
+```javascript
+async function shortenUrl(url) {
+  console.log("[Efí Link] Encurtando URL:", url);
 
-// Escutar o evento de ready do content script
-if (typeof window !== 'undefined') {
-  window.addEventListener('message', (event) => {
-    if (event.data?.target === 'SFMC_PROXY_READY') {
-      extensionReady = true;
-    }
+  const response = await fetch("https://shortener.gerencianet.com.br", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: JSON.stringify({ url }),
+    redirect: 'follow',
+    credentials: 'omit',
+    mode: 'cors',
   });
-}
 
-// Modificar checkExtensionInstalled para:
-// 1. Verificar primeiro se já recebeu SFMC_PROXY_READY
-// 2. Usar timeout mais curto (3 segundos)
-// 3. Retornar true se qualquer um dos métodos funcionar
-export async function checkExtensionInstalled(): Promise<boolean> {
-  // Se já recebeu o evento de ready, extensão está disponível
-  if (extensionReady) {
-    return true;
+  // Log da URL final (para debug de redirects)
+  console.log("[Efí Link] URL final após redirects:", response.url);
+  console.log("[Efí Link] Status:", response.status);
+  console.log("[Efí Link] Content-Type:", response.headers.get('content-type'));
+
+  // Verificar se a resposta foi redirecionada para outro domínio
+  if (!response.url.includes('shortener.gerencianet.com.br')) {
+    const responseText = await response.text();
+    console.error("[Efí Link] Redirect inesperado para:", response.url);
+    console.error("[Efí Link] Conteúdo:", responseText.substring(0, 500));
+    throw new Error(`API redirecionou para ${response.url}. Verifique se o serviço está disponível.`);
   }
-  
-  // Tenta enviar mensagem com timeout curto
-  return new Promise((resolve) => {
-    const requestId = `check-${Date.now()}`;
-    
-    window.postMessage({
-      target: 'SFMC_PROXY',
-      requestId,
-      action: 'CHECK_EXTENSION',
-    }, '*');
 
-    const handleResponse = (event: MessageEvent) => {
-      if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
-        window.removeEventListener('message', handleResponse);
-        extensionReady = true;
-        resolve(true);
-      }
-    };
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[Efí Link] Erro ao encurtar:", errorText);
+    throw new Error(`Erro ao encurtar URL: ${response.status}`);
+  }
 
-    window.addEventListener('message', handleResponse);
+  // Verificar Content-Type antes de fazer parse
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const responseText = await response.text();
+    console.error("[Efí Link] Resposta não é JSON:", responseText.substring(0, 500));
+    throw new Error(`API retornou ${contentType || 'formato desconhecido'} em vez de JSON. O serviço pode estar indisponível.`);
+  }
 
-    // Timeout curto de 3 segundos para feedback rápido
-    setTimeout(() => {
-      window.removeEventListener('message', handleResponse);
-      resolve(extensionReady);
-    }, 3000);
-  });
+  const data = await response.json();
+  console.log("[Efí Link] URL encurtada:", data.shorted_url);
+
+  return {
+    success: true,
+    id: data.id,
+    original_url: data.original_url,
+    shorted: data.shorted,
+    shorted_url: data.shorted_url,
+  };
 }
 ```
 
-### 2. `src/components/efilink/EfiLinkFormModal.tsx`
+## Principais Melhorias
 
-Melhorar a mensagem de erro para sugerir recarregar a página:
+| Verificação | Propósito |
+|-------------|-----------|
+| `response.url` | Detecta se houve redirect para outro domínio |
+| `Content-Type` header | Valida se a resposta é JSON antes do parse |
+| Logs detalhados | Facilita debug mostrando URL final, status e tipo de conteúdo |
+| Mensagens de erro claras | Explica o problema ao usuário (ex: "API retornou HTML") |
 
-```typescript
-{extensionAvailable === false && (
-  <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm space-y-2">
-    <p className="text-yellow-600 font-medium">
-      Extensão não detectada
-    </p>
-    <p className="text-yellow-600/80 text-xs">
-      Verifique se a extensão "Mágicas do Fábio" está instalada e tente 
-      <button 
-        onClick={() => window.location.reload()} 
-        className="underline font-medium mx-1"
-      >
-        recarregar a página
-      </button>
-      para restabelecer a conexão.
-    </p>
-  </div>
-)}
-```
+## Diagnóstico Adicional
 
-## Resumo das Alterações
+Após implementar, os logs vão mostrar:
+- Para onde a API está redirecionando
+- Qual Content-Type está retornando
+- Primeiros 500 caracteres do HTML de erro
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/lib/extensionProxy.ts` | Adicionar detecção via evento SFMC_PROXY_READY + timeout mais curto |
-| `src/components/efilink/EfiLinkFormModal.tsx` | Melhorar mensagem de erro com opção de recarregar página |
+Isso vai ajudar a entender se é um problema temporário do serviço ou se o endpoint correto é outro.
 
-## Ação Imediata (Sem Código)
+## Possível Causa Raiz
 
-Antes de implementar, tente **recarregar a página** (F5 ou Ctrl+R) enquanto está em `/efi-link`. Isso deve resolver o problema se for apenas uma questão de o content script não ter sido injetado após recarregar a extensão.
+O redirect para `sejaefi.com.br` pode indicar que o endpoint `shortener.gerencianet.com.br` foi desativado ou movido. Os logs vão confirmar isso após a implementação.
