@@ -1,206 +1,227 @@
 
+# Plano: Corrigir Bug de Transformação e Flickering de Blocos no Editor
 
-# Plano: Adicionar Botão "Deletar" para Exclusão em Lote
+## Diagnóstico do Problema
 
-## Objetivo
+### Causa Raiz Identificada
 
-Adicionar um botão "Deletar" separado no dropdown "Ações" que permita ao usuário selecionar múltiplos blocos e excluí-los em lote.
+O bug ocorre devido à forma como o `connectors.create` do Craft.js é utilizado no `Toolbox.tsx`:
 
-## Componentes da Solução
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ PROBLEMA: connectors.create recria componentes a cada re-render    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│ 1. Usuário arrasta "Questionário de Avaliação" para o editor       │
+│    → Craft.js cria nó com htmlTemplate do Questionário             │
+│                                                                     │
+│ 2. Usuário clica no componente ou em qualquer lugar                │
+│    → Isso causa um re-render do Toolbox                            │
+│                                                                     │
+│ 3. Durante o re-render, connectors.create é chamado novamente      │
+│    → A função getComponent(block) é executada para cada bloco      │
+│    → O Craft.js pode "confundir" qual componente está selecionado  │
+│                                                                     │
+│ 4. O flickering ocorre porque:                                     │
+│    → dangerouslySetInnerHTML causa re-render quando props mudam    │
+│    → Qualquer clique fora causa o handleBlur que atualiza props    │
+│    → O ciclo se repete causando flash visual                       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### 1. Estado de Seleção
+### Por que "Hero com Imagem" especificamente?
 
-Adicionar estados para controlar:
-- Modo de seleção ativado/desativado
-- Lista de IDs dos blocos selecionados
+Analisando o banco de dados, "Hero com Imagem" é o **primeiro bloco** retornado pela query ordenada. Quando há uma dessincronização no Craft.js, ele pode estar usando o primeiro `HtmlBlock` registrado como fallback.
+
+## Solução Proposta
+
+### 1. Memoizar a criação de componentes no Toolbox
+
+Usar `useMemo` para criar os componentes apenas quando os blocos mudarem, não a cada render:
 
 ```typescript
-const [isDeleteMode, setIsDeleteMode] = useState(false);
-const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+// Memoizar componentes para evitar recriação a cada render
+const memoizedComponents = useMemo(() => {
+  return blocks.reduce((acc, block) => {
+    acc[block.id] = getComponent(block);
+    return acc;
+  }, {} as Record<string, React.ReactElement>);
+}, [blocks]);
 ```
 
-### 2. Modificar o Dropdown "Ações"
+### 2. Usar callback ref estável para connectors.create
 
-Adicionar novo item de menu separado por um divisor:
+Evitar que o `connectors.create` seja chamado múltiplas vezes com diferentes componentes:
 
-```text
-┌──────────────────┐
-│ CSS Global       │
-│ Biblioteca       │
-│ Importar com IA  │
-├──────────────────┤
-│ Deletar          │  ← Novo item
-└──────────────────┘
+```typescript
+// Em vez de:
+ref={(ref) => ref && connectors.create(ref, getComponent(block))}
+
+// Usar:
+ref={(ref) => ref && connectors.create(ref, memoizedComponents[block.id])}
 ```
 
-### 3. Modificar a Tabela
+### 3. Corrigir o handleBlur no HtmlBlock
 
-Quando o modo de exclusão estiver ativo:
-- Adicionar coluna de checkbox à esquerda
-- Mostrar checkbox de seleção para cada linha
-- Adicionar checkbox "Selecionar todos" no header
-- Exibir barra de ações fixa na parte inferior
+O `handleBlur` atual está causando atualizações desnecessárias. Precisamos verificar se realmente houve mudança antes de atualizar:
 
-### 4. Barra de Ações de Exclusão
-
-Quando houver itens selecionados, exibir barra fixa:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ✓ 3 blocos selecionados     [Cancelar]  [Excluir 3 blocos] │
-└─────────────────────────────────────────────────────────────┘
+```typescript
+const handleBlur = useCallback((e: React.FocusEvent) => {
+  if (containerRef.current?.contains(e.relatedTarget as Node)) {
+    return;
+  }
+  
+  if (isEditing && containerRef.current) {
+    const newHtml = normalizeHtml(containerRef.current.innerHTML);
+    const currentNormalized = normalizeHtml(template);
+    
+    // Só atualiza se realmente mudou E não é string vazia
+    if (newHtml && newHtml !== currentNormalized) {
+      setProp((props: any) => {
+        props.htmlTemplate = newHtml;
+        props.html = newHtml;
+      });
+    }
+  }
+  setIsEditing(false);
+}, [isEditing, template, setProp]);
 ```
 
-## Fluxo de Interação
+### 4. Adicionar key único baseado no conteúdo do HtmlBlock
 
-```text
-1. Usuário clica em "Ações" → "Deletar"
-   ↓
-2. Modo de exclusão é ativado
-   - Checkboxes aparecem na tabela
-   - Barra de ações aparece na parte inferior
-   ↓
-3. Usuário seleciona os blocos desejados
-   - Pode usar "Selecionar todos"
-   - Contador atualiza em tempo real
-   ↓
-4. Usuário clica em "Excluir X blocos"
-   ↓
-5. Confirmação via dialog
-   ↓
-6. Exclusão em lote é executada
-   ↓
-7. Modo de exclusão é desativado
+Para garantir que o React identifique corretamente cada instância:
+
+```typescript
+// No HtmlBlock, usar uma key derivada do conteúdo
+const contentKey = useMemo(() => {
+  return template.slice(0, 100).replace(/\s/g, '').substring(0, 20);
+}, []);  // Nota: array vazio para fixar na montagem
 ```
 
-## Arquivo a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/AdminEfiCodeBlocks.tsx` | Adicionar estados, checkbox na tabela, barra de ações, lógica de exclusão em lote |
+| `src/components/eficode/editor/Toolbox.tsx` | Memoizar componentes e usar refs estáveis |
+| `src/components/eficode/user-components/HtmlBlock.tsx` | Corrigir handleBlur e adicionar estabilização |
 
-## Código Proposto
+## Implementação Detalhada
 
-### Estados Novos
-
-```typescript
-const [isDeleteMode, setIsDeleteMode] = useState(false);
-const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
-```
-
-### Handlers
+### Toolbox.tsx - Mudanças
 
 ```typescript
-// Toggle seleção individual
-const toggleBlockSelection = (id: string) => {
-  setSelectedBlockIds(prev => 
-    prev.includes(id) 
-      ? prev.filter(blockId => blockId !== id)
-      : [...prev, id]
-  );
-};
+import { useMemo, useCallback } from 'react';
 
-// Selecionar/Desselecionar todos
-const toggleSelectAll = () => {
-  if (selectedBlockIds.length === blocks.length) {
-    setSelectedBlockIds([]);
-  } else {
-    setSelectedBlockIds(blocks.map(b => b.id));
+// Dentro do componente Toolbox:
+
+// Memoizar a função getComponent
+const getComponent = useCallback((block: EfiCodeBlock) => {
+  if (block.html_content) {
+    const dynamicProps = (block.default_props as Record<string, any>) || {};
+    return (
+      <HtmlBlock 
+        htmlTemplate={block.html_content} 
+        {...dynamicProps} 
+      />
+    );
   }
-};
+  // ... resto da lógica
+}, []);
 
-// Exclusão em lote
-const handleBatchDelete = async () => {
-  if (!confirm(`Tem certeza que deseja excluir ${selectedBlockIds.length} blocos?`)) return;
-  
-  try {
-    for (const id of selectedBlockIds) {
-      await deleteBlock.mutateAsync(id);
+// Memoizar todos os componentes de uma vez
+const memoizedComponents = useMemo(() => {
+  const components: Record<string, React.ReactElement> = {};
+  blocks.forEach(block => {
+    components[block.id] = getComponent(block);
+  });
+  return components;
+}, [blocks, getComponent]);
+
+// Na renderização:
+<div
+  key={block.id}
+  ref={(ref) => {
+    if (ref && memoizedComponents[block.id]) {
+      connectors.create(ref, memoizedComponents[block.id]);
     }
-    toast.success(`${selectedBlockIds.length} blocos excluídos`);
-    setSelectedBlockIds([]);
-    setIsDeleteMode(false);
-  } catch (error) {
-    toast.error('Erro ao excluir blocos');
-  }
-};
-
-// Cancelar modo de exclusão
-const cancelDeleteMode = () => {
-  setIsDeleteMode(false);
-  setSelectedBlockIds([]);
-};
-```
-
-### Nova Coluna na Tabela (quando isDeleteMode = true)
-
-```tsx
-{isDeleteMode && (
-  <TableHead className="w-10">
-    <Checkbox 
-      checked={selectedBlockIds.length === blocks.length && blocks.length > 0}
-      onCheckedChange={toggleSelectAll}
-    />
-  </TableHead>
-)}
-```
-
-### Checkbox em Cada Linha
-
-```tsx
-{isDeleteMode && (
-  <TableCell>
-    <Checkbox 
-      checked={selectedBlockIds.includes(block.id)}
-      onCheckedChange={() => toggleBlockSelection(block.id)}
-    />
-  </TableCell>
-)}
-```
-
-### Barra Fixa de Ações
-
-```tsx
-{isDeleteMode && (
-  <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 flex items-center justify-between z-50">
-    <span className="text-sm text-muted-foreground">
-      {selectedBlockIds.length} bloco(s) selecionado(s)
-    </span>
-    <div className="flex gap-2">
-      <Button variant="outline" onClick={cancelDeleteMode}>
-        Cancelar
-      </Button>
-      <Button 
-        variant="destructive" 
-        onClick={handleBatchDelete}
-        disabled={selectedBlockIds.length === 0}
-      >
-        <Trash2 className="h-4 w-4 mr-2" />
-        Excluir {selectedBlockIds.length} bloco(s)
-      </Button>
-    </div>
-  </div>
-)}
-```
-
-### Item no Dropdown Ações
-
-```tsx
-<DropdownMenuSeparator />
-<DropdownMenuItem 
-  onClick={() => setIsDeleteMode(true)}
-  className="text-destructive focus:text-destructive"
+  }}
 >
-  <Trash2 className="h-4 w-4 mr-2" />
-  Deletar
-</DropdownMenuItem>
+```
+
+### HtmlBlock.tsx - Mudanças
+
+```typescript
+// Adicionar ref para o template inicial (montagem)
+const initialTemplateRef = useRef(template);
+
+// Modificar handleBlur para ser mais defensivo
+const handleBlur = useCallback((e: React.FocusEvent) => {
+  // Evitar blur se o foco foi para dentro do mesmo container
+  if (containerRef.current?.contains(e.relatedTarget as Node)) {
+    return;
+  }
+  
+  if (isEditing && containerRef.current) {
+    const rawHtml = containerRef.current.innerHTML;
+    // Verificar se não está vazio ou é apenas whitespace
+    if (!rawHtml || rawHtml.trim() === '') {
+      // Restaurar o template original se vazio
+      setIsEditing(false);
+      return;
+    }
+    
+    const newHtml = normalizeHtml(rawHtml);
+    const currentNormalized = normalizeHtml(originalTemplateRef.current);
+    
+    if (newHtml !== currentNormalized) {
+      setProp((props: any) => {
+        props.htmlTemplate = newHtml;
+        props.html = newHtml;
+      });
+    }
+  }
+  setIsEditing(false);
+}, [isEditing, setProp]);
+
+// Evitar que cliques no container pai causem problemas
+const handleContainerClick = useCallback((e: React.MouseEvent) => {
+  e.stopPropagation(); // Impedir propagação que pode causar re-renders
+  if (enabled && selected && !isEditing) {
+    originalTemplateRef.current = template;
+    setIsEditing(true);
+  }
+}, [enabled, selected, isEditing, template]);
+```
+
+## Fluxo Corrigido
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ APÓS CORREÇÃO:                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│ 1. Toolbox renderiza e memoiza todos os componentes                │
+│    → Cada bloco tem seu componente criado uma única vez            │
+│                                                                     │
+│ 2. connectors.create recebe sempre o mesmo componente memoizado    │
+│    → Não há recriação durante re-renders                           │
+│                                                                     │
+│ 3. Usuário clica no componente                                     │
+│    → handleClick ativa edição com template correto                 │
+│    → stopPropagation evita re-renders desnecessários               │
+│                                                                     │
+│ 4. Usuário clica fora                                              │
+│    → handleBlur só atualiza se houve mudança real                  │
+│    → Sem flickering porque não há ciclo de atualizações            │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Resultado Esperado
 
-- Novo botão "Deletar" no dropdown "Ações" separado por divisor
-- Ao clicar, ativa modo de seleção com checkboxes na tabela
-- Barra fixa na parte inferior mostra contador e botões de ação
-- Exclusão em lote com confirmação antes de executar
-- Ao concluir ou cancelar, modo de exclusão é desativado
+- Cada bloco mantém seu próprio `htmlTemplate` após ser arrastado
+- Clicar no bloco não causa transformação para outro componente
+- Sem flickering ao interagir com blocos
+- Edição direta funciona corretamente
 
