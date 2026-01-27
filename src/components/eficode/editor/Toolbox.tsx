@@ -536,6 +536,30 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
                       </div>
                     </div>
                   )}
+
+                  {/* Classes CSS adicionais */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Classes CSS adicionais no body</Label>
+                    <Input
+                      value={settings.containerClasses || ''}
+                      onChange={(e) => handleSettingChange('containerClasses', e.target.value)}
+                      placeholder="ex: container-fluid my-class"
+                      className="h-8 text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Classes separadas por espaço</p>
+                  </div>
+
+                  {/* CSS inline */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">CSS inline</Label>
+                    <Textarea
+                      value={settings.inlineStyles || ''}
+                      onChange={(e) => handleSettingChange('inlineStyles', e.target.value)}
+                      placeholder={`.size-40 {\n    width: inherit;\n    height: inherit;\n}\n.h1 { color: red; }`}
+                      className="text-xs font-mono min-h-[120px]"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Estilos CSS que serão injetados na página</p>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 

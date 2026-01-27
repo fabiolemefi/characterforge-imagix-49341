@@ -23,6 +23,8 @@ export interface PageSettings {
   googleAnalyticsId: string;
   facebookPixelId: string;
   customHeadCode: string;
+  containerClasses: string;
+  inlineStyles: string;
 }
 
 export const defaultPageSettings: PageSettings = {
@@ -44,6 +46,8 @@ export const defaultPageSettings: PageSettings = {
   googleAnalyticsId: '',
   facebookPixelId: '',
   customHeadCode: '',
+  containerClasses: '',
+  inlineStyles: '',
 };
 
 export interface EfiCodeSite {

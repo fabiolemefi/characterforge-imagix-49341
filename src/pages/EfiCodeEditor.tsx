@@ -310,12 +310,12 @@ export default function EfiCodeEditor() {
               backgroundAttachment: pageSettings.backgroundAttachment || 'scroll',
               backgroundRepeat: pageSettings.backgroundRepeat || 'no-repeat',
             }}>
-              {/* Inject Global CSS scoped to viewport */}
-              <style dangerouslySetInnerHTML={{ __html: globalCss }} />
+              {/* Inject Global CSS + Inline Styles scoped to viewport */}
+              <style dangerouslySetInnerHTML={{ __html: `${globalCss}\n${pageSettings.inlineStyles || ''}` }} />
               
               {viewMode === 'visual' ? (
                 <div 
-                  className="mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport" 
+                  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
                   style={{
                     minHeight: '600px',
                     maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
