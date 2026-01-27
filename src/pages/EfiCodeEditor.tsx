@@ -82,9 +82,8 @@ export default function EfiCodeEditor() {
 
   useEffect(() => {
     if (site) {
-      // If we just saved, don't reload the editor (we already have the correct state)
-      if (justSavedRef.current) {
-        justSavedRef.current = false;
+      // If we just saved OR are currently saving, don't reload the editor
+      if (justSavedRef.current || isSaving) {
         return;
       }
       
@@ -103,7 +102,7 @@ export default function EfiCodeEditor() {
         isInitialLoadRef.current = false;
       }
     }
-  }, [site]);
+  }, [site, isSaving]);
 
   // Calculate if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -163,6 +162,9 @@ export default function EfiCodeEditor() {
     setIsSaving(true);
     const serialized = query.serialize();
     
+    // Mark BEFORE save to prevent reload from query invalidation
+    justSavedRef.current = true;
+    
     try {
       await updateSite.mutateAsync({
         id,
@@ -171,8 +173,8 @@ export default function EfiCodeEditor() {
         page_settings: pageSettings
       });
       
-      // Mark that we just saved to prevent editor reload
-      justSavedRef.current = true;
+      // Update editorState with what we just saved (don't depend on refetch)
+      setEditorState(serialized);
       
       // Reset original values after successful save
       originalSiteNameRef.current = siteName;
@@ -181,6 +183,11 @@ export default function EfiCodeEditor() {
       
       toast.success('Site salvo com sucesso!');
       
+      // Keep flag true for a bit longer to handle async refetch
+      setTimeout(() => {
+        justSavedRef.current = false;
+      }, 1000);
+      
       // If there's a pending preview, open it
       if (pendingPreviewRef.current) {
         pendingPreviewRef.current = false;
@@ -188,6 +195,7 @@ export default function EfiCodeEditor() {
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
+      justSavedRef.current = false; // Reset on error
       pendingPreviewRef.current = false;
     } finally {
       setIsSaving(false);
