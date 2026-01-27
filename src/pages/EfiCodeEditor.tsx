@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useBlocker } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Editor, Frame, Element, useEditor } from '@craftjs/core';
 import { ArrowLeft, Save, Undo2, Redo2, Eye, Download, Monitor, Tablet, Smartphone, Code, Layers, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -106,11 +106,33 @@ export default function EfiCodeEditor() {
     return nameChanged || settingsChanged || hasEditorChanges;
   }, [site, siteName, pageSettings, hasEditorChanges]);
 
-  // Block internal navigation when there are unsaved changes
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
-  );
+  // State for navigation blocking dialog
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+
+  // Handle back button with unsaved changes check
+  const handleBack = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation('/efi-code');
+      setShowExitDialog(true);
+    } else {
+      navigate('/efi-code');
+    }
+  }, [hasUnsavedChanges, navigate]);
+
+  // Confirm exit without saving
+  const handleConfirmExit = useCallback(() => {
+    setShowExitDialog(false);
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+    }
+  }, [navigate, pendingNavigation]);
+
+  // Cancel exit
+  const handleCancelExit = useCallback(() => {
+    setShowExitDialog(false);
+    setPendingNavigation(null);
+  }, []);
 
   // Block browser close/refresh when there are unsaved changes
   useEffect(() => {
@@ -221,7 +243,7 @@ export default function EfiCodeEditor() {
           {/* Header */}
           <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/efi-code')}>
+              <Button variant="ghost" size="icon" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <Input 
@@ -293,7 +315,7 @@ export default function EfiCodeEditor() {
               
               {viewMode === 'visual' ? (
                 <div 
-                  className="mx-auto overflow-hidden transition-all duration-300" 
+                  className="mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport" 
                   style={{
                     minHeight: '600px',
                     maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
@@ -338,27 +360,25 @@ export default function EfiCodeEditor() {
           </div>
         </div>
 
-        {/* Navigation Blocker Dialog */}
-        {blocker.state === 'blocked' && (
-          <AlertDialog open>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Você tem alterações que não foram salvas. Se sair agora, essas alterações serão perdidas.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => blocker.reset?.()}>
-                  Cancelar
-                </AlertDialogCancel>
-                <AlertDialogAction onClick={() => blocker.proceed?.()}>
-                  Sair sem salvar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        {/* Navigation Exit Dialog */}
+        <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
+              <AlertDialogDescription>
+                Você tem alterações que não foram salvas. Se sair agora, essas alterações serão perdidas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelExit}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmExit}>
+                Sair sem salvar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Preview Confirmation Dialog */}
         <AlertDialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
