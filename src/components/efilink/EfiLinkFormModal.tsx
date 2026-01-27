@@ -313,9 +313,20 @@ export function EfiLinkFormModal({
           )}
 
           {extensionAvailable === false && (
-            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm">
-              <p className="text-yellow-600">
-                Extensão não detectada. Instale a extensão EFI SFMC Proxy para criar links.
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm space-y-2">
+              <p className="text-yellow-600 font-medium">
+                Extensão não detectada
+              </p>
+              <p className="text-yellow-600/80 text-xs">
+                Verifique se a extensão "Mágicas do Fábio" está instalada e tente{' '}
+                <button 
+                  type="button"
+                  onClick={() => window.location.reload()} 
+                  className="underline font-medium"
+                >
+                  recarregar a página
+                </button>
+                {' '}para restabelecer a conexão.
               </p>
             </div>
           )}

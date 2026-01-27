@@ -6,6 +6,18 @@ export interface ExtensionResponse {
   [key: string]: any;
 }
 
+// Rastreia se a extensão sinalizou estar pronta
+let extensionReady = false;
+
+// Escutar o evento de ready do content script
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event) => {
+    if (event.data?.target === 'SFMC_PROXY_READY') {
+      extensionReady = true;
+    }
+  });
+}
+
 export async function sendToExtension(action: string, payload?: any): Promise<ExtensionResponse> {
   return new Promise((resolve) => {
     const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -22,6 +34,7 @@ export async function sendToExtension(action: string, payload?: any): Promise<Ex
     const handleResponse = (event: MessageEvent) => {
       if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
         window.removeEventListener('message', handleResponse);
+        extensionReady = true; // Marca como pronta se respondeu
         resolve(event.data.response || { success: false, error: 'Resposta vazia' });
       }
     };
@@ -37,8 +50,37 @@ export async function sendToExtension(action: string, payload?: any): Promise<Ex
 }
 
 export async function checkExtensionInstalled(): Promise<boolean> {
-  const response = await sendToExtension('CHECK_EXTENSION');
-  return response.configured === true;
+  // Se já recebeu o evento de ready, extensão está disponível
+  if (extensionReady) {
+    return true;
+  }
+  
+  // Tenta enviar mensagem com timeout curto para feedback rápido
+  return new Promise((resolve) => {
+    const requestId = `check-${Date.now()}`;
+    
+    window.postMessage({
+      target: 'SFMC_PROXY',
+      requestId,
+      action: 'CHECK_EXTENSION',
+    }, '*');
+
+    const handleResponse = (event: MessageEvent) => {
+      if (event.data?.target === 'SFMC_PROXY_RESPONSE' && event.data?.requestId === requestId) {
+        window.removeEventListener('message', handleResponse);
+        extensionReady = true;
+        resolve(true);
+      }
+    };
+
+    window.addEventListener('message', handleResponse);
+
+    // Timeout curto de 3 segundos
+    setTimeout(() => {
+      window.removeEventListener('message', handleResponse);
+      resolve(extensionReady);
+    }, 3000);
+  });
 }
 
 export async function shortenUrl(url: string): Promise<{ 
