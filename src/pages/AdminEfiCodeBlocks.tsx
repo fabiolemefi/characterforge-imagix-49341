@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -120,6 +122,8 @@ export default function AdminEfiCodeBlocks() {
   const [formData, setFormData] = useState<EfiCodeBlockFormData>(defaultFormData);
   const [cssContent, setCssContent] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
 
   useEffect(() => {
     checkAdmin();
@@ -235,6 +239,43 @@ export default function AdminEfiCodeBlocks() {
     }
   };
 
+  const toggleBlockSelection = (id: string) => {
+    setSelectedBlockIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(blockId => blockId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedBlockIds.length === blocks.length) {
+      setSelectedBlockIds([]);
+    } else {
+      setSelectedBlockIds(blocks.map(b => b.id));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (!confirm(`Tem certeza que deseja excluir ${selectedBlockIds.length} blocos?`)) return;
+    
+    try {
+      for (const id of selectedBlockIds) {
+        await deleteBlock.mutateAsync(id);
+      }
+      toast.success(`${selectedBlockIds.length} blocos excluídos`);
+      setSelectedBlockIds([]);
+      setIsDeleteMode(false);
+    } catch (error) {
+      toast.error('Erro ao excluir blocos');
+      console.error(error);
+    }
+  };
+
+  const cancelDeleteMode = () => {
+    setIsDeleteMode(false);
+    setSelectedBlockIds([]);
+  };
+
   if (!isAdmin) return null;
 
   return (
@@ -281,6 +322,14 @@ export default function AdminEfiCodeBlocks() {
                       <Sparkles className="h-4 w-4 mr-2" />
                       Importar com IA
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setIsDeleteMode(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Deletar
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
@@ -307,10 +356,18 @@ export default function AdminEfiCodeBlocks() {
               </div>
             </div>
 
-          <div className="border rounded-lg">
+          <div className={`border rounded-lg ${isDeleteMode ? 'mb-20' : ''}`}>
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isDeleteMode && (
+                    <TableHead className="w-10">
+                      <Checkbox 
+                        checked={selectedBlockIds.length === blocks.length && blocks.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-12">Pos</TableHead>
                   <TableHead className="w-12">Ícone</TableHead>
                   <TableHead>Nome</TableHead>
@@ -336,6 +393,14 @@ export default function AdminEfiCodeBlocks() {
                 ) : (
                   blocks.map((block) => (
                     <TableRow key={block.id}>
+                      {isDeleteMode && (
+                        <TableCell>
+                          <Checkbox 
+                            checked={selectedBlockIds.includes(block.id)}
+                            onCheckedChange={() => toggleBlockSelection(block.id)}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="font-mono text-sm">{block.position}</TableCell>
                       <TableCell>{getIconComponent(block.icon_name)}</TableCell>
                       <TableCell className="font-medium">{block.name}</TableCell>
@@ -372,6 +437,28 @@ export default function AdminEfiCodeBlocks() {
             </Table>
           </div>
         </div>
+
+        {/* Barra fixa de ações para exclusão em lote */}
+        {isDeleteMode && (
+          <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 flex items-center justify-between z-50 shadow-lg">
+            <span className="text-sm text-muted-foreground">
+              {selectedBlockIds.length} bloco(s) selecionado(s)
+            </span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={cancelDeleteMode}>
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleBatchDelete}
+                disabled={selectedBlockIds.length === 0}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir {selectedBlockIds.length} bloco(s)
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Dialog de Criar/Editar Bloco */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
