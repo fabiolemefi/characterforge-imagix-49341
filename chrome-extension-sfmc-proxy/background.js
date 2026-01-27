@@ -76,13 +76,13 @@ async function getSfmcAccessToken() {
 async function testEfiLinkConnection() {
   console.log("[Efí Link] Testando conexão...");
 
-  const response = await fetch("https://gnetbr.com/shortener", {
+  const response = await fetch("https://shortener.gerencianet.com.br", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Accept": "application/json",
     },
-    body: JSON.stringify({ url: "https://gnetbr.com/shortener" }),
+    body: JSON.stringify({ url: "https://gerencianet.com.br" }),
   });
 
   if (!response.ok) {
@@ -449,7 +449,7 @@ async function updateAssetInSfmc(assetId, assetData) {
 async function shortenUrl(url) {
   console.log("[Efí Link] Encurtando URL:", url);
 
-  const response = await fetch("https://gnetbr.com/shortener", {
+  const response = await fetch("https://shortener.gerencianet.com.br", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
