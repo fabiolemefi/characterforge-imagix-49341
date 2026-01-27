@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useEditor, Element } from '@craftjs/core';
 import { Container, Text, Heading, Button, Image, Divider, Spacer, HtmlBlock } from '../user-components';
 import { useEfiCodeBlocks, EfiCodeBlock } from '@/hooks/useEfiCodeBlocks';
@@ -176,7 +176,8 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
     return IconComponent ? <IconComponent className="h-5 w-5" /> : <SquareDashed className="h-5 w-5" />;
   };
 
-  const getComponent = (block: EfiCodeBlock) => {
+  // Memoizar a função getComponent para estabilidade
+  const getComponent = useCallback((block: EfiCodeBlock): React.ReactElement => {
     // Se tem html_content, usar HtmlBlock diretamente (sem Element wrapper para serialização correta)
     if (block.html_content) {
       const dynamicProps = (block.default_props as Record<string, any>) || {};
@@ -211,7 +212,17 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
       default:
         return <Element is={Container} canvas {...defaultProps} />;
     }
-  };
+  }, []);
+
+  // Memoizar todos os componentes para evitar recriação a cada render
+  // Isso garante que connectors.create receba sempre o mesmo componente
+  const memoizedComponents = useMemo(() => {
+    const components: Record<string, React.ReactElement> = {};
+    blocks.forEach(block => {
+      components[block.id] = getComponent(block);
+    });
+    return components;
+  }, [blocks, getComponent]);
 
   if (isLoading) {
     return (
@@ -241,7 +252,11 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
               {blocks.map((block) => (
                 <div
                   key={block.id}
-                  ref={(ref) => ref && connectors.create(ref, getComponent(block))}
+                  ref={(ref) => {
+                    if (ref && memoizedComponents[block.id]) {
+                      connectors.create(ref, memoizedComponents[block.id]);
+                    }
+                  }}
                 >
                   <ToolboxItem
                     icon={getIcon(block.icon_name)}

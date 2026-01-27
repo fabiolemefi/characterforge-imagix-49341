@@ -199,16 +199,20 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
   
   // Ref para guardar o template antes de começar a editar
   const originalTemplateRef = useRef<string>(template);
+  
+  // Ref para o template inicial na montagem (para identificação estável)
+  const initialTemplateRef = useRef<string>(template);
 
-  // Handler para iniciar edição
-  const handleClick = useCallback(() => {
+  // Handler para iniciar edição - com stopPropagation para evitar re-renders
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation(); // Impedir propagação que pode causar re-renders no editor
     if (enabled && selected && !isEditing) {
       originalTemplateRef.current = template;
       setIsEditing(true);
     }
   }, [enabled, selected, isEditing, template]);
 
-  // Handler para finalizar edição
+  // Handler para finalizar edição - mais defensivo
   const handleBlur = useCallback((e: React.FocusEvent) => {
     // Evitar blur se o foco foi para dentro do mesmo container
     if (containerRef.current?.contains(e.relatedTarget as Node)) {
@@ -216,10 +220,19 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
     }
     
     if (isEditing && containerRef.current) {
-      const newHtml = normalizeHtml(containerRef.current.innerHTML);
+      const rawHtml = containerRef.current.innerHTML;
+      
+      // Verificar se não está vazio ou é apenas whitespace
+      if (!rawHtml || rawHtml.trim() === '') {
+        setIsEditing(false);
+        return;
+      }
+      
+      const newHtml = normalizeHtml(rawHtml);
       const currentNormalized = normalizeHtml(originalTemplateRef.current);
       
-      if (newHtml !== currentNormalized) {
+      // Só atualiza se realmente mudou
+      if (newHtml && newHtml !== currentNormalized) {
         setProp((props: any) => {
           props.htmlTemplate = newHtml;
           props.html = newHtml;
@@ -244,13 +257,13 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
         }
       }}
       className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+      onClick={handleContainerClick}
     >
       <div
         ref={containerRef}
         contentEditable={isEditing}
         suppressContentEditableWarning={true}
         dangerouslySetInnerHTML={{ __html: template }}
-        onClick={handleClick}
         onBlur={handleBlur}
         className={isEditing ? 'outline-2 outline-primary outline-offset-2' : ''}
         style={{ 
