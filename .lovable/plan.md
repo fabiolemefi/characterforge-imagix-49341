@@ -1,103 +1,132 @@
 
-# Plano: Corrigir Parsing de Resposta do Shortener
+# Plano: Corrigir Erro "sendMessage undefined" no Content Script
 
 ## Problema Identificado
 
-O endpoint `https://shortener.gerencianet.com.br` está retornando **HTTP 200 com conteúdo HTML** em vez de JSON. Isso acontece quando:
+O erro `Cannot read properties of undefined (reading 'sendMessage')` ocorre no **content.js** (linha 18) quando o content script tenta chamar `chrome.runtime.sendMessage()`, mas o `chrome.runtime` está `undefined`.
 
-1. O endpoint faz um redirect que termina em uma página HTML
-2. O servidor retorna uma página de erro com status 200
-3. A API mudou o formato de resposta
+**Causas possíveis:**
+1. A extensão foi atualizada/recarregada enquanto a página estava aberta
+2. O Service Worker (background.js) foi parado pelo Chrome
+3. O contexto da extensão foi invalidado (comum após updates)
 
-O código atual assume que se `response.ok` é `true`, o conteúdo é JSON válido. Quando tenta fazer `response.json()` em HTML, ocorre o erro:
-```
-SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
-```
+Quando isso acontece, o content script ainda está rodando na página, mas perdeu a conexão com a extensão.
 
 ## Solução
 
-Adicionar validação do `Content-Type` da resposta antes de tentar fazer parse como JSON, com mensagens de erro mais descritivas.
+Adicionar verificação de contexto no content script antes de tentar usar `chrome.runtime.sendMessage()`, retornando um erro claro que indica ao usuário para recarregar a página.
 
 ## Arquivo a Modificar
 
-### `chrome-extension-sfmc-proxy/background.js`
-
-**Função `shortenUrl()` (linhas 452-483)**
+### `chrome-extension-sfmc-proxy/content.js`
 
 ```javascript
-async function shortenUrl(url) {
-  console.log("[Efí Link] Encurtando URL:", url);
+// EFI SFMC Proxy - Content Script
+// Atua como ponte entre a página web e o background script
 
-  const response = await fetch("https://shortener.gerencianet.com.br", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    },
-    body: JSON.stringify({ url }),
-    redirect: 'follow',
-    credentials: 'omit',
-    mode: 'cors',
-  });
+console.log('[SFMC Proxy] Content script carregado');
 
-  // Log da URL final (para debug de redirects)
-  console.log("[Efí Link] URL final após redirects:", response.url);
-  console.log("[Efí Link] Status:", response.status);
-  console.log("[Efí Link] Content-Type:", response.headers.get('content-type'));
+// Verifica se o contexto da extensão ainda é válido
+function isExtensionContextValid() {
+  try {
+    // chrome.runtime.id será undefined se o contexto foi invalidado
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch (e) {
+    return false;
+  }
+}
 
-  // Verificar se a resposta foi redirecionada para outro domínio
-  if (!response.url.includes('shortener.gerencianet.com.br')) {
-    const responseText = await response.text();
-    console.error("[Efí Link] Redirect inesperado para:", response.url);
-    console.error("[Efí Link] Conteúdo:", responseText.substring(0, 500));
-    throw new Error(`API redirecionou para ${response.url}. Verifique se o serviço está disponível.`);
+// Escuta mensagens da página web
+window.addEventListener('message', async (event) => {
+  // Ignora mensagens que não são da mesma origem ou não são para o proxy
+  if (event.source !== window) return;
+  if (!event.data || event.data.target !== 'SFMC_PROXY') return;
+
+  const { requestId, action, payload } = event.data;
+
+  console.log('[SFMC Proxy] Mensagem recebida da página:', action, requestId);
+
+  // Verifica se o contexto da extensão ainda é válido
+  if (!isExtensionContextValid()) {
+    console.error('[SFMC Proxy] Contexto da extensão invalidado. Recarregue a página.');
+    window.postMessage({
+      target: 'SFMC_PROXY_RESPONSE',
+      requestId: requestId,
+      response: { 
+        success: false, 
+        error: 'Contexto da extensão perdido. Por favor, recarregue a página (F5).' 
+      }
+    }, '*');
+    return;
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("[Efí Link] Erro ao encurtar:", errorText);
-    throw new Error(`Erro ao encurtar URL: ${response.status}`);
+  try {
+    // Envia para o background script
+    const response = await chrome.runtime.sendMessage({
+      type: 'SFMC_PROXY_REQUEST',
+      action: action,
+      payload: payload
+    });
+
+    // Retorna a resposta para a página
+    window.postMessage({
+      target: 'SFMC_PROXY_RESPONSE',
+      requestId: requestId,
+      response: response
+    }, '*');
+
+    console.log('[SFMC Proxy] Resposta enviada para a página:', requestId);
+
+  } catch (error) {
+    console.error('[SFMC Proxy] Erro:', error);
+
+    // Detecta erros específicos de contexto invalidado
+    const isContextError = error.message?.includes('Extension context invalidated') ||
+                           error.message?.includes('sendMessage');
+
+    // Retorna erro para a página
+    window.postMessage({
+      target: 'SFMC_PROXY_RESPONSE',
+      requestId: requestId,
+      response: { 
+        success: false, 
+        error: isContextError 
+          ? 'Extensão desconectada. Recarregue a página (F5).'
+          : (error.message || 'Erro na extensão')
+      }
+    }, '*');
   }
+});
 
-  // Verificar Content-Type antes de fazer parse
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const responseText = await response.text();
-    console.error("[Efí Link] Resposta não é JSON:", responseText.substring(0, 500));
-    throw new Error(`API retornou ${contentType || 'formato desconhecido'} em vez de JSON. O serviço pode estar indisponível.`);
-  }
-
-  const data = await response.json();
-  console.log("[Efí Link] URL encurtada:", data.shorted_url);
-
-  return {
-    success: true,
-    id: data.id,
-    original_url: data.original_url,
-    shorted: data.shorted,
-    shorted_url: data.shorted_url,
-  };
+// Notifica a página que a extensão está disponível (apenas se contexto válido)
+if (isExtensionContextValid()) {
+  window.postMessage({
+    target: 'SFMC_PROXY_READY',
+    version: '1.0.0'
+  }, '*');
 }
 ```
 
-## Principais Melhorias
+## Resumo das Alterações
 
-| Verificação | Propósito |
-|-------------|-----------|
-| `response.url` | Detecta se houve redirect para outro domínio |
-| `Content-Type` header | Valida se a resposta é JSON antes do parse |
-| Logs detalhados | Facilita debug mostrando URL final, status e tipo de conteúdo |
-| Mensagens de erro claras | Explica o problema ao usuário (ex: "API retornou HTML") |
+| Alteração | Propósito |
+|-----------|-----------|
+| Função `isExtensionContextValid()` | Verifica se `chrome.runtime.id` existe antes de usar APIs da extensão |
+| Verificação antes do `sendMessage` | Retorna erro claro se o contexto foi perdido |
+| Catch de erro específico | Detecta erros de contexto invalidado e retorna mensagem amigável |
+| Verificação no `SFMC_PROXY_READY` | Só notifica a página se o contexto é válido |
 
-## Diagnóstico Adicional
+## Resultado Esperado
 
-Após implementar, os logs vão mostrar:
-- Para onde a API está redirecionando
-- Qual Content-Type está retornando
-- Primeiros 500 caracteres do HTML de erro
+Após esta correção:
+1. O erro JavaScript bruto não vai mais ocorrer
+2. O usuário receberá uma mensagem clara: **"Extensão desconectada. Recarregue a página (F5)."**
+3. O toast no app vai exibir essa mensagem em vez de um erro técnico
 
-Isso vai ajudar a entender se é um problema temporário do serviço ou se o endpoint correto é outro.
+## Instruções Pós-Implementação
 
-## Possível Causa Raiz
-
-O redirect para `sejaefi.com.br` pode indicar que o endpoint `shortener.gerencianet.com.br` foi desativado ou movido. Os logs vão confirmar isso após a implementação.
+Após salvar as alterações no `content.js`:
+1. Vá em `chrome://extensions`
+2. Clique no botão de **atualizar** na extensão "Mágicas do Fábio"
+3. **Recarregue a página** do Efi Link (F5)
+4. Teste a criação de um novo link
