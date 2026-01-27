@@ -1,116 +1,124 @@
 
+# Plano: Restaurar Tailwind CSS v3
 
-# Plano: Substituir Indicador de Seleção por Contorno Azul
+## Situação Atual
 
-## Problema Identificado
+O projeto está usando Tailwind v4 com sintaxe incompatível:
 
-Atualmente, quando um bloco é selecionado no editor Efi Code, o indicador visual usa classes `ring-2 ring-primary ring-offset-2` que criam um efeito de "anel" com espaçamento. O `ring-offset` gera linhas horizontais visíveis (as "barras" que você circulou) porque cria um espaço entre o conteúdo e o anel.
-
-## Solução Proposta
-
-Substituir o indicador `ring-*` por um `outline` sólido que contorne o bloco diretamente, sem espaçamento. Isso dará a impressão visual de "bloco selecionado" que você deseja.
-
-```text
-ANTES (ring com offset):
-┌─────────────────────────────────────┐ ← linha do ring
-│                                     │ ← espaço do offset
-│ ┌─────────────────────────────────┐ │
-│ │       Conteúdo do bloco         │ │
-│ └─────────────────────────────────┘ │
-│                                     │ ← espaço do offset
-└─────────────────────────────────────┘ ← linha do ring
-
-DEPOIS (outline direto):
-┌─────────────────────────────────────┐
-│       Conteúdo do bloco             │ ← outline azul diretamente
-└─────────────────────────────────────┘
-```
-
-## Estilo de Seleção Novo
-
-Vou usar `outline` que não afeta o layout e contorna o elemento diretamente:
-
-```css
-/* Antes */
-ring-2 ring-primary ring-offset-2
-
-/* Depois */
-outline outline-2 outline-blue-500 outline-offset-0
-/* Ou com box-shadow para efeito mais suave */
-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.8);
-```
+| Arquivo | Estado Atual |
+|---------|-------------|
+| `package.json` | Tailwind v4 (`^4.1.18`), `@tailwindcss/vite`, `@tailwindcss/postcss` |
+| `vite.config.ts` | Plugin `@tailwindcss/vite` ativo |
+| `src/index.css` | Sintaxe v4: `@import "tailwindcss"`, `@theme inline` |
+| `tailwind.config.ts` | **NÃO EXISTE** (deletado) |
 
 ## Arquivos a Modificar
 
-| Arquivo | Componente | Alteração |
-|---------|------------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | HtmlBlock | Trocar `ring-*` por `outline` ou `box-shadow` |
-| `src/components/eficode/user-components/Container.tsx` | Container | Adicionar indicador de seleção (atualmente não tem) |
-| `src/components/eficode/user-components/Divider.tsx` | Divider | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Heading.tsx` | Heading | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Text.tsx` | Text | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Button.tsx` | Button | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Image.tsx` | Image | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Spacer.tsx` | Spacer | Trocar `border dashed` por `outline` sólido |
+| Arquivo | Ação |
+|---------|------|
+| `tailwind.config.ts` | **CRIAR** - Configuração completa v3 |
+| `src/index.css` | **REESCREVER** - Sintaxe v3 |
+| `vite.config.ts` | **MODIFICAR** - Remover plugins v4 |
+| `postcss.config.js` | **MANTER** - Já está correto |
+| `package.json` | **MODIFICAR** - Downgrade dependências |
 
-## Implementação Detalhada
+## Detalhes Técnicos
 
-### Estilo Padrão de Seleção
+### 1. Criar tailwind.config.ts
 
-Usarei `box-shadow` em vez de `outline` porque funciona melhor com elementos que têm `overflow: hidden` ou bordas arredondadas:
+Configuração completa com todas as cores da marca Efí Bank:
 
 ```typescript
-// Constante para reutilização
-const SELECTION_STYLE = {
-  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8)', // Azul sólido
-  // Ou para efeito mais suave com "glow":
-  // boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8), 0 0 8px rgba(59, 130, 246, 0.4)',
-};
+import type { Config } from "tailwindcss";
+
+export default {
+  darkMode: ["class"],
+  content: ["./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        // Cores Efí Bank
+        orange: { 100-800 },
+        blue: { 100-800 },
+        // Tokens semânticos
+        border, background, foreground,
+        primary, secondary, muted, accent,
+        destructive, card, popover, sidebar
+      },
+      // Animações, fontes, etc.
+    }
+  },
+  plugins: [require("tailwindcss-animate")],
+} satisfies Config;
 ```
 
-### HtmlBlock.tsx (Linha 259)
+### 2. Reescrever src/index.css
 
-```tsx
-// Antes
-className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+Converter de v4 para v3:
 
-// Depois - usando style inline
-className={`relative ${className}`}
-style={{
-  boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-}}
+```css
+/* ANTES (v4) */
+@import "tailwindcss";
+@theme inline { --color-blue-500: rgb(...); }
+
+/* DEPOIS (v3) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 7%;
+  --primary: 191 100% 40%;
+  /* etc... */
+}
 ```
 
-### Outros Componentes (Divider, Heading, Text, Button, Image, Spacer)
+### 3. Modificar vite.config.ts
 
-```tsx
-// Antes
-border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+Remover plugins v4 e configuração de postcss inline:
 
-// Depois
-boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-// Remover a borda tracejada
+```typescript
+// REMOVER
+import tailwindcss from "@tailwindcss/vite";
+tailwindcss() // do plugins
+css: { postcss: {...} } // bloco inteiro
+
+// MANTER apenas
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react-swc";
 ```
 
-### Container.tsx (Adicionar indicador)
+### 4. Modificar package.json
 
-```tsx
-// Adicionar isActive ao useNode
-const { connectors: { connect, drag }, isActive } = useNode((node) => ({
-  isActive: node.events.selected,
-}));
+Downgrade das dependências:
 
-// Adicionar style
-style={{
-  // ... estilos existentes ...
-  boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-}}
+```json
+// REMOVER de dependencies:
+"@tailwindcss/postcss": "^4.1.18"
+"@tailwindcss/vite": "^4.1.18"
+
+// MUDAR em devDependencies:
+"tailwindcss": "^4.1.18" → "^3.4.0"
+
+// ADICIONAR em devDependencies:
+"tailwindcss-animate": "^1.0.7"
 ```
 
-## Resultado Visual Esperado
+## Cores a Preservar
 
-- Bloco selecionado terá um contorno azul sólido de 2px
-- Sem espaçamento entre o contorno e o conteúdo
-- Visual limpo e moderno, similar a editores como Figma ou Notion
-- Cor azul `#3b82f6` (blue-500 do Tailwind) com 80% de opacidade
+As cores do CSS v4 atual serão convertidas para formato HSL do v3:
 
+| Cor | RGB (v4) | HSL (v3) |
+|-----|----------|----------|
+| `blue-500` | `rgb(11 161 194)` | `191 89% 40%` |
+| `orange-500` | `rgb(243 112 33)` | `23 90% 54%` |
+| `black` | `rgb(18 18 18)` | `0 0% 7%` |
+| `white` | `rgb(255 255 255)` | `0 0% 100%` |
+
+## Resultado Esperado
+
+- Aplicação renderiza normalmente
+- Tema escuro funciona corretamente
+- Todas as cores da marca Efí preservadas
+- Compatibilidade com shadcn/ui
+- Animações funcionando
