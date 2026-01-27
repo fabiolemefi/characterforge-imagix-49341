@@ -66,6 +66,7 @@ import {
 import { useEfiCodeBlocks, EfiCodeBlockFormData } from '@/hooks/useEfiCodeBlocks';
 import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { BlockImportModal } from '@/components/eficode/BlockImportModal';
+import { HtmlToBlocksModal } from '@/components/eficode/HtmlToBlocksModal';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ImageLibraryDialog } from '@/components/eficode/ImageLibraryDialog';
@@ -114,6 +115,7 @@ export default function AdminEfiCodeBlocks() {
   const [isCssDialogOpen, setIsCssDialogOpen] = useState(false);
   const [isImageLibraryOpen, setIsImageLibraryOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAiImportModalOpen, setIsAiImportModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<EfiCodeBlockFormData>(defaultFormData);
   const [cssContent, setCssContent] = useState('');
@@ -255,23 +257,32 @@ export default function AdminEfiCodeBlocks() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setCssContent(globalCss);
-                    setIsCssDialogOpen(true);
-                  }}
-                >
-                  <FileCode className="h-4 w-4 mr-2" />
-                  CSS Global
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsImageLibraryOpen(true)}
-                >
-                  <Images className="h-4 w-4 mr-2" />
-                  Biblioteca
-                </Button>
+                {/* Dropdown Ações */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      Ações
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setCssContent(globalCss);
+                      setIsCssDialogOpen(true);
+                    }}>
+                      <FileCode className="h-4 w-4 mr-2" />
+                      CSS Global
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsImageLibraryOpen(true)}>
+                      <Images className="h-4 w-4 mr-2" />
+                      Biblioteca
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsAiImportModalOpen(true)}>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Importar com IA
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 
                 {/* Dropdown para Novo Bloco */}
                 <DropdownMenu>
@@ -284,12 +295,12 @@ export default function AdminEfiCodeBlocks() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => handleOpenDialog()}>
-                      <Sparkles className="h-4 w-4 mr-2" />
+                      <Plus className="h-4 w-4 mr-2" />
                       Criar Bloco
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setIsImportModalOpen(true)}>
                       <Upload className="h-4 w-4 mr-2" />
-                      Importar
+                      Importar Código
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -551,6 +562,13 @@ body {
         <ImageLibraryDialog 
           open={isImageLibraryOpen} 
           onOpenChange={setIsImageLibraryOpen} 
+        />
+
+        {/* AI HTML Import Modal */}
+        <HtmlToBlocksModal
+          open={isAiImportModalOpen}
+          onOpenChange={setIsAiImportModalOpen}
+          onImport={handleImportBlocks}
         />
         </main>
       </div>
