@@ -127,3 +127,24 @@
     opacity: 0.9;
   }
 }
+
+/* Reset para área do editor Efi Code */
+/* Neutraliza os estilos globais do Tailwind dentro do viewport do editor */
+.efi-editor-viewport *,
+.efi-editor-viewport *::before,
+.efi-editor-viewport *::after {
+  /* Restaurar comportamento padrão de bordas */
+  border-color: currentColor;
+  border-style: none;
+}
+
+/* Permitir que elementos com bordas definidas mantenham seu estilo */
+.efi-editor-viewport [style*="border"],
+.efi-editor-viewport [class*="border"] {
+  border-style: solid;
+}
+
+/* Garantir que estilos inline prevaleçam (exceto rings e outlines do Craft.js) */
+.efi-editor-viewport *:not([class*="ring"]):not([class*="outline"]) {
+  border-color: inherit;
+}
