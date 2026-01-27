@@ -125,34 +125,48 @@ const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
         return;
       }
 
-      // Fetch image and convert to base64
-      const response = await fetch(src);
-      if (!response.ok) throw new Error('Não foi possível carregar a imagem');
+      // Fetch image with better error handling
+      let blob: Blob;
+      try {
+        const response = await fetch(src, { mode: 'cors' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        blob = await response.blob();
+      } catch (fetchError) {
+        console.error('Fetch failed for image:', src, fetchError);
+        toast.error('Não foi possível acessar a imagem. Verifique se a URL é válida e acessível.');
+        return;
+      }
       
-      const blob = await response.blob();
       const base64 = await blobToBase64(blob);
       
-      // Detect extension from URL or blob type
+      // Detect extension from URL or blob type - includes .jpe support
       const urlExtension = src.split('.').pop()?.toLowerCase().split('?')[0] || '';
       const blobType = blob.type.split('/')[1] || 'png';
-      const extension = ['jpg', 'jpeg', 'png', 'gif'].includes(urlExtension) ? urlExtension : blobType;
+      const validExtensions = ['jpg', 'jpeg', 'jpe', 'png', 'gif'];
+      let extension = validExtensions.includes(urlExtension) ? urlExtension : blobType;
+      
+      // Normalize jpe to jpeg for SFMC compatibility
+      if (extension === 'jpe') extension = 'jpeg';
       
       let assetTypeId = 28; // png default
       if (extension === 'jpg' || extension === 'jpeg') assetTypeId = 22;
       else if (extension === 'gif') assetTypeId = 23;
       
-      // Generate unique name
+      // Generate unique name with normalized extension
       const timestamp = Date.now();
-      const fileName = `eficode_${timestamp}.${extension === 'jpeg' ? 'jpg' : extension}`;
+      const normalizedExt = extension === 'jpeg' ? 'jpg' : extension;
+      const fileName = `eficode_${timestamp}.${normalizedExt}`;
       const customerKey = `img_${timestamp.toString(36)}`;
       
       const imagePayload = {
-        assetType: { name: extension, id: assetTypeId },
+        assetType: { name: normalizedExt, id: assetTypeId },
         name: fileName,
         file: base64,
         category: { id: 93941 }, // Default image category
         customerKey,
-        fileProperties: { fileName, extension }
+        fileProperties: { fileName, extension: normalizedExt }
       };
       
       // Send to SFMC
@@ -237,7 +251,10 @@ const ImageItem = ({ src, index, onReplace }: ImageItemProps) => {
               className="h-6 px-2 text-xs"
               onClick={handleSendToContentBuilder}
               disabled={uploading || uploadingToMC || hasError}
-              title="Enviar para Content Builder"
+              title={hasError 
+                ? "Imagem não carregou - verifique a URL" 
+                : "Enviar para Content Builder"
+              }
             >
               {uploadingToMC ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
