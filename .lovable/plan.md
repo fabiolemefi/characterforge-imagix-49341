@@ -1,183 +1,82 @@
 
-# Plano: Corrigir Race Condition no Salvamento do EfiCodeEditor
+# Plano: Trocar Endpoint de Encurtamento de URL
 
-## Problema Identificado
+## Objetivo
 
-Quando o usuário salva edições no EfiCode, as alterações são perdidas e o conteúdo original é recarregado. Isso acontece devido a uma **race condition** no fluxo de salvamento:
+Substituir o endpoint `https://gnetbr.com/shortener` pelo novo endpoint `https://shortener.gerencianet.com.br` na extensão do Chrome.
 
-### Fluxo Problemático Atual
+## Arquivos a Modificar
 
-```
-1. handleSave() chamado
-   |
-   v
-2. updateSite.mutateAsync() inicia
-   |
-   v
-3. Supabase atualiza o banco ✓
-   |
-   v
-4. onSuccess do updateSite dispara:
-   - invalidateQueries(['efi-code-site', id])
-   |
-   v
-5. React Query refetch automático
-   |
-   v
-6. useEffect(site) detecta mudança → 
-   justSavedRef.current ainda é FALSE! → 
-   Chama setEditorState(dados do banco) → 
-   ESTADO SOBRESCRITO COM DADOS ANTIGOS!
-   |
-   v
-7. Só AGORA mutateAsync resolve e 
-   justSavedRef.current = true (tarde demais!)
+### 1. `chrome-extension-sfmc-proxy/background.js`
+
+**Linha 79** - Função `testEfiLinkConnection()`:
+```javascript
+// De:
+const response = await fetch("https://gnetbr.com/shortener", {
+
+// Para:
+const response = await fetch("https://shortener.gerencianet.com.br", {
 ```
 
-### Por que acontece
+**Linha 85** - Corpo da requisição de teste:
+```javascript
+// De:
+body: JSON.stringify({ url: "https://gnetbr.com/shortener" }),
 
-O `onSuccess` do mutation executa **antes** do `mutateAsync` retornar. Isso significa que a invalidação da query e o refetch acontecem **durante** a execução assíncrona, não depois.
-
-## Solução
-
-Mudar a lógica para definir `justSavedRef.current = true` **ANTES** de chamar `mutateAsync`, e usar uma abordagem mais robusta para gerenciar o estado do editor após o salvamento.
-
-### Estratégia
-
-1. **Definir flag ANTES do save**: `justSavedRef.current = true` antes de `mutateAsync`
-2. **Manter flag por mais tempo**: Usar um timeout para resetar a flag, não apenas no próximo ciclo
-3. **Atualizar editorState com dados salvos**: Atualizar o `editorState` com o conteúdo que acabou de ser salvo, não com o que veio do banco
-
-## Alterações
-
-### Arquivo: `src/pages/EfiCodeEditor.tsx`
-
-#### Alteração 1: Marcar flag ANTES de salvar
-
-```typescript
-const handleSave = useCallback(async (query: any) => {
-  if (!id) return;
-  
-  setIsSaving(true);
-  const serialized = query.serialize();
-  
-  // Mark BEFORE save to prevent reload from query invalidation
-  justSavedRef.current = true;
-  
-  try {
-    await updateSite.mutateAsync({
-      id,
-      name: siteName,
-      content: JSON.parse(serialized),
-      page_settings: pageSettings
-    });
-    
-    // Update editorState with what we just saved (não depender do refetch)
-    setEditorState(serialized);
-    
-    // Reset original values after successful save
-    originalSiteNameRef.current = siteName;
-    originalPageSettingsRef.current = pageSettings;
-    setHasEditorChanges(false);
-    
-    toast.success('Site salvo com sucesso!');
-    
-    // Keep flag true for a bit longer to handle async refetch
-    setTimeout(() => {
-      justSavedRef.current = false;
-    }, 1000);
-    
-    // If there's a pending preview, open it
-    if (pendingPreviewRef.current) {
-      pendingPreviewRef.current = false;
-      window.open(`/efi-code/${id}/preview`, '_blank');
-    }
-  } catch (error) {
-    console.error('Erro ao salvar:', error);
-    justSavedRef.current = false; // Reset on error
-    pendingPreviewRef.current = false;
-  } finally {
-    setIsSaving(false);
-  }
-}, [id, siteName, pageSettings, updateSite]);
+// Para:
+body: JSON.stringify({ url: "https://gerencianet.com.br" }),
 ```
 
-#### Alteração 2: Melhorar o useEffect que observa `site`
+**Linha 452** - Função `shortenUrl()`:
+```javascript
+// De:
+const response = await fetch("https://gnetbr.com/shortener", {
 
-O `useEffect` atual reseta a flag muito rápido. Precisamos também verificar se estamos no processo de salvamento:
-
-```typescript
-useEffect(() => {
-  if (site) {
-    // If we just saved OR are currently saving, don't reload the editor
-    if (justSavedRef.current || isSaving) {
-      return;
-    }
-    
-    setSiteName(site.name);
-    if (site.content && Object.keys(site.content).length > 0) {
-      setEditorState(JSON.stringify(site.content));
-    }
-    if (site.page_settings) {
-      setPageSettings(site.page_settings);
-    }
-    
-    // Set original refs on initial load
-    if (isInitialLoadRef.current) {
-      originalSiteNameRef.current = site.name;
-      originalPageSettingsRef.current = site.page_settings || defaultPageSettings;
-      isInitialLoadRef.current = false;
-    }
-  }
-}, [site, isSaving]);
+// Para:
+const response = await fetch("https://shortener.gerencianet.com.br", {
 ```
 
-## Diagrama do Fluxo Corrigido
+### 2. `chrome-extension-sfmc-proxy/manifest.json`
 
-```
-1. handleSave() chamado
-   |
-   v
-2. justSavedRef.current = TRUE  ← Definido ANTES!
-   |
-   v
-3. updateSite.mutateAsync() inicia
-   |
-   v
-4. Supabase atualiza o banco ✓
-   |
-   v
-5. onSuccess → invalidateQueries
-   |
-   v
-6. React Query refetch
-   |
-   v
-7. useEffect(site) detecta mudança →
-   justSavedRef.current é TRUE →
-   IGNORA a atualização! ✓
-   |
-   v
-8. mutateAsync resolve
-   |
-   v
-9. setEditorState(serialized) ← Estado local atualizado
-   |
-   v
-10. setTimeout 1000ms → justSavedRef.current = false
+**Linha 14** - Adicionar permissão para o novo domínio:
+```json
+"host_permissions": [
+  "https://*.exacttargetapis.com/*",
+  "https://*.salesforce.com/*",
+  "https://*.marketingcloudapis.com/*",
+  "https://gnetbr.com/*",
+  "https://shortener.gerencianet.com.br/*",
+  "https://*.gerencianet.com.br/*"
+]
 ```
 
-## Resumo das Mudanças
+### 3. `chrome-extension-sfmc-proxy/rules.json`
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Momento da flag | Depois de `mutateAsync` | **Antes** de `mutateAsync` |
-| Reset da flag | Imediato no próximo ciclo | Timeout de 1 segundo |
-| Estado do editor | Dependia do refetch | Atualizado localmente após save |
-| Verificação no useEffect | Só `justSavedRef` | `justSavedRef` **OU** `isSaving` |
+**Linha 14-15** - Atualizar regra de CORS bypass:
+```json
+{
+  "header": "Referer",
+  "operation": "set",
+  "value": "https://gerencianet.com.br/"
+}
+```
 
-## Arquivos Modificados
+**Linha 35** - Atualizar filtro de URL:
+```json
+"condition": {
+  "urlFilter": "shortener.gerencianet.com.br",
+  "resourceTypes": ["xmlhttprequest"]
+}
+```
 
-- `src/pages/EfiCodeEditor.tsx`:
-  - Função `handleSave`: Mover flag para antes do save + atualizar estado local
-  - `useEffect` do `site`: Adicionar verificação de `isSaving`
+## Resumo das Alterações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `background.js` | 3 substituições de URL |
+| `manifest.json` | Adicionar host_permissions |
+| `rules.json` | Atualizar Referer e urlFilter |
+
+## Observação Importante
+
+Após as alterações, o usuário precisará **recarregar a extensão** no Chrome (chrome://extensions → botão de reload) para que as novas permissões e regras entrem em vigor.
