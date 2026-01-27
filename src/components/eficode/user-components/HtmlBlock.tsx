@@ -8,7 +8,6 @@ import { ImageIcon, Upload, Library, Loader2 } from 'lucide-react';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { IframePreview } from './IframePreview';
 
 // Placeholder SVG for broken images
 const PLACEHOLDER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E`;
@@ -194,35 +193,41 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
   }));
   const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
   
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const template = htmlTemplate || html || '';
   
   // Ref para guardar o template antes de começar a editar
   const originalTemplateRef = useRef<string>(template);
 
-  // Handler quando clica no bloco já selecionado
-  const handleIframeClick = useCallback(() => {
+  // Handler para iniciar edição
+  const handleClick = useCallback(() => {
     if (enabled && selected && !isEditing) {
-      // Salvar o template atual antes de começar a editar
       originalTemplateRef.current = template;
       setIsEditing(true);
     }
   }, [enabled, selected, isEditing, template]);
 
-  // Handler quando edição termina - atualiza o state apenas no final
-  const handleEditEnd = useCallback((finalHtml: string) => {
-    const normalized = normalizeHtml(finalHtml);
-    const currentNormalized = normalizeHtml(originalTemplateRef.current);
+  // Handler para finalizar edição
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    // Evitar blur se o foco foi para dentro do mesmo container
+    if (containerRef.current?.contains(e.relatedTarget as Node)) {
+      return;
+    }
     
-    // Só atualizar se realmente mudou (evita loops de re-render)
-    if (normalized !== currentNormalized) {
-      setProp((props: any) => {
-        props.htmlTemplate = normalized;
-        props.html = normalized;
-      });
+    if (isEditing && containerRef.current) {
+      const newHtml = normalizeHtml(containerRef.current.innerHTML);
+      const currentNormalized = normalizeHtml(originalTemplateRef.current);
+      
+      if (newHtml !== currentNormalized) {
+        setProp((props: any) => {
+          props.htmlTemplate = newHtml;
+          props.html = newHtml;
+        });
+      }
     }
     setIsEditing(false);
-  }, [setProp]);
+  }, [isEditing, setProp]);
 
   // Desativar edição quando desseleciona
   useEffect(() => {
@@ -240,13 +245,18 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
       }}
       className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
     >
-      <IframePreview 
-        html={template} 
-        className=""
-        minHeight={50}
-        editable={isEditing}
-        onEditEnd={handleEditEnd}
-        onClick={enabled ? handleIframeClick : undefined}
+      <div
+        ref={containerRef}
+        contentEditable={isEditing}
+        suppressContentEditableWarning={true}
+        dangerouslySetInnerHTML={{ __html: template }}
+        onClick={handleClick}
+        onBlur={handleBlur}
+        className={isEditing ? 'outline-2 outline-primary outline-offset-2' : ''}
+        style={{ 
+          cursor: enabled ? (isEditing ? 'text' : 'pointer') : 'default',
+          minHeight: '20px'
+        }}
       />
     </div>
   );
