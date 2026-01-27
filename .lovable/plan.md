@@ -1,109 +1,116 @@
 
-# Plano: Corrigir Tela Branca - Conflito Tailwind v4
+
+# Plano: Substituir Indicador de Seleção por Contorno Azul
 
 ## Problema Identificado
 
-O screenshot mostra o erro:
-```
-`@layer base` is used but no matching `@tailwind base` directive is present
-```
+Atualmente, quando um bloco é selecionado no editor Efi Code, o indicador visual usa classes `ring-2 ring-primary ring-offset-2` que criam um efeito de "anel" com espaçamento. O `ring-offset` gera linhas horizontais visíveis (as "barras" que você circulou) porque cria um espaço entre o conteúdo e o anel.
 
-Isso acontece porque:
+## Solução Proposta
 
-1. O arquivo `postcss.config.js` ainda existe com sintaxe do Tailwind v3
-2. Esse arquivo está conflitando com o plugin `@tailwindcss/vite` no `vite.config.ts`
-3. O PostCSS carrega o `postcss.config.js` do disco ANTES de considerar a config inline
+Substituir o indicador `ring-*` por um `outline` sólido que contorne o bloco diretamente, sem espaçamento. Isso dará a impressão visual de "bloco selecionado" que você deseja.
 
 ```text
-CONFLITO ATUAL:
-┌─────────────────────────────────────────────────────────────┐
-│ vite.config.ts                                              │
-│   ├── @tailwindcss/vite plugin (v4) ✓                      │
-│   └── css.postcss.plugins: [] (tentativa de override)      │
-└─────────────────────────────────────────────────────────────┘
-         ↓ CONFLITO
-┌─────────────────────────────────────────────────────────────┐
-│ postcss.config.js (arquivo no disco)                       │
-│   ├── tailwindcss: {} (v3 syntax) ✗                        │
-│   └── autoprefixer: {}                                     │
-└─────────────────────────────────────────────────────────────┘
-         ↓ RESULTADO
-┌─────────────────────────────────────────────────────────────┐
-│ PostCSS tenta usar tailwindcss como plugin v3              │
-│ Falha ao processar @layer base sem @tailwind base          │
-└─────────────────────────────────────────────────────────────┘
+ANTES (ring com offset):
+┌─────────────────────────────────────┐ ← linha do ring
+│                                     │ ← espaço do offset
+│ ┌─────────────────────────────────┐ │
+│ │       Conteúdo do bloco         │ │
+│ └─────────────────────────────────┘ │
+│                                     │ ← espaço do offset
+└─────────────────────────────────────┘ ← linha do ring
+
+DEPOIS (outline direto):
+┌─────────────────────────────────────┐
+│       Conteúdo do bloco             │ ← outline azul diretamente
+└─────────────────────────────────────┘
 ```
 
-## Solucao
+## Estilo de Seleção Novo
 
-Preciso remover o `postcss.config.js` e ajustar o `index.css` para usar a sintaxe correta do Tailwind v4.
+Vou usar `outline` que não afeta o layout e contorna o elemento diretamente:
+
+```css
+/* Antes */
+ring-2 ring-primary ring-offset-2
+
+/* Depois */
+outline outline-2 outline-blue-500 outline-offset-0
+/* Ou com box-shadow para efeito mais suave */
+box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.8);
+```
 
 ## Arquivos a Modificar
 
-| Arquivo | Acao | Descricao |
-|---------|------|-----------|
-| `postcss.config.js` | Remover | Elimina conflito com @tailwindcss/vite |
-| `src/index.css` | Modificar | Remover `@layer base` incompativel |
-| `vite.config.ts` | Modificar | Remover config postcss inline (desnecessaria) |
+| Arquivo | Componente | Alteração |
+|---------|------------|-----------|
+| `src/components/eficode/user-components/HtmlBlock.tsx` | HtmlBlock | Trocar `ring-*` por `outline` ou `box-shadow` |
+| `src/components/eficode/user-components/Container.tsx` | Container | Adicionar indicador de seleção (atualmente não tem) |
+| `src/components/eficode/user-components/Divider.tsx` | Divider | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Heading.tsx` | Heading | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Text.tsx` | Text | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Button.tsx` | Button | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Image.tsx` | Image | Trocar `border dashed` por `outline` sólido |
+| `src/components/eficode/user-components/Spacer.tsx` | Spacer | Trocar `border dashed` por `outline` sólido |
 
-## Implementacao Detalhada
+## Implementação Detalhada
 
-### 1. Remover postcss.config.js
+### Estilo Padrão de Seleção
 
-O arquivo precisa ser deletado porque:
-- O plugin `@tailwindcss/vite` ja inclui processamento PostCSS
-- Ter ambos causa conflito de versoes
-
-### 2. Ajustar src/index.css
-
-Remover o bloco `@layer base` e mover os estilos para CSS regular:
-
-```css
-/* ANTES (incompativel) */
-@layer base {
-  * {
-    border-color: var(--border);
-  }
-  body {
-    background-color: var(--background);
-    color: var(--foreground);
-    overflow-x: hidden;
-  }
-}
-
-/* DEPOIS (compativel v4) */
-* {
-  border-color: var(--border);
-}
-
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  overflow-x: hidden;
-}
-```
-
-### 3. Limpar vite.config.ts
-
-Remover a configuracao `css.postcss.plugins` que foi adicionada como workaround:
+Usarei `box-shadow` em vez de `outline` porque funciona melhor com elementos que têm `overflow: hidden` ou bordas arredondadas:
 
 ```typescript
-// REMOVER este bloco
-css: {
-  postcss: {
-    plugins: [],
-  },
-},
+// Constante para reutilização
+const SELECTION_STYLE = {
+  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8)', // Azul sólido
+  // Ou para efeito mais suave com "glow":
+  // boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8), 0 0 8px rgba(59, 130, 246, 0.4)',
+};
 ```
 
-## Ordem de Execucao
+### HtmlBlock.tsx (Linha 259)
 
-1. Deletar `postcss.config.js`
-2. Atualizar `src/index.css` removendo `@layer base`
-3. Limpar `vite.config.ts` removendo config postcss inline
+```tsx
+// Antes
+className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
 
-## Resultado Esperado
+// Depois - usando style inline
+className={`relative ${className}`}
+style={{
+  boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+}}
+```
 
-- Build compila sem erros
-- CSS do Tailwind v4 processa corretamente
-- Aplicacao renderiza com o novo design system
+### Outros Componentes (Divider, Heading, Text, Button, Image, Spacer)
+
+```tsx
+// Antes
+border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+
+// Depois
+boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+// Remover a borda tracejada
+```
+
+### Container.tsx (Adicionar indicador)
+
+```tsx
+// Adicionar isActive ao useNode
+const { connectors: { connect, drag }, isActive } = useNode((node) => ({
+  isActive: node.events.selected,
+}));
+
+// Adicionar style
+style={{
+  // ... estilos existentes ...
+  boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
+}}
+```
+
+## Resultado Visual Esperado
+
+- Bloco selecionado terá um contorno azul sólido de 2px
+- Sem espaçamento entre o contorno e o conteúdo
+- Visual limpo e moderno, similar a editores como Figma ou Notion
+- Cor azul `#3b82f6` (blue-500 do Tailwind) com 80% de opacidade
+
