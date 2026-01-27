@@ -6,6 +6,10 @@ import { Json } from '@/integrations/supabase/types';
 
 export interface PageSettings {
   containerMaxWidth: string;
+  paddingTop: string;
+  paddingBottom: string;
+  paddingLeft: string;
+  paddingRight: string;
   title: string;
   description: string;
   keywords: string;
@@ -23,6 +27,10 @@ export interface PageSettings {
 
 export const defaultPageSettings: PageSettings = {
   containerMaxWidth: '1200',
+  paddingTop: '0',
+  paddingBottom: '0',
+  paddingLeft: '0',
+  paddingRight: '0',
   title: '',
   description: '',
   keywords: '',

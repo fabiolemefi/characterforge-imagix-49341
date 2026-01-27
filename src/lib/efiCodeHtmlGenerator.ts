@@ -75,11 +75,15 @@ export const generateFullHtml = (
   
   // Gerar estilos do body baseado em pageSettings
   const bodyStyles = [
-    `background-color: ${pageSettings.backgroundColor || '#ffffff'}`,
     'min-height: 100vh',
     'margin: 0',
     'padding: 0',
   ];
+
+  // Só adiciona cor de fundo se não for transparente
+  if (pageSettings.backgroundColor && pageSettings.backgroundColor !== 'transparent') {
+    bodyStyles.push(`background-color: ${pageSettings.backgroundColor}`);
+  }
 
   // Adicionar imagem de fundo se existir
   if (pageSettings.backgroundImage) {
@@ -92,8 +96,15 @@ export const generateFullHtml = (
     );
   }
 
-  // Estilos do container wrapper
-  const containerStyles = `max-width: ${pageSettings.containerMaxWidth || '1200'}px; margin: 0 auto;`;
+  // Estilos do container wrapper com padding
+  const containerStyles = [
+    `max-width: ${pageSettings.containerMaxWidth || '1200'}px`,
+    'margin: 0 auto',
+    `padding-top: ${pageSettings.paddingTop || '0'}px`,
+    `padding-bottom: ${pageSettings.paddingBottom || '0'}px`,
+    `padding-left: ${pageSettings.paddingLeft || '0'}px`,
+    `padding-right: ${pageSettings.paddingRight || '0'}px`,
+  ].join('; ');
 
   // Google Analytics script
   const gaScript = pageSettings.googleAnalyticsId ? `

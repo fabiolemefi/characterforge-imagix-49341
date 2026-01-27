@@ -166,8 +166,17 @@ export default function EfiCodeEditor() {
 
             {/* Center - Viewport */}
             <main className="flex-1 overflow-auto" style={{
-            backgroundColor: pageSettings.backgroundColor
-          }}>
+              backgroundColor: pageSettings.backgroundColor === 'transparent' 
+                ? 'transparent' 
+                : pageSettings.backgroundColor,
+              backgroundImage: pageSettings.backgroundImage 
+                ? `url(${pageSettings.backgroundImage})` 
+                : undefined,
+              backgroundSize: pageSettings.backgroundSize || 'cover',
+              backgroundPosition: pageSettings.backgroundPosition || 'center',
+              backgroundAttachment: pageSettings.backgroundAttachment || 'scroll',
+              backgroundRepeat: pageSettings.backgroundRepeat || 'no-repeat',
+            }}>
               {/* Inject Global CSS scoped to viewport */}
               <style dangerouslySetInnerHTML={{
               __html: globalCss
@@ -176,7 +185,11 @@ export default function EfiCodeEditor() {
               {viewMode === 'visual' ? <div className="mx-auto overflow-hidden transition-all duration-300" style={{
               minHeight: '600px',
               maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
-              width: viewportWidths[viewportSize]
+              width: viewportWidths[viewportSize],
+              paddingTop: `${pageSettings.paddingTop || 0}px`,
+              paddingBottom: `${pageSettings.paddingBottom || 0}px`,
+              paddingLeft: `${pageSettings.paddingLeft || 0}px`,
+              paddingRight: `${pageSettings.paddingRight || 0}px`,
             }}>
                   <EditorFrame editorState={editorState} />
                 </div> : <div className="h-full flex flex-col">
