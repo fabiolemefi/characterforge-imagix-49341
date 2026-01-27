@@ -1,192 +1,168 @@
 
-# Plano: Botão "Enviar para Content Builder" no Painel de Imagens do HtmlBlock
+# Plano: Corrigir Persistência de Edições no Código HTML do HtmlBlock
 
-## Objetivo
+## Problema Identificado
 
-Adicionar um botão "Enviar para Content Builder" no painel de propriedades do HtmlBlock (seção de imagens). Ao clicar:
-1. A imagem atual é enviada para o Marketing Cloud Content Builder
-2. O sistema recebe a URL hospedada no SFMC
-3. O src da imagem no HTML é automaticamente atualizado com a nova URL
+Quando o usuário edita o código HTML diretamente no Textarea do painel "Propriedades" (seção "Código HTML"), as alterações não são persistidas. Ao digitar e tentar salvar, o bloco recarrega com o conteúdo anterior.
 
 ## Análise Técnica
 
-### Fluxo Atual
-O componente `ImageItem` dentro de `HtmlBlockSettings` já possui botões para:
-- Upload local (envia para Supabase bucket `efi-code-assets`)
-- Biblioteca (seleciona imagem da biblioteca interna)
+O problema está na forma como o Textarea no `HtmlBlockSettings` gerencia o estado:
 
-### Fluxo do SFMC (referência: EmailBuilder.tsx)
-O Email Builder já implementa o envio de imagens para o Content Builder usando:
-```typescript
-// 1. Buscar imagem e converter para base64
-const blob = await fetch(imageUrl).then(r => r.blob());
-const base64 = await blobToBase64(blob);
-
-// 2. Montar payload
-const imagePayload = {
-  assetType: { name: 'png', id: 28 },  // 22=jpeg, 28=png, 23=gif
-  name: 'nome-da-imagem.png',
-  file: base64,
-  category: { id: 93941 },  // Categoria padrão para imagens
-  customerKey: 'img_xxx',
-  fileProperties: { fileName: 'nome.png', extension: 'png' }
-};
-
-// 3. Enviar via extensão
-const result = await sendToExtension('UPLOAD_ASSET', imagePayload);
-// result.assetUrl = URL hospedada no SFMC
+```text
++-------------------+     setProp()     +------------------+
+|    Textarea       | ----------------> |   Craft.js       |
+|  value={template} |                   |   Node Props     |
++-------------------+                   +------------------+
+        ^                                       |
+        |                                       |
+        +----------- re-render -----------------+
 ```
 
-## Arquivo a Modificar
+**Causa raiz**: O Craft.js usa atualizações assíncronas via `setProp`. Quando o Textarea dispara `onChange`, ele chama `setProp`, mas antes que o Craft.js atualize as props, o React pode re-renderizar o componente com o valor antigo (pois `template` ainda não foi atualizado).
+
+Isso causa uma "corrida" onde:
+1. Usuário digita caractere
+2. `onChange` dispara `setProp`
+3. React re-renderiza antes do Craft.js atualizar
+4. Textarea recebe `value` antigo
+5. Edição é perdida
+
+## Solução
+
+Implementar um **estado local controlado** no `HtmlBlockSettings` que sincroniza com as props do Craft.js de forma debounced.
+
+### Estratégia
+
+1. Criar estado local `localTemplate` para controlar o Textarea
+2. Sincronizar do Craft.js para o local ao montar/mudar seleção
+3. Debounce a sincronização do local para o Craft.js
+4. Evitar loops de atualização infinitos com uma flag de controle
+
+### Arquivo a Modificar
 
 **`src/components/eficode/user-components/HtmlBlock.tsx`**
 
-### Alterações no componente `ImageItem`:
+### Alterações no `HtmlBlockSettings`:
 
-1. Adicionar import do `sendToExtension` e `checkExtensionInstalled`:
 ```typescript
-import { sendToExtension, checkExtensionInstalled } from '@/lib/extensionProxy';
-import { Cloud } from 'lucide-react';
-```
+export const HtmlBlockSettings = () => {
+  const { actions: { setProp }, ...nodeProps } = useNode((node) => ({
+    ...node.data.props,
+  }));
 
-2. Adicionar estado para controle de upload:
-```typescript
-const [uploadingToMC, setUploadingToMC] = useState(false);
-```
+  const propsTemplate = nodeProps.htmlTemplate || nodeProps.html || '';
+  
+  // Local state for controlled textarea
+  const [localTemplate, setLocalTemplate] = useState(propsTemplate);
+  const isInternalUpdate = useRef(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-3. Adicionar função helper `blobToBase64`:
-```typescript
-const blobToBase64 = (blob: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(',')[1]); // Remove prefixo data:xxx;base64,
+  // Sync from Craft.js props to local state (only external changes)
+  useEffect(() => {
+    if (!isInternalUpdate.current) {
+      setLocalTemplate(propsTemplate);
+    }
+    isInternalUpdate.current = false;
+  }, [propsTemplate]);
+
+  // Handle textarea change with debounced Craft.js sync
+  const handleTemplateChange = (value: string) => {
+    setLocalTemplate(value);
+    
+    // Clear previous debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // Debounce the Craft.js update
+    debounceRef.current = setTimeout(() => {
+      isInternalUpdate.current = true;
+      setProp((props: any) => {
+        props.htmlTemplate = value;
+        props.html = value;
+      });
+    }, 300); // 300ms debounce
+  };
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  }, []);
+
+  // ... rest of component uses localTemplate instead of template
+  
+  return (
+    <div className="space-y-4">
+      {/* ... images section unchanged ... */}
+      
+      {/* Template editor - now uses localTemplate */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Código HTML</Label>
+        <Textarea
+          value={localTemplate}
+          onChange={(e) => handleTemplateChange(e.target.value)}
+          placeholder="<div>Seu HTML aqui</div>"
+          rows={12}
+          className="font-mono text-xs bg-secondary/50 border-border"
+        />
+      </div>
+      
+      {/* ... placeholders and css classes unchanged ... */}
+    </div>
+  );
 };
 ```
 
-4. Adicionar função de envio para Content Builder:
-```typescript
-const handleSendToContentBuilder = async () => {
-  setUploadingToMC(true);
-  try {
-    // Verificar se extensão está conectada
-    const isConnected = await checkExtensionInstalled();
-    if (!isConnected) {
-      toast.error('Extensão SFMC não conectada');
-      return;
-    }
+## Alterações Detalhadas
 
-    // Buscar imagem e converter para base64
-    const response = await fetch(src);
-    if (!response.ok) throw new Error('Não foi possível carregar a imagem');
-    
-    const blob = await response.blob();
-    const base64 = await blobToBase64(blob);
-    
-    // Detectar extensão
-    const extension = src.split('.').pop()?.toLowerCase() || 'png';
-    let assetTypeId = 28; // png
-    if (extension === 'jpg' || extension === 'jpeg') assetTypeId = 22;
-    else if (extension === 'gif') assetTypeId = 23;
-    
-    // Gerar nome único
-    const timestamp = Date.now();
-    const fileName = `eficode_${timestamp}.${extension}`;
-    const customerKey = `img_${timestamp.toString(36)}`;
-    
-    const imagePayload = {
-      assetType: { name: extension, id: assetTypeId },
-      name: fileName,
-      file: base64,
-      category: { id: 93941 }, // Categoria padrão de imagens
-      customerKey,
-      fileProperties: { fileName, extension }
-    };
-    
-    // Enviar para SFMC
-    const result = await sendToExtension('UPLOAD_ASSET', imagePayload);
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Falha ao enviar para Content Builder');
-    }
-    
-    // Obter URL do SFMC
-    const sfmcUrl = result.assetUrl || result.data?.fileProperties?.publishedURL;
-    
-    if (sfmcUrl) {
-      onReplace(sfmcUrl);
-      toast.success('Imagem enviada para o Content Builder!');
-    } else {
-      toast.warning('Upload realizado, mas URL não retornada');
-    }
-  } catch (error: any) {
-    console.error('Erro ao enviar para Content Builder:', error);
-    toast.error(error.message || 'Erro ao enviar para Content Builder');
-  } finally {
-    setUploadingToMC(false);
-  }
-};
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Estado do Textarea | Direto das props (`template`) | Local controlado (`localTemplate`) |
+| `onChange` | `setProp` imediato | Atualiza local + debounce para Craft.js |
+| Sincronização | Nenhuma | `useEffect` bidirecional com flag |
+| Debounce | Não havia | 300ms para reduzir re-renders |
+
+## Fluxo Corrigido
+
+```text
+Usuário digita
+      |
+      v
+setLocalTemplate(value)  <-- Estado local atualizado IMEDIATO
+      |
+      +---> Textarea mostra valor correto
+      |
+      +---> setTimeout 300ms
+                |
+                v
+           isInternalUpdate = true
+                |
+                v
+           setProp() --> Craft.js atualiza
+                |
+                v
+           useEffect detecta mudança de propsTemplate
+                |
+                v
+           isInternalUpdate é true? SIM --> ignora sync
+                |
+                v
+           isInternalUpdate = false (reset)
 ```
 
-5. Adicionar botão na interface:
-```tsx
-<div className="flex gap-1 mt-1">
-  <Button variant="outline" size="sm" ...>
-    <Upload className="h-3 w-3" />
-  </Button>
-  <Button variant="outline" size="sm" ...>
-    <Library className="h-3 w-3" />
-  </Button>
-  {/* Novo botão */}
-  <Button
-    variant="outline"
-    size="sm"
-    className="h-6 px-2 text-xs"
-    onClick={handleSendToContentBuilder}
-    disabled={uploading || uploadingToMC || hasError}
-    title="Enviar para Content Builder"
-  >
-    {uploadingToMC ? (
-      <Loader2 className="h-3 w-3 animate-spin" />
-    ) : (
-      <Cloud className="h-3 w-3" />
-    )}
-  </Button>
-</div>
-```
+## Benefícios
 
-## Interface Visual
+1. **Resposta imediata**: O Textarea atualiza instantaneamente ao digitar
+2. **Sem perda de dados**: O estado local preserva as edições
+3. **Performance**: Debounce reduz atualizações ao Craft.js
+4. **Histórico funcional**: O `setProp` ainda é chamado, registrando no undo/redo
+5. **Sincronização correta**: Mudanças externas (ex: substituição de imagem) são refletidas
 
-O painel de imagens terá 3 botões:
+## Impacto
 
-| Botão | Ícone | Função |
-|-------|-------|--------|
-| Upload | ⬆️ | Upload de arquivo local (Supabase) |
-| Biblioteca | 📚 | Selecionar da biblioteca Efi Code |
-| **Novo** Content Builder | ☁️ | Enviar para SFMC e atualizar URL |
-
-## Fluxo de Uso
-
-1. Usuário seleciona um HtmlBlock com imagens
-2. No painel lateral, vê a seção "Imagens do Bloco"
-3. Ao lado dos botões existentes, clica no ícone de nuvem (☁️)
-4. Sistema mostra loading enquanto:
-   - Busca a imagem atual
-   - Converte para base64
-   - Envia via extensão para o Content Builder
-5. Ao concluir:
-   - Recebe a URL hospedada no SFMC
-   - Atualiza automaticamente o HTML do bloco
-   - Toast de sucesso é exibido
-
-## Observações
-
-- A categoria 93941 é a mesma usada pelo Email Builder para imagens
-- O customerKey segue o padrão curto (máx 36 chars) para compatibilidade
-- Se a extensão não estiver conectada, exibe mensagem de erro
-- O botão é desabilitado se a imagem estiver com erro de carregamento
+Esta correção afeta apenas o componente `HtmlBlockSettings`. O comportamento do `HtmlBlock` visual (contentEditable) permanece inalterado.
