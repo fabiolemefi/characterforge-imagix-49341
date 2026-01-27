@@ -18,7 +18,7 @@ export const Spacer = ({
       style={{
         height,
         background: isActive ? 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(59, 130, 246, 0.1) 5px, rgba(59, 130, 246, 0.1) 10px)' : 'transparent',
-        border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+        boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
         cursor: 'move',
       }}
     />

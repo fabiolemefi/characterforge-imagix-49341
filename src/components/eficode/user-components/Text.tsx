@@ -27,9 +27,8 @@ export const Text = ({
     <div
       ref={(ref) => ref && connect(drag(ref))}
       style={{
-        padding: '4px',
         cursor: 'move',
-        border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+        boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
       }}
     >
       <ContentEditable
