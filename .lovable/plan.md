@@ -1,42 +1,46 @@
 
-# Plano: Corrigir Verificação de Conexão da Extensão no Efi Code
+# Plano: Correção do Erro "Ação desconhecida: LIST_CLOUDPAGE"
 
-## Problema Identificado
+## Diagnóstico
 
-A função `checkExtensionInstalled()` no `extensionProxy.ts` verifica `response.success`, mas deveria verificar `response.configured` para saber se a extensão está configurada com as credenciais do Marketing Cloud.
+O código está **correto** em todos os arquivos:
 
-| Arquivo | Verificação Atual | Verificação Correta |
-|---------|------------------|---------------------|
-| `extensionProxy.ts` | `response.success` | `response.configured` |
-| `EmailTemplates.tsx` | `response.configured` | (correto) |
+| Arquivo | Valor | Status |
+|---------|-------|--------|
+| `extensionProxy.ts` linha 80 | `sendToExtension('LIST_CLOUDPAGES', ...)` | Correto (plural) |
+| `background.js` linha 548 | `case "LIST_CLOUDPAGES":` | Correto (plural) |
+| `background.js` linha 211 | `listCloudPagesFromSfmc(...)` | Função existe |
 
-## Resposta da Extensão
+O erro `Ação desconhecida: LIST_CLOUDPAGE` (singular) indica que a **extensão Chrome instalada localmente está desatualizada**.
 
-Quando a extensão está instalada e configurada, ela retorna:
-```json
-{ "success": true, "configured": true }
-```
+## Causa Raiz
 
-- `success: true` = extensão instalada e respondendo
-- `configured: true` = credenciais SFMC configuradas no popup
+As extensões Chrome carregadas via "Load unpacked" não atualizam automaticamente quando os arquivos são modificados. O `background.js` na extensão que está rodando no navegador ainda não tem os handlers `LIST_CLOUDPAGES`, `GET_CLOUDPAGE` e `DELETE_CLOUDPAGE`.
 
 ## Solução
 
-Modificar a função `checkExtensionInstalled()` para verificar `response.configured`:
+O usuário precisa **recarregar a extensão** no Chrome:
 
-**Arquivo:** `src/lib/extensionProxy.ts`
+### Passos para Atualizar a Extensão
 
-```typescript
-export async function checkExtensionInstalled(): Promise<boolean> {
-  const response = await sendToExtension('CHECK_EXTENSION');
-  return response.configured === true;  // Verificar se está CONFIGURADA
-}
-```
+1. Abrir o Chrome e ir para `chrome://extensions`
+2. Localizar a extensão **"Mágicas do Fábio"**
+3. Clicar no botão **"Recarregar"** (ícone de refresh circular)
+4. Voltar ao Lovable e testar a aba "Sites Online"
 
-## Impacto
+Alternativamente:
+- Habilitar o "Modo desenvolvedor" (toggle no canto superior direito)
+- Remover a extensão atual
+- Clicar em "Carregar sem compactação"
+- Selecionar a pasta `chrome-extension-sfmc-proxy` novamente
 
-Esta correção afeta todos os lugares que usam `checkExtensionInstalled()`:
-- `/efi-code` - Sites Online (o problema atual)
-- Qualquer outro componente que use esta função
+## Verificação
 
-O `/email-templates` não é afetado pois usa sua própria implementação local de `checkExtension()`.
+Após recarregar, ao abrir a aba "Sites Online":
+- O indicador verde deve aparecer (extensão conectada)
+- A lista de Cloud Pages do Marketing Cloud deve carregar
+- Não deve aparecer mais o erro "Ação desconhecida"
+
+## Sem Alterações de Código
+
+Não são necessárias alterações no código. O problema é apenas sincronização da extensão local.
