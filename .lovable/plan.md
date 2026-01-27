@@ -1,264 +1,206 @@
 
-# Plano: Conversor de HTML para Blocos Craft com IA
+
+# Plano: Adicionar Botão "Deletar" para Exclusão em Lote
 
 ## Objetivo
 
-Criar uma funcionalidade que permite ao usuário colar um HTML completo (página inteira) e usar IA para extrair automaticamente blocos individuais reutilizáveis. O foco é extrair apenas HTML estrutural, ignorando CSS e JS.
+Adicionar um botão "Deletar" separado no dropdown "Ações" que permita ao usuário selecionar múltiplos blocos e excluí-los em lote.
 
-## Arquitetura da Solução
+## Componentes da Solução
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Usuário clica em "Ações" → "Importar código"                │
-├─────────────────────────────────────────────────────────────────┤
-│ 2. Modal abre com textarea dark theme                          │
-│    - Usuário cola HTML completo                                │
-│    - Clica em "Analisar com IA"                                │
-├─────────────────────────────────────────────────────────────────┤
-│ 3. Frontend chama Edge Function analyze-html-blocks            │
-│    - Envia HTML para GPT-5 via OpenAI API                      │
-│    - IA analisa e extrai blocos independentes                  │
-├─────────────────────────────────────────────────────────────────┤
-│ 4. Resposta da IA:                                             │
-│    - Array de blocos com: name, category, html_content         │
-│    - Blocos são limpados (sem CSS inline desnecessário)        │
-│    - Estrutura pronta para usar com diferentes containers      │
-├─────────────────────────────────────────────────────────────────┤
-│ 5. Preview dos blocos detectados                               │
-│    - Usuário seleciona quais deseja importar                   │
-│    - Clica em "Importar Selecionados"                          │
-├─────────────────────────────────────────────────────────────────┤
-│ 6. Blocos são criados na tabela efi_code_blocks                │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 1. Estado de Seleção
 
-## Componentes a Criar/Modificar
-
-### 1. Reorganizar Botões no AdminEfiCodeBlocks
-
-**Arquivo:** `src/pages/AdminEfiCodeBlocks.tsx`
-
-Substituir os botões separados por um único dropdown "Ações":
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  [Voltar]   Blocos do Efi Code                   [Ações ▼]   │
-│                                               ┌──────────────┤
-│                                               │ CSS Global   │
-│                                               │ Biblioteca   │
-│                                               │ Importar AI  │
-│                                               └──────────────┘
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 2. Criar Modal de Importação com IA
-
-**Arquivo:** `src/components/eficode/HtmlToBlocksModal.tsx` (novo)
-
-Interface do modal:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ✨ Importar HTML com IA                              [X]  │
-├─────────────────────────────────────────────────────────────┤
-│  Cole o código HTML completo abaixo. A IA irá analisar     │
-│  e extrair blocos individuais reutilizáveis.               │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ <!-- Textarea dark theme -->                        │   │
-│  │ <html>                                              │   │
-│  │   <body>                                            │   │
-│  │     <section class="hero">...</section>             │   │
-│  │     <section class="features">...</section>         │   │
-│  │   </body>                                           │   │
-│  │ </html>                                             │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  [ ] Remover classes CSS inline                            │
-│  [ ] Manter apenas estrutura HTML                          │
-│                                                             │
-│           [Cancelar]  [Analisar com IA ✨]                  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Após análise, exibe preview:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ✨ Blocos Detectados                                  [X]  │
-├─────────────────────────────────────────────────────────────┤
-│  A IA identificou 4 blocos no HTML:                        │
-│                                                             │
-│  [✓] Hero Section (layout)                                 │
-│      <section class="hero">...</section>                   │
-│                                                             │
-│  [✓] Features Grid (layout)                                │
-│      <div class="grid grid-cols-3">...</div>               │
-│                                                             │
-│  [✓] Testimonial Card (layout)                             │
-│      <div class="testimonial">...</div>                    │
-│                                                             │
-│  [ ] Footer (layout)                                       │
-│      <footer>...</footer>                                  │
-│                                                             │
-│           [Voltar]  [Importar 3 Selecionados]              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 3. Edge Function para Análise com IA
-
-**Arquivo:** `supabase/functions/analyze-html-blocks/index.ts` (novo)
-
-A função utiliza a `OPENAI_API_KEY` já configurada para chamar GPT-5:
+Adicionar estados para controlar:
+- Modo de seleção ativado/desativado
+- Lista de IDs dos blocos selecionados
 
 ```typescript
-// Pseudocódigo da Edge Function
-import OpenAI from "https://esm.sh/openai@4.28.0";
-
-const SYSTEM_PROMPT = `Você é um especialista em análise de HTML.
-Sua tarefa é receber um HTML completo e extrair blocos individuais 
-que podem ser reutilizados em um editor visual.
-
-REGRAS:
-1. Identifique seções semânticas (hero, header, footer, cards, etc)
-2. Cada bloco deve ser INDEPENDENTE - funcionando fora do contexto original
-3. REMOVA: <style>, <script>, CSS inline complexo
-4. MANTENHA: classes CSS simples que referenciam CSS externo
-5. PRESERVE: estrutura HTML, textos, imagens, links
-6. NÃO inclua <html>, <head>, <body> nos blocos
-7. Cada bloco deve ter um nome descritivo
-
-RESPONDA EM JSON:
-{
-  "blocks": [
-    {
-      "name": "Hero Section",
-      "category": "layout",
-      "description": "Banner principal com título e CTA",
-      "html_content": "<section class=\"hero\">...</section>"
-    }
-  ]
-}`;
-
-// Chamar OpenAI com o HTML do usuário
-const completion = await openai.chat.completions.create({
-  model: "gpt-5",
-  messages: [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Analise este HTML:\n\n${userHtml}` }
-  ],
-  temperature: 0.3,  // Baixa para resultados consistentes
-  max_tokens: 8000,
-});
+const [isDeleteMode, setIsDeleteMode] = useState(false);
+const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
 ```
 
-## Fluxo de Dados
+### 2. Modificar o Dropdown "Ações"
+
+Adicionar novo item de menu separado por um divisor:
 
 ```text
-┌──────────────┐     ┌────────────────────┐     ┌─────────────────┐
-│   Frontend   │────▶│  Edge Function     │────▶│  OpenAI GPT-5   │
-│  (Modal)     │     │analyze-html-blocks │     │    API          │
-└──────────────┘     └────────────────────┘     └─────────────────┘
-       │                      │                         │
-       │  1. HTML colado      │                         │
-       │─────────────────────▶│  2. Prompt + HTML       │
-       │                      │────────────────────────▶│
-       │                      │                         │
-       │                      │◀────────────────────────│
-       │                      │  3. JSON com blocos     │
-       │◀─────────────────────│                         │
-       │  4. Blocos extraídos │                         │
-       ▼                      ▼                         ▼
-   Preview UI            Processamento              Análise IA
+┌──────────────────┐
+│ CSS Global       │
+│ Biblioteca       │
+│ Importar com IA  │
+├──────────────────┤
+│ Deletar          │  ← Novo item
+└──────────────────┘
 ```
 
-## Arquivos a Criar
+### 3. Modificar a Tabela
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/eficode/HtmlToBlocksModal.tsx` | Modal com textarea e preview de blocos |
-| `supabase/functions/analyze-html-blocks/index.ts` | Edge function que chama GPT-5 |
+Quando o modo de exclusão estiver ativo:
+- Adicionar coluna de checkbox à esquerda
+- Mostrar checkbox de seleção para cada linha
+- Adicionar checkbox "Selecionar todos" no header
+- Exibir barra de ações fixa na parte inferior
 
-## Arquivos a Modificar
+### 4. Barra de Ações de Exclusão
+
+Quando houver itens selecionados, exibir barra fixa:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  ✓ 3 blocos selecionados     [Cancelar]  [Excluir 3 blocos] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Fluxo de Interação
+
+```text
+1. Usuário clica em "Ações" → "Deletar"
+   ↓
+2. Modo de exclusão é ativado
+   - Checkboxes aparecem na tabela
+   - Barra de ações aparece na parte inferior
+   ↓
+3. Usuário seleciona os blocos desejados
+   - Pode usar "Selecionar todos"
+   - Contador atualiza em tempo real
+   ↓
+4. Usuário clica em "Excluir X blocos"
+   ↓
+5. Confirmação via dialog
+   ↓
+6. Exclusão em lote é executada
+   ↓
+7. Modo de exclusão é desativado
+```
+
+## Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/AdminEfiCodeBlocks.tsx` | Reorganizar botões em dropdown "Ações" |
+| `src/pages/AdminEfiCodeBlocks.tsx` | Adicionar estados, checkbox na tabela, barra de ações, lógica de exclusão em lote |
 
-## Prompt da IA (Detalhado)
+## Código Proposto
 
-O prompt enviado ao GPT-5 será otimizado para:
+### Estados Novos
 
-1. **Identificar blocos semânticos** - hero, header, footer, cards, sections
-2. **Limpar HTML** - remover scripts, estilos inline, comentários
-3. **Nomear inteligentemente** - baseado no conteúdo e estrutura
-4. **Categorizar** - layout, texto, mídia, interativo
-5. **Preservar classes** - manter referências a CSS externo (Tailwind, etc)
-6. **Detectar placeholders** - converter textos/URLs em [placeholder]
-
-Exemplo de entrada:
-```html
-<html>
-<head><style>.hero { background: blue; }</style></head>
-<body>
-  <section class="hero bg-blue-500 p-8">
-    <h1>Bem-vindo</h1>
-    <p>Descrição do produto</p>
-    <a href="/comprar" class="btn">Comprar Agora</a>
-  </section>
-  <div class="features grid grid-cols-3 gap-4">
-    <div class="card"><h3>Feature 1</h3><p>Desc</p></div>
-    <div class="card"><h3>Feature 2</h3><p>Desc</p></div>
-  </div>
-</body>
-</html>
+```typescript
+const [isDeleteMode, setIsDeleteMode] = useState(false);
+const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
 ```
 
-Exemplo de saída esperada:
-```json
-{
-  "blocks": [
-    {
-      "name": "Hero Section",
-      "category": "layout",
-      "description": "Banner com título, descrição e botão CTA",
-      "html_content": "<section class=\"bg-blue-500 p-8\">\n  <h1>[title]</h1>\n  <p>[description]</p>\n  <a href=\"[cta_link]\" class=\"btn\">[cta_text]</a>\n</section>",
-      "default_props": {
-        "title": "Bem-vindo",
-        "description": "Descrição do produto",
-        "cta_link": "/comprar",
-        "cta_text": "Comprar Agora"
-      }
-    },
-    {
-      "name": "Feature Card",
-      "category": "layout",
-      "description": "Card individual de feature",
-      "html_content": "<div class=\"card\">\n  <h3>[title]</h3>\n  <p>[description]</p>\n</div>",
-      "default_props": {
-        "title": "Feature",
-        "description": "Descrição"
-      }
+### Handlers
+
+```typescript
+// Toggle seleção individual
+const toggleBlockSelection = (id: string) => {
+  setSelectedBlockIds(prev => 
+    prev.includes(id) 
+      ? prev.filter(blockId => blockId !== id)
+      : [...prev, id]
+  );
+};
+
+// Selecionar/Desselecionar todos
+const toggleSelectAll = () => {
+  if (selectedBlockIds.length === blocks.length) {
+    setSelectedBlockIds([]);
+  } else {
+    setSelectedBlockIds(blocks.map(b => b.id));
+  }
+};
+
+// Exclusão em lote
+const handleBatchDelete = async () => {
+  if (!confirm(`Tem certeza que deseja excluir ${selectedBlockIds.length} blocos?`)) return;
+  
+  try {
+    for (const id of selectedBlockIds) {
+      await deleteBlock.mutateAsync(id);
     }
-  ]
-}
+    toast.success(`${selectedBlockIds.length} blocos excluídos`);
+    setSelectedBlockIds([]);
+    setIsDeleteMode(false);
+  } catch (error) {
+    toast.error('Erro ao excluir blocos');
+  }
+};
+
+// Cancelar modo de exclusão
+const cancelDeleteMode = () => {
+  setIsDeleteMode(false);
+  setSelectedBlockIds([]);
+};
 ```
 
-## Considerações Técnicas
+### Nova Coluna na Tabela (quando isDeleteMode = true)
 
-### Por que GPT-5 (OpenAI)?
-- A secret `OPENAI_API_KEY` já está configurada no projeto
-- GPT-5 tem excelente capacidade de análise estrutural
-- Suporta grandes contextos (HTML completo de páginas)
-- Responde bem a instruções precisas de extração
+```tsx
+{isDeleteMode && (
+  <TableHead className="w-10">
+    <Checkbox 
+      checked={selectedBlockIds.length === blocks.length && blocks.length > 0}
+      onCheckedChange={toggleSelectAll}
+    />
+  </TableHead>
+)}
+```
 
-### Tratamento de Erros
-- HTML muito grande: truncar ou pedir para dividir
-- Timeout: usar streaming ou polling se necessário
-- Resposta inválida: fallback para parser local simples
+### Checkbox em Cada Linha
 
-### UX Considerations
-- Loading state durante análise IA (pode levar 5-15s)
-- Preview claro dos blocos antes de importar
-- Opção de editar nome/categoria antes de importar
-- Seleção múltipla para importar só o que deseja
+```tsx
+{isDeleteMode && (
+  <TableCell>
+    <Checkbox 
+      checked={selectedBlockIds.includes(block.id)}
+      onCheckedChange={() => toggleBlockSelection(block.id)}
+    />
+  </TableCell>
+)}
+```
+
+### Barra Fixa de Ações
+
+```tsx
+{isDeleteMode && (
+  <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 flex items-center justify-between z-50">
+    <span className="text-sm text-muted-foreground">
+      {selectedBlockIds.length} bloco(s) selecionado(s)
+    </span>
+    <div className="flex gap-2">
+      <Button variant="outline" onClick={cancelDeleteMode}>
+        Cancelar
+      </Button>
+      <Button 
+        variant="destructive" 
+        onClick={handleBatchDelete}
+        disabled={selectedBlockIds.length === 0}
+      >
+        <Trash2 className="h-4 w-4 mr-2" />
+        Excluir {selectedBlockIds.length} bloco(s)
+      </Button>
+    </div>
+  </div>
+)}
+```
+
+### Item no Dropdown Ações
+
+```tsx
+<DropdownMenuSeparator />
+<DropdownMenuItem 
+  onClick={() => setIsDeleteMode(true)}
+  className="text-destructive focus:text-destructive"
+>
+  <Trash2 className="h-4 w-4 mr-2" />
+  Deletar
+</DropdownMenuItem>
+```
+
+## Resultado Esperado
+
+- Novo botão "Deletar" no dropdown "Ações" separado por divisor
+- Ao clicar, ativa modo de seleção com checkboxes na tabela
+- Barra fixa na parte inferior mostra contador e botões de ação
+- Exclusão em lote com confirmação antes de executar
+- Ao concluir ou cancelar, modo de exclusão é desativado
+
