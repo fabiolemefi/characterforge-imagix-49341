@@ -1,191 +1,264 @@
 
-# Plano: Abordagem Alternativa sem Iframe para HtmlBlock
+# Plano: Conversor de HTML para Blocos Craft com IA
 
-## Problema Atual
+## Objetivo
 
-O HtmlBlock usa um `<iframe>` com `srcdoc` para:
-1. **Isolar CSS** - Evitar conflitos entre Tailwind v3 (app) e Tailwind v4 (blocos importados)
-2. **Edição contentEditable** - Permitir edição visual do HTML
+Criar uma funcionalidade que permite ao usuário colar um HTML completo (página inteira) e usar IA para extrair automaticamente blocos individuais reutilizáveis. O foco é extrair apenas HTML estrutural, ignorando CSS e JS.
 
-### Por que o Flickering Persiste
+## Arquitetura da Solução
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Usuário clica em "Ações" → "Importar código"                │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. Modal abre com textarea dark theme                          │
+│    - Usuário cola HTML completo                                │
+│    - Clica em "Analisar com IA"                                │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. Frontend chama Edge Function analyze-html-blocks            │
+│    - Envia HTML para GPT-5 via OpenAI API                      │
+│    - IA analisa e extrai blocos independentes                  │
+├─────────────────────────────────────────────────────────────────┤
+│ 4. Resposta da IA:                                             │
+│    - Array de blocos com: name, category, html_content         │
+│    - Blocos são limpados (sem CSS inline desnecessário)        │
+│    - Estrutura pronta para usar com diferentes containers      │
+├─────────────────────────────────────────────────────────────────┤
+│ 5. Preview dos blocos detectados                               │
+│    - Usuário seleciona quais deseja importar                   │
+│    - Clica em "Importar Selecionados"                          │
+├─────────────────────────────────────────────────────────────────┤
+│ 6. Blocos são criados na tabela efi_code_blocks                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Componentes a Criar/Modificar
+
+### 1. Reorganizar Botões no AdminEfiCodeBlocks
+
+**Arquivo:** `src/pages/AdminEfiCodeBlocks.tsx`
+
+Substituir os botões separados por um único dropdown "Ações":
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  [Voltar]   Blocos do Efi Code                   [Ações ▼]   │
+│                                               ┌──────────────┤
+│                                               │ CSS Global   │
+│                                               │ Biblioteca   │
+│                                               │ Importar AI  │
+│                                               └──────────────┘
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 2. Criar Modal de Importação com IA
+
+**Arquivo:** `src/components/eficode/HtmlToBlocksModal.tsx` (novo)
+
+Interface do modal:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  O problema fundamental é que o iframe recria o srcdoc     │
-│  sempre que a prop "editable" muda de false → true.        │
+│  ✨ Importar HTML com IA                              [X]  │
+├─────────────────────────────────────────────────────────────┤
+│  Cole o código HTML completo abaixo. A IA irá analisar     │
+│  e extrair blocos individuais reutilizáveis.               │
 │                                                             │
-│  Mesmo com o "lock" do HTML, a mudança de EDITABLE_MODE    │
-│  força uma reconstrução completa do documento iframe:      │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ <!-- Textarea dark theme -->                        │   │
+│  │ <html>                                              │   │
+│  │   <body>                                            │   │
+│  │     <section class="hero">...</section>             │   │
+│  │     <section class="features">...</section>         │   │
+│  │   </body>                                           │   │
+│  │ </html>                                             │   │
+│  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│  - srcdoc depende de [globalCss, stableHtml, editable]     │
-│  - Quando editable muda, o useMemo recalcula               │
-│  - Navegador re-renderiza todo o iframe = FLASH            │
+│  [ ] Remover classes CSS inline                            │
+│  [ ] Manter apenas estrutura HTML                          │
+│                                                             │
+│           [Cancelar]  [Analisar com IA ✨]                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Solução Proposta: Renderização Direta com CSS Global
+Após análise, exibe preview:
 
-Em vez de usar iframe, renderizar o HTML diretamente no DOM principal usando `dangerouslySetInnerHTML` e aproveitar o CSS global que já é injetado no viewport do editor.
-
-### Vantagens desta Abordagem
-
-| Aspecto | Iframe (Atual) | Renderização Direta (Proposta) |
-|---------|----------------|--------------------------------|
-| Flickering | Sim (recria documento) | Não (atualização DOM normal) |
-| Edição | Via postMessage | Direta via contentEditable |
-| Performance | Pesado (documento completo) | Leve (elementos React) |
-| CSS | Isolado no iframe | Usa CSS global já injetado |
-
-### Possível Conflito de CSS
-
-O motivo original do iframe era isolar Tailwind v4 do v3. **Porém**, o `EfiCodeEditor.tsx` já injeta o `globalCss` (Tailwind v4) no viewport:
-
-```typescript
-// EfiCodeEditor.tsx linha 172-174
-<style dangerouslySetInnerHTML={{
-  __html: globalCss
-}} />
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  ✨ Blocos Detectados                                  [X]  │
+├─────────────────────────────────────────────────────────────┤
+│  A IA identificou 4 blocos no HTML:                        │
+│                                                             │
+│  [✓] Hero Section (layout)                                 │
+│      <section class="hero">...</section>                   │
+│                                                             │
+│  [✓] Features Grid (layout)                                │
+│      <div class="grid grid-cols-3">...</div>               │
+│                                                             │
+│  [✓] Testimonial Card (layout)                             │
+│      <div class="testimonial">...</div>                    │
+│                                                             │
+│  [ ] Footer (layout)                                       │
+│      <footer>...</footer>                                  │
+│                                                             │
+│           [Voltar]  [Importar 3 Selecionados]              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Isso significa que os blocos HTML **já podem usar** as classes do CSS global se renderizados diretamente. O Tailwind v4 tem classes com nomes diferentes (ex: `bg-elevation-2`) que não conflitam com Tailwind v3 (`bg-gray-100`).
+### 3. Edge Function para Análise com IA
 
-## Implementação
+**Arquivo:** `supabase/functions/analyze-html-blocks/index.ts` (novo)
 
-### Novo Componente: DirectHtmlBlock
-
-Criar um componente alternativo que renderiza HTML diretamente:
+A função utiliza a `OPENAI_API_KEY` já configurada para chamar GPT-5:
 
 ```typescript
-// Estrutura simplificada
-export const DirectHtmlBlock = ({ htmlTemplate }: Props) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isEditing, setIsEditing] = useState(false);
+// Pseudocódigo da Edge Function
+import OpenAI from "https://esm.sh/openai@4.28.0";
 
-  // Renderização direta - sem iframe
-  return (
-    <div
-      ref={containerRef}
-      contentEditable={isEditing}
-      dangerouslySetInnerHTML={{ __html: htmlTemplate }}
-      onBlur={() => {
-        // Salvar HTML do container
-        const newHtml = containerRef.current?.innerHTML || '';
-        setProp(props => { props.htmlTemplate = newHtml; });
-        setIsEditing(false);
-      }}
-      onClick={() => setIsEditing(true)}
-    />
-  );
-};
+const SYSTEM_PROMPT = `Você é um especialista em análise de HTML.
+Sua tarefa é receber um HTML completo e extrair blocos individuais 
+que podem ser reutilizados em um editor visual.
+
+REGRAS:
+1. Identifique seções semânticas (hero, header, footer, cards, etc)
+2. Cada bloco deve ser INDEPENDENTE - funcionando fora do contexto original
+3. REMOVA: <style>, <script>, CSS inline complexo
+4. MANTENHA: classes CSS simples que referenciam CSS externo
+5. PRESERVE: estrutura HTML, textos, imagens, links
+6. NÃO inclua <html>, <head>, <body> nos blocos
+7. Cada bloco deve ter um nome descritivo
+
+RESPONDA EM JSON:
+{
+  "blocks": [
+    {
+      "name": "Hero Section",
+      "category": "layout",
+      "description": "Banner principal com título e CTA",
+      "html_content": "<section class=\"hero\">...</section>"
+    }
+  ]
+}`;
+
+// Chamar OpenAI com o HTML do usuário
+const completion = await openai.chat.completions.create({
+  model: "gpt-5",
+  messages: [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: `Analise este HTML:\n\n${userHtml}` }
+  ],
+  temperature: 0.3,  // Baixa para resultados consistentes
+  max_tokens: 8000,
+});
 ```
 
-### Arquivos a Modificar
+## Fluxo de Dados
+
+```text
+┌──────────────┐     ┌────────────────────┐     ┌─────────────────┐
+│   Frontend   │────▶│  Edge Function     │────▶│  OpenAI GPT-5   │
+│  (Modal)     │     │analyze-html-blocks │     │    API          │
+└──────────────┘     └────────────────────┘     └─────────────────┘
+       │                      │                         │
+       │  1. HTML colado      │                         │
+       │─────────────────────▶│  2. Prompt + HTML       │
+       │                      │────────────────────────▶│
+       │                      │                         │
+       │                      │◀────────────────────────│
+       │                      │  3. JSON com blocos     │
+       │◀─────────────────────│                         │
+       │  4. Blocos extraídos │                         │
+       ▼                      ▼                         ▼
+   Preview UI            Processamento              Análise IA
+```
+
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/eficode/HtmlToBlocksModal.tsx` | Modal com textarea e preview de blocos |
+| `supabase/functions/analyze-html-blocks/index.ts` | Edge function que chama GPT-5 |
+
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Substituir IframePreview por renderização direta |
+| `src/pages/AdminEfiCodeBlocks.tsx` | Reorganizar botões em dropdown "Ações" |
 
-### Código Proposto para HtmlBlock.tsx
+## Prompt da IA (Detalhado)
 
-```typescript
-export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
-  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
-    selected: state.events.selected,
-  }));
-  const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
-  
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const template = htmlTemplate || html || '';
-  
-  // Handler para iniciar edição
-  const handleClick = useCallback(() => {
-    if (enabled && selected && !isEditing) {
-      setIsEditing(true);
-    }
-  }, [enabled, selected, isEditing]);
+O prompt enviado ao GPT-5 será otimizado para:
 
-  // Handler para finalizar edição
-  const handleBlur = useCallback(() => {
-    if (isEditing && containerRef.current) {
-      const newHtml = normalizeHtml(containerRef.current.innerHTML);
-      const currentNormalized = normalizeHtml(template);
-      
-      if (newHtml !== currentNormalized) {
-        setProp((props: any) => {
-          props.htmlTemplate = newHtml;
-          props.html = newHtml;
-        });
+1. **Identificar blocos semânticos** - hero, header, footer, cards, sections
+2. **Limpar HTML** - remover scripts, estilos inline, comentários
+3. **Nomear inteligentemente** - baseado no conteúdo e estrutura
+4. **Categorizar** - layout, texto, mídia, interativo
+5. **Preservar classes** - manter referências a CSS externo (Tailwind, etc)
+6. **Detectar placeholders** - converter textos/URLs em [placeholder]
+
+Exemplo de entrada:
+```html
+<html>
+<head><style>.hero { background: blue; }</style></head>
+<body>
+  <section class="hero bg-blue-500 p-8">
+    <h1>Bem-vindo</h1>
+    <p>Descrição do produto</p>
+    <a href="/comprar" class="btn">Comprar Agora</a>
+  </section>
+  <div class="features grid grid-cols-3 gap-4">
+    <div class="card"><h3>Feature 1</h3><p>Desc</p></div>
+    <div class="card"><h3>Feature 2</h3><p>Desc</p></div>
+  </div>
+</body>
+</html>
+```
+
+Exemplo de saída esperada:
+```json
+{
+  "blocks": [
+    {
+      "name": "Hero Section",
+      "category": "layout",
+      "description": "Banner com título, descrição e botão CTA",
+      "html_content": "<section class=\"bg-blue-500 p-8\">\n  <h1>[title]</h1>\n  <p>[description]</p>\n  <a href=\"[cta_link]\" class=\"btn\">[cta_text]</a>\n</section>",
+      "default_props": {
+        "title": "Bem-vindo",
+        "description": "Descrição do produto",
+        "cta_link": "/comprar",
+        "cta_text": "Comprar Agora"
+      }
+    },
+    {
+      "name": "Feature Card",
+      "category": "layout",
+      "description": "Card individual de feature",
+      "html_content": "<div class=\"card\">\n  <h3>[title]</h3>\n  <p>[description]</p>\n</div>",
+      "default_props": {
+        "title": "Feature",
+        "description": "Descrição"
       }
     }
-    setIsEditing(false);
-  }, [isEditing, template, setProp]);
-
-  // Desativar edição quando desseleciona
-  useEffect(() => {
-    if (!selected) setIsEditing(false);
-  }, [selected]);
-
-  return (
-    <div
-      ref={(ref) => {
-        if (ref && enabled) connect(drag(ref));
-      }}
-      className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
-    >
-      <div
-        ref={containerRef}
-        contentEditable={isEditing}
-        suppressContentEditableWarning={true}
-        dangerouslySetInnerHTML={{ __html: template }}
-        onClick={handleClick}
-        onBlur={handleBlur}
-        className={isEditing ? 'outline-2 outline-primary outline-offset-2' : ''}
-        style={{ cursor: isEditing ? 'text' : 'pointer' }}
-      />
-    </div>
-  );
-};
+  ]
+}
 ```
 
-## Fluxo de Edição Simplificado
+## Considerações Técnicas
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ 1. Usuário clica no bloco                                   │
-│    → setIsEditing(true)                                     │
-│    → contentEditable="true" é aplicado                      │
-│    → SEM recriação de DOM, apenas atributo muda             │
-├─────────────────────────────────────────────────────────────┤
-│ 2. Usuário edita texto/conteúdo                             │
-│    → Edição acontece diretamente no DOM                     │
-│    → Nenhum estado React é atualizado durante edição        │
-├─────────────────────────────────────────────────────────────┤
-│ 3. Usuário clica fora (blur)                                │
-│    → Captura innerHTML do container                         │
-│    → Normaliza e compara com original                       │
-│    → Se mudou, atualiza props do Craft.js                   │
-│    → setIsEditing(false)                                    │
-└─────────────────────────────────────────────────────────────┘
-```
+### Por que GPT-5 (OpenAI)?
+- A secret `OPENAI_API_KEY` já está configurada no projeto
+- GPT-5 tem excelente capacidade de análise estrutural
+- Suporta grandes contextos (HTML completo de páginas)
+- Responde bem a instruções precisas de extração
 
-## Considerações Importantes
+### Tratamento de Erros
+- HTML muito grande: truncar ou pedir para dividir
+- Timeout: usar streaming ou polling se necessário
+- Resposta inválida: fallback para parser local simples
 
-### CSS Global Necessário
-
-Para esta abordagem funcionar, o campo `global_css` no banco de dados **deve conter** o CSS do Tailwind v4 (ou qualquer CSS que os blocos importados usam). Isso já deve estar configurado.
-
-### Possíveis Conflitos
-
-Se classes de Tailwind v4 tiverem nomes idênticos às de Tailwind v3, pode haver conflitos. Na prática, classes customizadas como `bg-elevation-2`, `text-base-medium` são únicas e não conflitam.
-
-### Vantagem para Imagens
-
-Com renderização direta, as imagens usam o mesmo contexto de carregamento do app principal, eliminando problemas de carregamento que podem ocorrer em iframes.
-
-## Resultado Esperado
-
-- Sem flickering ao alternar entre edição e visualização
-- Edição direta e responsiva de textos e imagens
-- CSS global interpretado corretamente pelo navegador
-- Performance melhorada sem overhead de iframes
+### UX Considerations
+- Loading state durante análise IA (pode levar 5-15s)
+- Preview claro dos blocos antes de importar
+- Opção de editar nome/categoria antes de importar
+- Seleção múltipla para importar só o que deseja
