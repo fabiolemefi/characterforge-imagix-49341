@@ -1,139 +1,191 @@
 
+# Plano: Abordagem Alternativa sem Iframe para HtmlBlock
 
-# Plano: Corrigir Flickering e Linhas em Branco no Editor
+## Problema Atual
 
-## Problema Identificado
+O HtmlBlock usa um `<iframe>` com `srcdoc` para:
+1. **Isolar CSS** - Evitar conflitos entre Tailwind v3 (app) e Tailwind v4 (blocos importados)
+2. **Edição contentEditable** - Permitir edição visual do HTML
 
-O problema ocorre devido a um ciclo vicioso de atualizações de estado quando o bloco HTML é re-selecionado:
-
-### Causa Raiz
-
-1. **Quando o bloco perde foco**: O evento `blur` dentro do iframe dispara `onEditEnd` com o HTML atual
-2. **onEditEnd atualiza o state do Craft.js**: Chama `setProp` para atualizar `htmlTemplate` e `html`
-3. **Craft.js re-renderiza o componente**: A mudança de props causa re-render do HtmlBlock
-4. **O textarea do SettingsPanel tambem reage**: O valor do template muda, causando re-render do painel
-5. **Ao clicar novamente no bloco**: O srcdoc do iframe e recriado com HTML que pode ter sido modificado pelo contentEditable do navegador (que adiciona elementos extras ou formatacao)
-6. **Loop**: O processo se repete, cada vez adicionando mais caracteres/linhas
-
-### Sintomas Observados
-
-- **Flickering**: O iframe sendo recriado a cada mudanca de estado
-- **Linhas em branco**: O `innerHTML` do body do iframe inclui formatacao adicional do contentEditable (newlines, espacos)
-
-## Fluxo Problematico Atual
+### Por que o Flickering Persiste
 
 ```text
-Usuario clica fora do bloco
-         |
-         v
-    blur event no iframe
-         |
-         v
- postMessage('eficode-edit-end', innerHTML)
-         |
-         v
-  onEditEnd atualiza props do Craft.js
-         |
-         v
-   HtmlBlock re-renderiza
-         |
-         v
-IframePreview recria o srcdoc (CAUSA O FLICKER)
-         |
-         v
-Usuario clica no bloco novamente
-         |
-         v
-  O HTML agora tem linhas extras do contentEditable
-         |
-         v
-    Ciclo se repete
+┌─────────────────────────────────────────────────────────────┐
+│  O problema fundamental é que o iframe recria o srcdoc     │
+│  sempre que a prop "editable" muda de false → true.        │
+│                                                             │
+│  Mesmo com o "lock" do HTML, a mudança de EDITABLE_MODE    │
+│  força uma reconstrução completa do documento iframe:      │
+│                                                             │
+│  - srcdoc depende de [globalCss, stableHtml, editable]     │
+│  - Quando editable muda, o useMemo recalcula               │
+│  - Navegador re-renderiza todo o iframe = FLASH            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Solucao
+## Solução Proposta: Renderização Direta com CSS Global
 
-### Parte 1: Evitar Re-criacao do Iframe Durante Edicao
+Em vez de usar iframe, renderizar o HTML diretamente no DOM principal usando `dangerouslySetInnerHTML` e aproveitar o CSS global que já é injetado no viewport do editor.
 
-Modificar `IframePreview.tsx` para:
-- Usar `useRef` para armazenar o HTML inicial quando entra em modo de edicao
-- Nao recriar o srcdoc se o HTML nao mudou significativamente
-- Adicionar debounce nas atualizacoes
+### Vantagens desta Abordagem
 
-### Parte 2: Sanitizar HTML ao Sair do Modo de Edicao
+| Aspecto | Iframe (Atual) | Renderização Direta (Proposta) |
+|---------|----------------|--------------------------------|
+| Flickering | Sim (recria documento) | Não (atualização DOM normal) |
+| Edição | Via postMessage | Direta via contentEditable |
+| Performance | Pesado (documento completo) | Leve (elementos React) |
+| CSS | Isolado no iframe | Usa CSS global já injetado |
 
-Modificar `HtmlBlock.tsx` para:
-- Normalizar o HTML recebido do iframe (remover espacos extras, linhas em branco consecutivas)
-- Comparar HTML novo com o antigo antes de atualizar o state
+### Possível Conflito de CSS
 
-### Parte 3: Desacoplar Textarea do SettingsPanel
-
-O problema das linhas em branco no painel direito e porque:
-1. O usuario edita visualmente no iframe
-2. O textarea do settings mostra o HTML que esta sendo modificado em tempo real
-3. A cada keystroke, o innerHTML do body tem formatacao diferente
-
-Solucao: Atualizar o textarea apenas quando o usuario termina de editar (onEditEnd), nao durante a edicao
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/components/eficode/user-components/IframePreview.tsx` | Estabilizar srcdoc durante edicao |
-| `src/components/eficode/user-components/HtmlBlock.tsx` | Sanitizar HTML e controlar atualizacoes |
-
-## Codigo Proposto
-
-### IframePreview.tsx - Estabilizar Durante Edicao
+O motivo original do iframe era isolar Tailwind v4 do v3. **Porém**, o `EfiCodeEditor.tsx` já injeta o `globalCss` (Tailwind v4) no viewport:
 
 ```typescript
-// Usar ref para "travar" o HTML quando entra em modo de edicao
-const [lockedHtml, setLockedHtml] = useState<string | null>(null);
-
-useEffect(() => {
-  if (editable && !lockedHtml) {
-    // Ao entrar em modo de edicao, travar o HTML atual
-    setLockedHtml(html);
-  } else if (!editable && lockedHtml) {
-    // Ao sair do modo de edicao, liberar
-    setLockedHtml(null);
-  }
-}, [editable]);
-
-// Usar o HTML travado durante edicao para evitar recriacao do iframe
-const stableHtml = lockedHtml || html;
+// EfiCodeEditor.tsx linha 172-174
+<style dangerouslySetInnerHTML={{
+  __html: globalCss
+}} />
 ```
 
-### HtmlBlock.tsx - Sanitizar e Evitar Updates Desnecessarios
+Isso significa que os blocos HTML **já podem usar** as classes do CSS global se renderizados diretamente. O Tailwind v4 tem classes com nomes diferentes (ex: `bg-elevation-2`) que não conflitam com Tailwind v3 (`bg-gray-100`).
+
+## Implementação
+
+### Novo Componente: DirectHtmlBlock
+
+Criar um componente alternativo que renderiza HTML diretamente:
 
 ```typescript
-// Funcao para normalizar HTML
-const normalizeHtml = (html: string): string => {
-  return html
-    .replace(/\n\s*\n/g, '\n')  // Remover linhas em branco consecutivas
-    .replace(/^\s+|\s+$/g, '')   // Trim
-    .replace(/>\s+</g, '><');    // Remover espacos entre tags
+// Estrutura simplificada
+export const DirectHtmlBlock = ({ htmlTemplate }: Props) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Renderização direta - sem iframe
+  return (
+    <div
+      ref={containerRef}
+      contentEditable={isEditing}
+      dangerouslySetInnerHTML={{ __html: htmlTemplate }}
+      onBlur={() => {
+        // Salvar HTML do container
+        const newHtml = containerRef.current?.innerHTML || '';
+        setProp(props => { props.htmlTemplate = newHtml; });
+        setIsEditing(false);
+      }}
+      onClick={() => setIsEditing(true)}
+    />
+  );
 };
-
-const handleEditEnd = useCallback((finalHtml: string) => {
-  const normalized = normalizeHtml(finalHtml);
-  const currentNormalized = normalizeHtml(template);
-  
-  // So atualizar se realmente mudou
-  if (normalized !== currentNormalized) {
-    setProp((props: any) => {
-      props.htmlTemplate = normalized;
-      props.html = normalized;
-    });
-  }
-  setIsEditing(false);
-}, [setProp, template]);
 ```
+
+### Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/eficode/user-components/HtmlBlock.tsx` | Substituir IframePreview por renderização direta |
+
+### Código Proposto para HtmlBlock.tsx
+
+```typescript
+export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
+  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
+    selected: state.events.selected,
+  }));
+  const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const template = htmlTemplate || html || '';
+  
+  // Handler para iniciar edição
+  const handleClick = useCallback(() => {
+    if (enabled && selected && !isEditing) {
+      setIsEditing(true);
+    }
+  }, [enabled, selected, isEditing]);
+
+  // Handler para finalizar edição
+  const handleBlur = useCallback(() => {
+    if (isEditing && containerRef.current) {
+      const newHtml = normalizeHtml(containerRef.current.innerHTML);
+      const currentNormalized = normalizeHtml(template);
+      
+      if (newHtml !== currentNormalized) {
+        setProp((props: any) => {
+          props.htmlTemplate = newHtml;
+          props.html = newHtml;
+        });
+      }
+    }
+    setIsEditing(false);
+  }, [isEditing, template, setProp]);
+
+  // Desativar edição quando desseleciona
+  useEffect(() => {
+    if (!selected) setIsEditing(false);
+  }, [selected]);
+
+  return (
+    <div
+      ref={(ref) => {
+        if (ref && enabled) connect(drag(ref));
+      }}
+      className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+    >
+      <div
+        ref={containerRef}
+        contentEditable={isEditing}
+        suppressContentEditableWarning={true}
+        dangerouslySetInnerHTML={{ __html: template }}
+        onClick={handleClick}
+        onBlur={handleBlur}
+        className={isEditing ? 'outline-2 outline-primary outline-offset-2' : ''}
+        style={{ cursor: isEditing ? 'text' : 'pointer' }}
+      />
+    </div>
+  );
+};
+```
+
+## Fluxo de Edição Simplificado
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Usuário clica no bloco                                   │
+│    → setIsEditing(true)                                     │
+│    → contentEditable="true" é aplicado                      │
+│    → SEM recriação de DOM, apenas atributo muda             │
+├─────────────────────────────────────────────────────────────┤
+│ 2. Usuário edita texto/conteúdo                             │
+│    → Edição acontece diretamente no DOM                     │
+│    → Nenhum estado React é atualizado durante edição        │
+├─────────────────────────────────────────────────────────────┤
+│ 3. Usuário clica fora (blur)                                │
+│    → Captura innerHTML do container                         │
+│    → Normaliza e compara com original                       │
+│    → Se mudou, atualiza props do Craft.js                   │
+│    → setIsEditing(false)                                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Considerações Importantes
+
+### CSS Global Necessário
+
+Para esta abordagem funcionar, o campo `global_css` no banco de dados **deve conter** o CSS do Tailwind v4 (ou qualquer CSS que os blocos importados usam). Isso já deve estar configurado.
+
+### Possíveis Conflitos
+
+Se classes de Tailwind v4 tiverem nomes idênticos às de Tailwind v3, pode haver conflitos. Na prática, classes customizadas como `bg-elevation-2`, `text-base-medium` são únicas e não conflitam.
+
+### Vantagem para Imagens
+
+Com renderização direta, as imagens usam o mesmo contexto de carregamento do app principal, eliminando problemas de carregamento que podem ocorrer em iframes.
 
 ## Resultado Esperado
 
-Apos as correcoes:
-- Bloco nao pisca ao re-selecionar
-- Codigo HTML no painel direito permanece estavel
-- Edicao visual funciona suavemente
-- Nao ha acumulo de linhas em branco
-
+- Sem flickering ao alternar entre edição e visualização
+- Edição direta e responsiva de textos e imagens
+- CSS global interpretado corretamente pelo navegador
+- Performance melhorada sem overhead de iframes
