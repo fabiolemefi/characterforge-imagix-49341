@@ -464,10 +464,31 @@ async function shortenUrl(url) {
     mode: 'cors',
   });
 
+  // Log da URL final (para debug de redirects)
+  console.log("[Efí Link] URL final após redirects:", response.url);
+  console.log("[Efí Link] Status:", response.status);
+  console.log("[Efí Link] Content-Type:", response.headers.get('content-type'));
+
+  // Verificar se a resposta foi redirecionada para outro domínio
+  if (!response.url.includes('shortener.gerencianet.com.br')) {
+    const responseText = await response.text();
+    console.error("[Efí Link] Redirect inesperado para:", response.url);
+    console.error("[Efí Link] Conteúdo:", responseText.substring(0, 500));
+    throw new Error(`API redirecionou para ${response.url}. Verifique se o serviço está disponível.`);
+  }
+
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[Efí Link] Erro ao encurtar:", errorText);
     throw new Error(`Erro ao encurtar URL: ${response.status}`);
+  }
+
+  // Verificar Content-Type antes de fazer parse
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const responseText = await response.text();
+    console.error("[Efí Link] Resposta não é JSON:", responseText.substring(0, 500));
+    throw new Error(`API retornou ${contentType || 'formato desconhecido'} em vez de JSON. O serviço pode estar indisponível.`);
   }
 
   const data = await response.json();
