@@ -1,124 +1,116 @@
 
-# Plano: Restaurar Tailwind CSS v3
 
-## Situação Atual
+# Plano: Corrigir Reversão de Blocos ao Salvar
 
-O projeto está usando Tailwind v4 com sintaxe incompatível:
+## Diagnóstico do Problema
 
-| Arquivo | Estado Atual |
-|---------|-------------|
-| `package.json` | Tailwind v4 (`^4.1.18`), `@tailwindcss/vite`, `@tailwindcss/postcss` |
-| `vite.config.ts` | Plugin `@tailwindcss/vite` ativo |
-| `src/index.css` | Sintaxe v4: `@import "tailwindcss"`, `@theme inline` |
-| `tailwind.config.ts` | **NÃO EXISTE** (deletado) |
+O problema ocorre na seguinte sequência:
+
+```text
+1. Você arrasta o bloco "Questionário" → HtmlBlock recebe html_content CORRETO (size-10) ✓
+2. Você edita e/ou clica em Salvar → handleSave serializa o estado CORRETO ✓
+3. updateSite.mutateAsync salva no banco → Dados salvos CORRETAMENTE (size-10) ✓
+4. onSuccess invalida queryClient → Invalida ['efi-code-sites'] mas TAMBÉM ['efi-code-site', id]
+5. React Query refaz a query useEfiCodeSite(id) → Busca dados atualizados
+6. useEffect([site]) dispara → SOBRESCREVE editorState com site.content
+7. actions.deserialize(editorState) → Recarrega o editor com dados do banco
+```
+
+**O problema está nos passos 6 e 7**: Após salvar, o `useEffect` que observa `site` recarrega o `editorState` e chama `actions.deserialize()`, o que força o editor a recarregar. Se houver qualquer diferença entre o estado serializado atual e o que foi salvo no banco (formatação, normalização, etc.), isso pode causar recarregamento indesejado.
+
+Mas o ponto principal é: **o banco está CORRETO com `size-10`**. Se após salvar o bloco aparece com `size-40`, isso significa que:
+
+1. Há outro bloco antigo no banco sendo carregado
+2. Ou há cache local do React Query com dados antigos
+3. Ou o `editorState` está sendo sobrescrito por dados desatualizados
+
+## Solução Proposta
+
+### 1. Evitar recarregar o editor após salvar
+
+O `useEffect([site])` não deve recarregar o `editorState` após um salvamento bem-sucedido. Isso porque o editor já tem o estado correto - não precisamos "recarregar" do banco.
+
+**Arquivo:** `src/pages/EfiCodeEditor.tsx`
+
+```typescript
+// Adicionar ref para saber se acabou de salvar
+const justSavedRef = useRef(false);
+
+// No handleSave, marcar que salvou
+const handleSave = useCallback(async (query: any) => {
+  // ... código existente ...
+  try {
+    await updateSite.mutateAsync({...});
+    justSavedRef.current = true; // Marcar que salvou
+    // ... resto ...
+  }
+}, [...]);
+
+// No useEffect, ignorar atualização após salvar
+useEffect(() => {
+  if (site) {
+    // Se acabou de salvar, não recarregar o editor (já temos o estado correto)
+    if (justSavedRef.current) {
+      justSavedRef.current = false;
+      return;
+    }
+    
+    setSiteName(site.name);
+    if (site.content && Object.keys(site.content).length > 0) {
+      setEditorState(JSON.stringify(site.content));
+    }
+    // ... resto ...
+  }
+}, [site]);
+```
+
+### 2. Invalidar query específica do site
+
+Para garantir que o cache seja atualizado corretamente, modificar `useEfiCodeSites.ts`:
+
+**Arquivo:** `src/hooks/useEfiCodeSites.ts`
+
+```typescript
+const updateSite = useMutation({
+  // ... mutationFn existente ...
+  onSuccess: (data, variables) => {
+    // Invalidar lista E o site específico
+    queryClient.invalidateQueries({ queryKey: ['efi-code-sites'] });
+    queryClient.invalidateQueries({ queryKey: ['efi-code-site', variables.id] });
+  },
+  // ... resto ...
+});
+```
+
+### 3. Verificar cache do React Query para blocos
+
+O `useEfiCodeBlocks` pode estar retornando dados em cache antigos do bloco "Questionário de Avaliação". 
+
+**Arquivo:** `src/hooks/useEfiCodeBlocks.ts`
+
+Adicionar `staleTime: 0` para forçar sempre buscar dados frescos:
+
+```typescript
+const blocksQuery = useQuery({
+  queryKey: ['efi-code-blocks', onlyActive],
+  queryFn: async () => { ... },
+  staleTime: 0, // Sempre buscar dados frescos
+});
+```
 
 ## Arquivos a Modificar
 
-| Arquivo | Ação |
-|---------|------|
-| `tailwind.config.ts` | **CRIAR** - Configuração completa v3 |
-| `src/index.css` | **REESCREVER** - Sintaxe v3 |
-| `vite.config.ts` | **MODIFICAR** - Remover plugins v4 |
-| `postcss.config.js` | **MANTER** - Já está correto |
-| `package.json` | **MODIFICAR** - Downgrade dependências |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/EfiCodeEditor.tsx` | Adicionar `justSavedRef` para evitar recarregar editor após salvar |
+| `src/hooks/useEfiCodeSites.ts` | Invalidar query específica do site no `onSuccess` |
+| `src/hooks/useEfiCodeBlocks.ts` | Adicionar `staleTime: 0` para evitar cache antigo dos blocos |
 
-## Detalhes Técnicos
+## Comportamento Esperado Após Correção
 
-### 1. Criar tailwind.config.ts
+1. Arrastar bloco → Aparece com HTML CORRETO do banco (size-10)
+2. Salvar → Estado atual é salvo no banco
+3. Após salvar → Editor NÃO recarrega (mantém o estado que você já tem)
+4. Navegar para outra página e voltar → Carrega dados frescos do banco
+5. Atualizar bloco no admin → Próximo uso do bloco vem com dados atualizados
 
-Configuração completa com todas as cores da marca Efí Bank:
-
-```typescript
-import type { Config } from "tailwindcss";
-
-export default {
-  darkMode: ["class"],
-  content: ["./src/**/*.{ts,tsx}"],
-  theme: {
-    extend: {
-      colors: {
-        // Cores Efí Bank
-        orange: { 100-800 },
-        blue: { 100-800 },
-        // Tokens semânticos
-        border, background, foreground,
-        primary, secondary, muted, accent,
-        destructive, card, popover, sidebar
-      },
-      // Animações, fontes, etc.
-    }
-  },
-  plugins: [require("tailwindcss-animate")],
-} satisfies Config;
-```
-
-### 2. Reescrever src/index.css
-
-Converter de v4 para v3:
-
-```css
-/* ANTES (v4) */
-@import "tailwindcss";
-@theme inline { --color-blue-500: rgb(...); }
-
-/* DEPOIS (v3) */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --background: 0 0% 7%;
-  --primary: 191 100% 40%;
-  /* etc... */
-}
-```
-
-### 3. Modificar vite.config.ts
-
-Remover plugins v4 e configuração de postcss inline:
-
-```typescript
-// REMOVER
-import tailwindcss from "@tailwindcss/vite";
-tailwindcss() // do plugins
-css: { postcss: {...} } // bloco inteiro
-
-// MANTER apenas
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-```
-
-### 4. Modificar package.json
-
-Downgrade das dependências:
-
-```json
-// REMOVER de dependencies:
-"@tailwindcss/postcss": "^4.1.18"
-"@tailwindcss/vite": "^4.1.18"
-
-// MUDAR em devDependencies:
-"tailwindcss": "^4.1.18" → "^3.4.0"
-
-// ADICIONAR em devDependencies:
-"tailwindcss-animate": "^1.0.7"
-```
-
-## Cores a Preservar
-
-As cores do CSS v4 atual serão convertidas para formato HSL do v3:
-
-| Cor | RGB (v4) | HSL (v3) |
-|-----|----------|----------|
-| `blue-500` | `rgb(11 161 194)` | `191 89% 40%` |
-| `orange-500` | `rgb(243 112 33)` | `23 90% 54%` |
-| `black` | `rgb(18 18 18)` | `0 0% 7%` |
-| `white` | `rgb(255 255 255)` | `0 0% 100%` |
-
-## Resultado Esperado
-
-- Aplicação renderiza normalmente
-- Tema escuro funciona corretamente
-- Todas as cores da marca Efí preservadas
-- Compatibilidade com shadcn/ui
-- Animações funcionando
