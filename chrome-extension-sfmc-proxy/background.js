@@ -83,6 +83,9 @@ async function testEfiLinkConnection() {
       "Accept": "application/json",
     },
     body: JSON.stringify({ url: "https://gerencianet.com.br" }),
+    redirect: 'follow',
+    credentials: 'omit',
+    mode: 'cors',
   });
 
   if (!response.ok) {
@@ -456,6 +459,9 @@ async function shortenUrl(url) {
       "Accept": "application/json",
     },
     body: JSON.stringify({ url }),
+    redirect: 'follow',
+    credentials: 'omit',
+    mode: 'cors',
   });
 
   if (!response.ok) {
