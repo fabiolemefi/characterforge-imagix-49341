@@ -1,116 +1,183 @@
 
+# Plano: Migrar para Tailwind CSS v4 com Novo Theme
 
-# Plano: Substituir Indicador de Seleção por Contorno Azul
+## Visão Geral
 
-## Problema Identificado
+Vou migrar o projeto de Tailwind CSS v3 para v4, aplicando o theme que você forneceu. O Tailwind v4 traz uma nova arquitetura baseada em CSS nativo, removendo a necessidade de `tailwind.config.ts` e usando `@theme` diretamente no CSS.
 
-Atualmente, quando um bloco é selecionado no editor Efi Code, o indicador visual usa classes `ring-2 ring-primary ring-offset-2` que criam um efeito de "anel" com espaçamento. O `ring-offset` gera linhas horizontais visíveis (as "barras" que você circulou) porque cria um espaço entre o conteúdo e o anel.
-
-## Solução Proposta
-
-Substituir o indicador `ring-*` por um `outline` sólido que contorne o bloco diretamente, sem espaçamento. Isso dará a impressão visual de "bloco selecionado" que você deseja.
+## Mudanças Principais do Tailwind v4
 
 ```text
-ANTES (ring com offset):
-┌─────────────────────────────────────┐ ← linha do ring
-│                                     │ ← espaço do offset
-│ ┌─────────────────────────────────┐ │
-│ │       Conteúdo do bloco         │ │
-│ └─────────────────────────────────┘ │
-│                                     │ ← espaço do offset
-└─────────────────────────────────────┘ ← linha do ring
-
-DEPOIS (outline direto):
-┌─────────────────────────────────────┐
-│       Conteúdo do bloco             │ ← outline azul diretamente
-└─────────────────────────────────────┘
-```
-
-## Estilo de Seleção Novo
-
-Vou usar `outline` que não afeta o layout e contorna o elemento diretamente:
-
-```css
-/* Antes */
-ring-2 ring-primary ring-offset-2
-
-/* Depois */
-outline outline-2 outline-blue-500 outline-offset-0
-/* Ou com box-shadow para efeito mais suave */
-box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.8);
+Tailwind v3                          Tailwind v4
+─────────────────────────────────    ─────────────────────────────────
+tailwind.config.ts (JS)         →    @theme no CSS (nativo)
+postcss.config.js + plugins     →    @tailwindcss/vite plugin
+@tailwind base/components/utils →    @import "tailwindcss"
+hsl(var(--color))               →    var(--color-*) direto
 ```
 
 ## Arquivos a Modificar
 
-| Arquivo | Componente | Alteração |
-|---------|------------|-----------|
-| `src/components/eficode/user-components/HtmlBlock.tsx` | HtmlBlock | Trocar `ring-*` por `outline` ou `box-shadow` |
-| `src/components/eficode/user-components/Container.tsx` | Container | Adicionar indicador de seleção (atualmente não tem) |
-| `src/components/eficode/user-components/Divider.tsx` | Divider | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Heading.tsx` | Heading | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Text.tsx` | Text | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Button.tsx` | Button | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Image.tsx` | Image | Trocar `border dashed` por `outline` sólido |
-| `src/components/eficode/user-components/Spacer.tsx` | Spacer | Trocar `border dashed` por `outline` sólido |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `package.json` | Modificar | Atualizar dependências do Tailwind |
+| `vite.config.ts` | Modificar | Adicionar plugin @tailwindcss/vite |
+| `postcss.config.js` | Remover | Não é mais necessário com Vite plugin |
+| `tailwind.config.ts` | Remover | Configuração migra para CSS |
+| `src/index.css` | Reescrever | Aplicar @theme com novo design system |
+| `src/lib/utils.ts` | Manter | tailwind-merge continua funcionando |
 
 ## Implementação Detalhada
 
-### Estilo Padrão de Seleção
+### 1. Atualizar Dependências (package.json)
 
-Usarei `box-shadow` em vez de `outline` porque funciona melhor com elementos que têm `overflow: hidden` ou bordas arredondadas:
+Remover:
+- `tailwindcss` v3
+- `autoprefixer`
+- `tailwindcss-animate`
+
+Adicionar:
+- `tailwindcss` v4 (^4.0.0)
+- `@tailwindcss/vite` (plugin para Vite)
+
+### 2. Configurar Vite Plugin (vite.config.ts)
 
 ```typescript
-// Constante para reutilização
-const SELECTION_STYLE = {
-  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8)', // Azul sólido
-  // Ou para efeito mais suave com "glow":
-  // boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.8), 0 0 8px rgba(59, 130, 246, 0.4)',
-};
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),  // Novo plugin
+    // ...
+  ],
+})
 ```
 
-### HtmlBlock.tsx (Linha 259)
+### 3. Remover Arquivos Obsoletos
 
-```tsx
-// Antes
-className={`relative ${className} ${enabled && selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+- `postcss.config.js` - Não é necessário com @tailwindcss/vite
+- `tailwind.config.ts` - Configuração migra para CSS
 
-// Depois - usando style inline
-className={`relative ${className}`}
-style={{
-  boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-}}
+### 4. Reescrever src/index.css
+
+O novo arquivo vai conter:
+- `@import "tailwindcss"` (substitui @tailwind directives)
+- Seu `@theme inline` completo com todas as variáveis
+- Mapeamento de variáveis semânticas para shadcn/ui
+- Estilos customizados existentes (.feature-card, .efi-editor-viewport, etc.)
+
+```css
+@import "tailwindcss";
+
+@theme inline {
+  /* Seu theme completo aqui */
+  --font-family-sans: 'Red Hat Display';
+  --font-family-mono: 'Red Hat Mono';
+  
+  --color-orange-500: rgb(243 112 33);
+  --color-blue-500: rgb(11 161 194);
+  /* ... todas as outras variáveis ... */
+}
+
+/* Variáveis semânticas para shadcn/ui (compatibilidade) */
+:root {
+  --background: var(--color-elevation-0);
+  --foreground: var(--color-white);
+  --card: var(--color-card-state-default);
+  --primary: var(--color-blue-500);
+  /* ... mapeamento completo ... */
+}
 ```
 
-### Outros Componentes (Divider, Heading, Text, Button, Image, Spacer)
+### 5. Mapeamento de Cores para shadcn/ui
 
-```tsx
-// Antes
-border: isActive ? '1px dashed #3b82f6' : '1px dashed transparent',
+Os componentes shadcn/ui usam variáveis como `bg-card`, `text-primary`, etc. Vou mapear seu theme para essas variáveis semânticas:
 
-// Depois
-boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-// Remover a borda tracejada
+| shadcn Variable | Seu Theme Variable |
+|-----------------|-------------------|
+| `--background` | `--color-elevation-0` (dark) / `--color-gray-100` (light) |
+| `--foreground` | `--color-white` (dark) / `--color-black` (light) |
+| `--card` | `--color-card-state-default` |
+| `--primary` | `--color-blue-500` |
+| `--secondary` | `--color-orange-500` |
+| `--destructive` | `--color-red-500` |
+| `--muted` | `--color-gray-800` |
+| `--accent` | `--color-blue-600` |
+| `--border` | `--color-overlay-1` |
+
+### 6. Breakpoints Customizados
+
+Seu theme define breakpoints diferentes:
+```css
+--breakpoint-sm: 360px;
+--breakpoint-md: 992px;
+--breakpoint-lg: 1366px;
+--breakpoint-xl: 1920px;
 ```
 
-### Container.tsx (Adicionar indicador)
+Estes substituirão os breakpoints padrão do Tailwind.
 
-```tsx
-// Adicionar isActive ao useNode
-const { connectors: { connect, drag }, isActive } = useNode((node) => ({
-  isActive: node.events.selected,
-}));
+### 7. Escala de Tamanhos
 
-// Adicionar style
-style={{
-  // ... estilos existentes ...
-  boxShadow: isActive ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none',
-}}
+Seu theme tem uma escala de sizes customizada que será aplicada:
+```css
+--size-4: 0.25rem;
+--size-8: 0.5rem;
+/* ... até --size-120: 7.5rem */
 ```
 
-## Resultado Visual Esperado
+### 8. Manter Funcionalidades Existentes
 
-- Bloco selecionado terá um contorno azul sólido de 2px
-- Sem espaçamento entre o contorno e o conteúdo
-- Visual limpo e moderno, similar a editores como Figma ou Notion
-- Cor azul `#3b82f6` (blue-500 do Tailwind) com 80% de opacidade
+- Animações customizadas (accordion, fade, slide)
+- Estilos .efi-editor-viewport para isolamento CSS
+- Classes utilitárias (.feature-card, .run-button)
+- Modo escuro via classe `.dark`
 
+## Riscos e Mitigações
+
+| Risco | Mitigação |
+|-------|-----------|
+| Classes Tailwind podem ter mudado | v4 mantém maioria das classes; testar componentes principais |
+| tailwind-merge pode ter incompatibilidades | v4 é compatível; atualizar se necessário |
+| Animações podem precisar de ajuste | Recriar keyframes no novo formato |
+| Cores HSL vs RGB | Converter variáveis shadcn para usar RGB direto |
+
+## Resultado Esperado
+
+- Theme dark aplicado por padrão (conforme --tema-name: 'dark')
+- Cores da marca Efi Bank consistentes em todo o app
+- Typography com Red Hat Display/Mono
+- Breakpoints customizados funcionando
+- Todos os componentes shadcn/ui funcionando normalmente
+- Escala de espaçamento e tamanhos customizada
+
+## Ordem de Execução
+
+1. Atualizar package.json com novas dependências
+2. Atualizar vite.config.ts com plugin
+3. Reescrever src/index.css com @theme
+4. Remover arquivos obsoletos (postcss.config.js, tailwind.config.ts)
+5. Testar componentes principais
+
+## Seção Técnica
+
+### Diferenças de Sintaxe Importantes
+
+**Cores no v4:**
+```css
+/* v3: hsl(var(--primary)) */
+/* v4: var(--color-primary) ou rgb direto */
+```
+
+**Classes de cor customizadas:**
+```css
+/* v3: bg-primary → hsl(var(--primary)) */
+/* v4: bg-primary → usa cor definida em @theme automaticamente */
+```
+
+**Dark mode:**
+```css
+/* v3: .dark { --background: ... } */
+/* v4: @variant dark { ... } ou seletor .dark normal */
+```
