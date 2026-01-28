@@ -439,7 +439,7 @@ export default function FubaExplorer() {
         }
 
         checkObstacleInteraction(cx, cy);
-        centerCamera(cx, cy, 0.05);
+        centerCamera(cx + 35, cy + 35, 0.05);
       }
     }, "fubaRun");
 
@@ -525,10 +525,11 @@ export default function FubaExplorer() {
       yGroup.appendChild(g);
     });
 
-    const targetNode = nodesTree[0];
+    // Use nodesTree[3] (the parent node "sr") for better centering
+    const targetNode = nodesTree[3];
     const visibleWidth = window.innerWidth - PANEL_WIDTH;
     const targetCenterX = visibleWidth / 2;
-    const targetCenterY = window.innerHeight * 0.7;
+    const targetCenterY = window.innerHeight / 2;
 
     gsap.to(wrapper, {
       x: -targetNode.x * currentScaleRef.current + targetCenterX,
@@ -566,11 +567,11 @@ export default function FubaExplorer() {
     gsap.to(yGroup, { opacity: 0, duration: 0.5 });
     yGroup.style.pointerEvents = 'none';
 
-    const fx = gsap.getProperty(fuba, "x") as number;
-    const fy = gsap.getProperty(fuba, "y") as number;
+    const fx = (gsap.getProperty(fuba, "x") as number) + 35;
+    const fy = (gsap.getProperty(fuba, "y") as number) + 35;
     gsap.to(wrapper, {
-      x: -fx * 1 + window.innerWidth / 2,
-      y: -fy * 1 + window.innerHeight / 2,
+      x: -fx + window.innerWidth / 2,
+      y: -fy + window.innerHeight / 2,
       scale: 1, duration: 0.8, ease: "power2.inOut",
       onUpdate: updateParallax
     });
