@@ -377,8 +377,8 @@ export default function FubaExplorer() {
       return;
     }
 
-    const startX = gsap.getProperty(fuba, "x") as number;
-    const startY = gsap.getProperty(fuba, "y") as number;
+    const startX = (gsap.getProperty(fuba, "x") as number) + 35;
+    const startY = (gsap.getProperty(fuba, "y") as number) + 35;
 
     const dist = Math.hypot(startX - target.x, startY - target.y);
     if (dist < 80) {
