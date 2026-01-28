@@ -418,7 +418,6 @@ export default function FubaExplorer() {
     tl.to(fuba, {
       motionPath: {
         path: pathD,
-        align: pathD,
         alignOrigin: [0.5, 0.5],
         autoRotate: false
       },
