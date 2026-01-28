@@ -1,74 +1,93 @@
 
-
-# Plano: Corrigir Centralização da Câmera no Fubá Explorer
+# Plano: Corrigir Centralização da Câmera - Alinhar com HTML Original
 
 ## Problema Identificado
 
-A câmera está centralizando no lugar errado porque o cálculo de posição está usando o elemento `foreignObject` do GIF, que tem comportamento diferente do elemento `<text>` original. Quando o GSAP pega a posição via `gsap.getProperty(fuba, "x")`, ele retorna a posição do canto superior esquerdo do `foreignObject`, não o centro.
+Analisando o screenshot, o GIF do Fubá está no canto superior esquerdo da tela ao invés de estar centralizado. Comparando o HTML original atualizado com a versão React atual, encontrei as seguintes diferenças:
 
-## Diferenças entre HTML Original e React
+## Diferenças Críticas
 
-### 1. Posição do Fubá no backToMap
-| HTML Original | React Atual |
-|---------------|-------------|
-| `const fx = gsap.getProperty(fuba, "x")` (retorna centro) | `const fx = gsap.getProperty(fuba, "x")` (retorna canto superior esquerdo) |
+| Aspecto | HTML Original | React Atual | Status |
+|---------|---------------|-------------|--------|
+| Posição inicial do Fubá | `x: startNode.x - 35, y: startNode.y - 35` | `x: startNode.x, y: startNode.y` | Incorreto |
+| Cálculo cx/cy na animação | `gsap.getProperty(fuba, "x") + 35` | `gsap.getProperty(fuba, "x")` sem +35 | Incorreto |
+| centerCamera na animação | `centerCamera(cx, cy, 0.05)` (cx já inclui +35) | `centerCamera(cx + 35, cy + 35, 0.05)` | Diferente abordagem |
+| motionPath align | `align: pathD, alignOrigin: [0.5, 0.5]` | Apenas `alignOrigin: [0.5, 0.5]` | Falta align |
 
-O problema é que o `foreignObject` (70x70 pixels) não tem seu centro no ponto de posicionamento como o `<text>` tinha.
+## Análise do Problema
 
-### 2. Centralização na Navegação
-O `centerCamera` está correto, mas a posição passada durante a animação (`cx`, `cy`) reflete o canto do foreignObject, não o centro do personagem.
+O HTML original faz:
+1. Posiciona o foreignObject com offset de -35 (canto superior esquerdo fica deslocado para trás)
+2. Usa `align: pathD` no motionPath para alinhar o elemento ao caminho
+3. Quando pega a posição com `gsap.getProperty`, adiciona +35 para obter o centro visual
+4. Passa esse centro para `centerCamera`
 
-### 3. enterSubLevel - Posição do Target
-O `enterSubLevel` usa coordenadas corretas (`targetNode.x`, `targetNode.y`), mas o problema é que joga a tela para cima porque o `targetNode` é `nodesTree[0]` que tem `y: cy + (gap * 3)` - um valor muito alto.
+A versão React está inconsistente - removeu o -35 inicial e o align, mas ainda tenta compensar no centerCamera.
 
-## Solução Proposta
+## Solução
 
-### Correção 1: Adicionar offset de centralização (+35) ao calcular posição do Fubá para a câmera
-
-Quando pegamos a posição do Fubá para centralizar a câmera, precisamos adicionar metade do tamanho do foreignObject (35px) para apontar ao centro.
-
+### 1. Restaurar posicionamento inicial com -35
 ```typescript
-// Em centerCamera durante onUpdate:
-const cx = gsap.getProperty(fuba, "x") as number;
-const cy = gsap.getProperty(fuba, "y") as number;
-// ... usar cx + 35 e cy + 35 apenas para centerCamera
-centerCamera(cx + 35, cy + 35, 0.05);
+// Linha 153
+gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });
 ```
 
-### Correção 2: backToMap deve usar offset correto
-
+### 2. Adicionar `align: pathD` no motionPath
 ```typescript
-const fx = (gsap.getProperty(fuba, "x") as number) + 35;
-const fy = (gsap.getProperty(fuba, "y") as number) + 35;
-gsap.to(wrapper, {
-  x: -fx * 1 + window.innerWidth / 2,
-  y: -fy * 1 + window.innerHeight / 2,
+// Linhas 418-423
+tl.to(fuba, {
+  motionPath: {
+    path: pathD,
+    align: pathD,  // ADICIONAR
+    alignOrigin: [0.5, 0.5],
+    autoRotate: false
+  },
   // ...
 });
 ```
 
-### Correção 3: enterSubLevel - Centralizar melhor
-
-O problema aqui é que `targetNode` é o nó mais baixo da árvore (`nodesTree[0]` com `y: cy + gap*3`), mas a câmera deveria centralizar no nó pai (`parentNode`) ou em um ponto médio.
-
+### 3. Adicionar +35 no cálculo de cx/cy e remover do centerCamera
 ```typescript
-// Ao invés de usar targetNode (que está muito abaixo)
-// Usar o centro da árvore vertical
-const targetNode = nodesTree[3]; // O nó "sr" que é o ponto central/split
-// OU calcular o centro médio da árvore
+// Linhas 426-442
+const cx = (gsap.getProperty(fuba, "x") as number) + 35;
+const cy = (gsap.getProperty(fuba, "y") as number) + 35;
+// ... resto do código ...
+centerCamera(cx, cy, 0.05);  // SEM o +35 extra
 ```
 
-## Alterações no Arquivo
+### 4. Remover +35 do backToMap (já que agora fx/fy devem refletir o posicionamento correto)
+```typescript
+// Linhas 569-570
+const fx = gsap.getProperty(fuba, "x") as number;
+const fy = gsap.getProperty(fuba, "y") as number;
+// backToMap deve centralizar no centro do foreignObject
+gsap.to(wrapper, {
+  x: -(fx + 35) + window.innerWidth / 2,  // Adiciona 35 para centro
+  y: -(fy + 35) + window.innerHeight / 2,
+  // ...
+});
+```
 
-### `src/pages/FubaExplorer.tsx`
+### 5. Atualizar inicialização do centerCamera
+```typescript
+// Linha 155 - deve usar o centro visual (startNode tem coordenadas do nó)
+centerCamera(startNode.x, startNode.y, 0);  // Mantém assim pois representa o centro do nó
+```
 
-| Local | Alteração |
+## Alterações no Arquivo `src/pages/FubaExplorer.tsx`
+
+| Linha | Alteração |
 |-------|-----------|
-| Linha ~442 | `centerCamera(cx + 35, cy + 35, 0.05)` - adicionar offset para centralização |
-| Linha ~569-570 | Adicionar +35 ao `fx` e `fy` no backToMap |
-| Linha ~528 | Mudar de `nodesTree[0]` para `nodesTree[3]` (ou ponto médio) no enterSubLevel |
+| 153 | Adicionar `-35` ao posicionamento inicial: `gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });` |
+| 420 | Adicionar `align: pathD,` no motionPath |
+| 426-427 | Adicionar `+ 35` ao calcular cx e cy |
+| 442 | Remover o `+ 35` do centerCamera: `centerCamera(cx, cy, 0.05);` |
+| 569-574 | Ajustar backToMap para usar fx + 35 e fy + 35 na fórmula |
 
 ## Resumo
 
-O foreignObject de 70x70 tem sua âncora no canto superior esquerdo. Para centralizar corretamente na câmera, precisamos adicionar +35 (metade de 70) às coordenadas quando calculamos a posição para `centerCamera`. Isso NÃO afeta o motionPath (que funciona corretamente), apenas a centralização visual.
-
+A abordagem do HTML original é mais consistente:
+1. O foreignObject é posicionado com offset -35 (seu canto está "atrás" do ponto do nó)
+2. O `align: pathD` faz o elemento seguir o caminho corretamente
+3. Quando precisamos do centro visual, adicionamos +35 à posição atual
+4. Esse centro é usado para câmera, poeira, pegadas, etc.
