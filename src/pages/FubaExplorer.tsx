@@ -148,9 +148,9 @@ export default function FubaExplorer() {
       });
     });
 
-    // Set initial Fuba position
+    // Set initial Fuba position with -35 offset (foreignObject anchor is top-left, not center)
     const startNode = careerData[0];
-    gsap.set(fuba, { x: startNode.x, y: startNode.y });
+    gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });
     lastFubaXRef.current = startNode.x;
     centerCamera(startNode.x, startNode.y, 0);
 
@@ -418,13 +418,15 @@ export default function FubaExplorer() {
     tl.to(fuba, {
       motionPath: {
         path: pathD,
+        align: pathD,
         alignOrigin: [0.5, 0.5],
         autoRotate: false
       },
       duration: 2.2, ease: "power2.inOut",
       onUpdate: function () {
-        const cx = gsap.getProperty(fuba, "x") as number;
-        const cy = gsap.getProperty(fuba, "y") as number;
+        // Add +35 to get the visual center of the 70x70 foreignObject
+        const cx = (gsap.getProperty(fuba, "x") as number) + 35;
+        const cy = (gsap.getProperty(fuba, "y") as number) + 35;
 
         if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: -1 });
         else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: 1 });
@@ -439,7 +441,7 @@ export default function FubaExplorer() {
         }
 
         checkObstacleInteraction(cx, cy);
-        centerCamera(cx + 35, cy + 35, 0.05);
+        centerCamera(cx, cy, 0.05);
       }
     }, "fubaRun");
 
@@ -567,11 +569,12 @@ export default function FubaExplorer() {
     gsap.to(yGroup, { opacity: 0, duration: 0.5 });
     yGroup.style.pointerEvents = 'none';
 
+    // Add +35 to get the visual center of the 70x70 foreignObject
     const fx = (gsap.getProperty(fuba, "x") as number) + 35;
     const fy = (gsap.getProperty(fuba, "y") as number) + 35;
     gsap.to(wrapper, {
-      x: -fx + window.innerWidth / 2,
-      y: -fy + window.innerHeight / 2,
+      x: -fx * currentScaleRef.current + window.innerWidth / 2,
+      y: -fy * currentScaleRef.current + window.innerHeight / 2,
       scale: 1, duration: 0.8, ease: "power2.inOut",
       onUpdate: updateParallax
     });
