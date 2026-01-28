@@ -1,77 +1,50 @@
 
-# Plano: Corrigir Centralização e Posição do Balão
+# Plano: Permitir Visualização de Todos os Links do Efi Link
 
-## Problema Identificado
+## Situação Atual
 
-Analisando o screenshot e o código, o problema está na inconsistência entre:
+A tabela `efi_links` possui estas políticas RLS:
 
-1. **Ponto de início do path**: O caminho é gerado de `gsap.getProperty(fuba, "x/y")` que retorna o canto superior esquerdo do foreignObject (ex: `startNode.x - 35`)
-2. **Ponto de destino**: O caminho termina em `target.x, target.y` que é o centro do nó
-3. **alignOrigin**: O `[0.5, 0.5]` faz o centro visual do foreignObject seguir o caminho
+| Operação | Política Atual |
+|----------|----------------|
+| SELECT | `auth.uid() = user_id` (apenas links próprios) |
+| INSERT | `auth.uid() = user_id` (criar apenas próprios) |
+| UPDATE | `auth.uid() = user_id` (editar apenas próprios) |
+| DELETE | `auth.uid() = user_id` (excluir apenas próprios) |
 
-Como resultado:
-- O path vai de `(x - 35, y - 35)` para `(target.x, target.y)`
-- Com alignOrigin, o centro do GIF (que deveria estar em x, y) acaba em `target.x, target.y`
-- Mas a câmera adiciona +35 ao rastrear, causando offset
+## Alteração Necessária
 
-## Solução
+Modificar apenas a política de **SELECT** para permitir que todos os usuários autenticados vejam todos os links.
 
-O caminho deve ser gerado entre centros visuais, não entre coordenadas do foreignObject:
+### Migration SQL
 
-| Variável | Antes | Depois |
-|----------|-------|--------|
-| startX | `gsap.getProperty(fuba, "x")` | `gsap.getProperty(fuba, "x") + 35` |
-| startY | `gsap.getProperty(fuba, "y")` | `gsap.getProperty(fuba, "y") + 35` |
-| centerCamera | `centerCamera(cx, cy)` onde cx = x + 35 | `centerCamera(cx, cy)` onde cx já é centro |
-| bark | `bark(target.x, target.y)` | Manter igual - target já é centro |
+```sql
+-- Remover política atual de SELECT
+DROP POLICY IF EXISTS "Users can view their own links" ON public.efi_links;
 
-### Alteração Principal (linhas 380-381)
-
-```typescript
-// ANTES:
-const startX = gsap.getProperty(fuba, "x") as number;
-const startY = gsap.getProperty(fuba, "y") as number;
-
-// DEPOIS:
-const startX = (gsap.getProperty(fuba, "x") as number) + 35;
-const startY = (gsap.getProperty(fuba, "y") as number) + 35;
+-- Criar nova política: todos os autenticados podem ver todos os links
+CREATE POLICY "Authenticated users can view all links"
+  ON public.efi_links
+  FOR SELECT
+  TO authenticated
+  USING (true);
 ```
 
-Isso faz o caminho ir do centro visual atual do Fubá até o centro do nó destino. Com `alignOrigin: [0.5, 0.5]`, o GSAP vai fazer o centro do foreignObject seguir esse caminho corretamente.
+## Políticas Finais
 
-### Verificação da Distância (linha 383)
+| Operação | Política | Comportamento |
+|----------|----------|---------------|
+| SELECT | `true` (para authenticated) | Todos veem todos os links |
+| INSERT | `auth.uid() = user_id` | Criar apenas próprios |
+| UPDATE | `auth.uid() = user_id` | Editar apenas próprios |
+| DELETE | `auth.uid() = user_id` | Excluir apenas próprios |
 
-A verificação de distância também precisa usar o centro:
+## Considerações de UX
 
-```typescript
-// ANTES (usando coordenadas do foreignObject vs centro do target):
-const dist = Math.hypot(startX - target.x, startY - target.y);
-
-// DEPOIS (ambos são centros agora):
-const dist = Math.hypot(startX - target.x, startY - target.y);
-// Continua igual porque startX/Y agora são centros
-```
-
-## Alterações no Arquivo `src/pages/FubaExplorer.tsx`
-
-| Linha | Alteração |
-|-------|-----------|
-| 380-381 | Adicionar +35 ao startX e startY para usar centro visual |
-
-### Código Final
-
-```typescript
-// Linha 380-381
-const startX = (gsap.getProperty(fuba, "x") as number) + 35;
-const startY = (gsap.getProperty(fuba, "y") as number) + 35;
-```
+Após a alteração, pode ser útil adicionar na listagem uma indicação de quem criou cada link (nome ou email do criador). Isso pode ser implementado posteriormente se desejado.
 
 ## Resumo
 
-O problema era que o caminho SVG começava no canto do foreignObject mas terminava no centro do nó destino. Com `alignOrigin: [0.5, 0.5]`, o GSAP tenta fazer o centro do elemento seguir esse caminho desalinhado, resultando em:
-
-- GIF terminando ~35px acima e à esquerda do destino
-- Câmera tentando compensar com +35 mas causando mais desalinhamento
-- Balão aparecendo no centro correto (target.x, target.y) mas GIF em outro lugar
-
-Usando coordenadas de centro consistentes (startX + 35, startY + 35), o caminho vai corretamente de centro a centro, e o alignOrigin funciona como esperado.
+- Apenas a política de SELECT será alterada
+- INSERT/UPDATE/DELETE continuam restritos ao próprio usuário
+- Nenhuma alteração no código frontend é necessária
