@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -11,6 +11,7 @@ import {
   Link2,
   Loader2,
   Search,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -41,6 +49,7 @@ import {
   useDeleteEfiLink,
   EfiLink,
   EfiLinkInsert,
+  EfiLinkWithCreator,
 } from "@/hooks/useEfiLinks";
 import { EfiLinkFormModal } from "@/components/efilink/EfiLinkFormModal";
 import { QRCodeModal } from "@/components/efilink/QRCodeModal";
@@ -52,20 +61,51 @@ export default function EfiLinkPage() {
   const deleteLink = useDeleteEfiLink();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [creatorFilter, setCreatorFilter] = useState<string>("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<EfiLink | null>(null);
   const [deletingLink, setDeletingLink] = useState<EfiLink | null>(null);
   const [qrCodeLink, setQrCodeLink] = useState<EfiLink | null>(null);
 
-  const filteredLinks = links.filter((link) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      link.name?.toLowerCase().includes(query) ||
-      link.url_destino?.toLowerCase().includes(query) ||
-      link.utm_campaign?.toLowerCase().includes(query) ||
-      link.shortened_url?.toLowerCase().includes(query)
+  // Extrair lista única de criadores
+  const creators = useMemo(() => {
+    const creatorMap = new Map<string, { id: string; name: string }>();
+    links.forEach((link) => {
+      if (link.creator) {
+        creatorMap.set(link.creator.id, {
+          id: link.creator.id,
+          name: link.creator.full_name || link.creator.email,
+        });
+      }
+    });
+    return Array.from(creatorMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
     );
-  });
+  }, [links]);
+
+  const filteredLinks = useMemo(() => {
+    return links.filter((link) => {
+      // Filtro de busca
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        !query ||
+        link.name?.toLowerCase().includes(query) ||
+        link.url_destino?.toLowerCase().includes(query) ||
+        link.utm_campaign?.toLowerCase().includes(query) ||
+        link.shortened_url?.toLowerCase().includes(query);
+
+      // Filtro de tipo
+      const matchesType =
+        typeFilter === "all" || link.link_pattern === typeFilter;
+
+      // Filtro de criador
+      const matchesCreator =
+        creatorFilter === "all" || link.user_id === creatorFilter;
+
+      return matchesSearch && matchesType && matchesCreator;
+    });
+  }, [links, searchQuery, typeFilter, creatorFilter]);
 
   const handleCreate = () => {
     setEditingLink(null);
@@ -133,15 +173,42 @@ export default function EfiLinkPage() {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, URL ou campanha..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, URL ou campanha..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-full md:w-[180px]">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            <SelectItem value="onelink">OneLink</SelectItem>
+            <SelectItem value="sejaefi">Deeplink</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+          <SelectTrigger className="w-full md:w-[200px]">
+            <SelectValue placeholder="Criado por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os usuários</SelectItem>
+            {creators.map((creator) => (
+              <SelectItem key={creator.id} value={creator.id}>
+                {creator.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}

@@ -31,6 +31,14 @@ export interface EfiLink {
 export type EfiLinkInsert = Omit<EfiLink, 'id' | 'created_at' | 'updated_at'>;
 export type EfiLinkUpdate = Partial<Omit<EfiLink, 'id' | 'user_id' | 'created_at' | 'updated_at'>>;
 
+export interface EfiLinkWithCreator extends EfiLink {
+  creator?: {
+    id: string;
+    email: string;
+    full_name: string | null;
+  };
+}
+
 export function useEfiLinks() {
   const { user } = useAuth();
 
@@ -39,13 +47,38 @@ export function useEfiLinks() {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
+      // Buscar links
+      const { data: links, error: linksError } = await supabase
         .from('efi_links')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as EfiLink[];
+      if (linksError) throw linksError;
+      if (!links || links.length === 0) return [];
+
+      // Buscar user_ids únicos
+      const userIds = [...new Set(links.map(l => l.user_id))];
+      
+      // Buscar profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Retorna links sem creator em caso de erro
+        return links as EfiLinkWithCreator[];
+      }
+
+      // Mapear profiles por id
+      const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      // Juntar dados
+      return links.map(link => ({
+        ...link,
+        creator: profilesMap.get(link.user_id) || undefined,
+      })) as EfiLinkWithCreator[];
     },
     enabled: !!user?.id,
   });
