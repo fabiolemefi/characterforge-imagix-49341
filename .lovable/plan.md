@@ -1,130 +1,74 @@
 
-# Plano: Corrigir Bugs do Fubá Explorer - Animação e Caminho
 
-## Problemas Identificados
+# Plano: Corrigir Centralização da Câmera no Fubá Explorer
 
-Comparando o HTML original funcionando com a implementação React atual, encontrei as seguintes diferenças críticas:
+## Problema Identificado
 
-### 1. Tipo de Elemento do Fubá (Problema Principal)
+A câmera está centralizando no lugar errado porque o cálculo de posição está usando o elemento `foreignObject` do GIF, que tem comportamento diferente do elemento `<text>` original. Quando o GSAP pega a posição via `gsap.getProperty(fuba, "x")`, ele retorna a posição do canto superior esquerdo do `foreignObject`, não o centro.
+
+## Diferenças entre HTML Original e React
+
+### 1. Posição do Fubá no backToMap
 | HTML Original | React Atual |
 |---------------|-------------|
-| `<text id="fuba">🐕</text>` | `<foreignObject>` com `<img>` (GIF) |
+| `const fx = gsap.getProperty(fuba, "x")` (retorna centro) | `const fx = gsap.getProperty(fuba, "x")` (retorna canto superior esquerdo) |
 
-O HTML usa um elemento `<text>` SVG simples, enquanto o React usa `<foreignObject>` com uma imagem GIF. O `motionPath` do GSAP se comporta de forma diferente com esses dois tipos de elementos.
+O problema é que o `foreignObject` (70x70 pixels) não tem seu centro no ponto de posicionamento como o `<text>` tinha.
 
-### 2. Propriedades do motionPath Incorretas
-| HTML Original | React Atual |
-|---------------|-------------|
-| `path: pathD` | `path: pathD, align: pathD, alignOrigin: [0.5, 0.5]` |
+### 2. Centralização na Navegação
+O `centerCamera` está correto, mas a posição passada durante a animação (`cx`, `cy`) reflete o canto do foreignObject, não o centro do personagem.
 
-No HTML original, o `motionPath` usa apenas a propriedade `path`. Na versão React, foi adicionado `align: pathD` e `alignOrigin`, o que causa comportamento incorreto.
-
-### 3. Posicionamento Inicial do Fubá
-| HTML Original | React Atual |
-|---------------|-------------|
-| `gsap.set(fuba, { x: startNode.x, y: startNode.y })` | `gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 })` |
-
-O offset de -35 foi adicionado na versão React para compensar o tamanho do foreignObject, mas isso interfere com o cálculo do motionPath.
-
-### 4. Cálculo de Posição Durante Animação
-| HTML Original | React Atual |
-|---------------|-------------|
-| `const cx = gsap.getProperty(fuba, "x")` | `const cx = (gsap.getProperty(fuba, "x") as number) + 35` |
-
-O +35 adicional no React tenta compensar o offset inicial, mas causa imprecisão no tracking.
-
-### 5. Orientação/Flip do Personagem (scaleX)
-| HTML Original | React Atual |
-|---------------|-------------|
-| Movimento para direita: `scaleX: -1` | Movimento para direita: `scaleX: 1` |
-| Movimento para esquerda: `scaleX: 1` | Movimento para esquerda: `scaleX: -1` |
-
-A lógica de flip está invertida! No HTML original, quando o personagem vai para a direita, ele recebe `scaleX: -1`.
+### 3. enterSubLevel - Posição do Target
+O `enterSubLevel` usa coordenadas corretas (`targetNode.x`, `targetNode.y`), mas o problema é que joga a tela para cima porque o `targetNode` é `nodesTree[0]` que tem `y: cy + (gap * 3)` - um valor muito alto.
 
 ## Solução Proposta
 
-### Mudanças no `src/pages/FubaExplorer.tsx`:
+### Correção 1: Adicionar offset de centralização (+35) ao calcular posição do Fubá para a câmera
 
-#### 1. Reverter para elemento `<text>` ou corrigir o foreignObject
-Opção A: Usar `<text>` como no original (mais compatível com GSAP):
-```tsx
-<text ref={fubaRef} id="fuba" x="0" y="0">🐕</text>
+Quando pegamos a posição do Fubá para centralizar a câmera, precisamos adicionar metade do tamanho do foreignObject (35px) para apontar ao centro.
+
+```typescript
+// Em centerCamera durante onUpdate:
+const cx = gsap.getProperty(fuba, "x") as number;
+const cy = gsap.getProperty(fuba, "y") as number;
+// ... usar cx + 35 e cy + 35 apenas para centerCamera
+centerCamera(cx + 35, cy + 35, 0.05);
 ```
 
-Opção B: Manter o GIF mas corrigir o posicionamento:
-- Remover offsets (-35) do posicionamento inicial
-- Usar transform-origin correto
+### Correção 2: backToMap deve usar offset correto
 
-#### 2. Corrigir a configuração do motionPath
-```tsx
-tl.to(fuba, {
-  motionPath: {
-    path: pathD,
-    // REMOVER: align: pathD,
-    alignOrigin: [0.5, 0.5],
-    autoRotate: false
-  },
+```typescript
+const fx = (gsap.getProperty(fuba, "x") as number) + 35;
+const fy = (gsap.getProperty(fuba, "y") as number) + 35;
+gsap.to(wrapper, {
+  x: -fx * 1 + window.innerWidth / 2,
+  y: -fy * 1 + window.innerHeight / 2,
   // ...
 });
 ```
 
-#### 3. Corrigir a lógica de flip (scaleX)
-```tsx
-// ATUAL (incorreto):
-if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: 1 });
-else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: -1 });
+### Correção 3: enterSubLevel - Centralizar melhor
 
-// CORRETO (como no HTML):
-if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: -1 });
-else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: 1 });
+O problema aqui é que `targetNode` é o nó mais baixo da árvore (`nodesTree[0]` com `y: cy + gap*3`), mas a câmera deveria centralizar no nó pai (`parentNode`) ou em um ponto médio.
+
+```typescript
+// Ao invés de usar targetNode (que está muito abaixo)
+// Usar o centro da árvore vertical
+const targetNode = nodesTree[3]; // O nó "sr" que é o ponto central/split
+// OU calcular o centro médio da árvore
 ```
 
-#### 4. Remover offsets do posicionamento inicial e cálculos
-```tsx
-// ATUAL:
-gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });
-// CORRETO:
-gsap.set(fuba, { x: startNode.x, y: startNode.y });
+## Alterações no Arquivo
 
-// ATUAL:
-const cx = (gsap.getProperty(fuba, "x") as number) + 35;
-// CORRETO:
-const cx = gsap.getProperty(fuba, "x") as number;
-```
+### `src/pages/FubaExplorer.tsx`
 
-#### 5. Adicionar estilos faltantes para o elemento text (se usar text)
-```css
-#fuba { 
-  font-size: 70px; 
-  pointer-events: none; 
-  z-index: 999; 
-  filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5));
-  transform-origin: center center; 
-  text-anchor: middle; 
-  dominant-baseline: middle;
-}
-```
+| Local | Alteração |
+|-------|-----------|
+| Linha ~442 | `centerCamera(cx + 35, cy + 35, 0.05)` - adicionar offset para centralização |
+| Linha ~569-570 | Adicionar +35 ao `fx` e `fy` no backToMap |
+| Linha ~528 | Mudar de `nodesTree[0]` para `nodesTree[3]` (ou ponto médio) no enterSubLevel |
 
-## Resumo das Alterações
+## Resumo
 
-| Linha | Alteração | Motivo |
-|-------|-----------|--------|
-| ~153 | Remover offset `-35` do posicionamento inicial | Compatibilidade com motionPath |
-| ~419-424 | Remover `align: pathD` do motionPath | Configuração incorreta |
-| ~430-431 | Inverter lógica de scaleX | Estava ao contrário |
-| ~427-428 | Remover `+35` do cálculo de posição | Não necessário após correção |
-| ~570-579 | Corrigir backToMap para usar posição correta | Consistência |
-| ~704-711 | Atualizar estilos do #fuba | Suporte a text ou foreignObject corrigido |
-
-## Decisão de Design: GIF vs Emoji
-
-**Recomendação**: Manter o GIF mas corrigir o posicionamento usando `transform-origin: center` no CSS e removendo os offsets manuais. Isso preserva a intenção de ter uma animação visual rica enquanto corrige o comportamento do caminho.
-
-Se o GIF continuar problemático, podemos fazer fallback para emoji `🐕` como no HTML original.
-
-## Arquivos a Modificar
-
-| Arquivo | Ação |
-|---------|------|
-| `src/pages/FubaExplorer.tsx` | Corrigir bugs listados acima |
+O foreignObject de 70x70 tem sua âncora no canto superior esquerdo. Para centralizar corretamente na câmera, precisamos adicionar +35 (metade de 70) às coordenadas quando calculamos a posição para `centerCamera`. Isso NÃO afeta o motionPath (que funciona corretamente), apenas a centralização visual.
 
