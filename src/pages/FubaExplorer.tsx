@@ -150,7 +150,7 @@ export default function FubaExplorer() {
 
     // Set initial Fuba position
     const startNode = careerData[0];
-    gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });
+    gsap.set(fuba, { x: startNode.x, y: startNode.y });
     lastFubaXRef.current = startNode.x;
     centerCamera(startNode.x, startNode.y, 0);
 
@@ -374,7 +374,7 @@ export default function FubaExplorer() {
     const startY = gsap.getProperty(fuba, "y") as number;
 
     const dist = Math.hypot(startX - target.x, startY - target.y);
-    if (dist < 50) {
+    if (dist < 80) {
       isNavigatingRef.current = false;
       enterSubLevel(target);
       return;
@@ -418,17 +418,16 @@ export default function FubaExplorer() {
     tl.to(fuba, {
       motionPath: {
         path: pathD,
-        align: pathD,
         alignOrigin: [0.5, 0.5],
         autoRotate: false
       },
       duration: 2.2, ease: "power2.inOut",
       onUpdate: function () {
-        const cx = (gsap.getProperty(fuba, "x") as number) + 35;
-        const cy = (gsap.getProperty(fuba, "y") as number) + 35;
+        const cx = gsap.getProperty(fuba, "x") as number;
+        const cy = gsap.getProperty(fuba, "y") as number;
 
-        if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: 1 });
-        else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: -1 });
+        if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: -1 });
+        else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: 1 });
         lastFubaXRef.current = cx;
 
         if (Math.random() > 0.7) createDust(cx, cy);
@@ -707,7 +706,8 @@ export default function FubaExplorer() {
           pointer-events: none; 
           z-index: 999; 
           filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5));
-          transform-origin: center center;
+          transform-origin: 35px 35px;
+          overflow: visible;
         }
 
         .bark-bubble {
