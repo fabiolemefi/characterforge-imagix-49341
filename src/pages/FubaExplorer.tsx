@@ -77,7 +77,7 @@ export default function FubaExplorer() {
   const [panelData, setPanelData] = useState({ title: '', badge: '', desc: '', showContent: false });
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
-  const currentScaleRef = useRef(1);
+  const currentScaleRef = useRef(1.3);
   const isSubLevelOpenRef = useRef(false);
   const isNavigatingRef = useRef(false);
   const lastFubaXRef = useRef(0);
@@ -152,6 +152,9 @@ export default function FubaExplorer() {
     const startNode = careerData[0];
     gsap.set(fuba, { x: startNode.x - 35, y: startNode.y - 35 });
     lastFubaXRef.current = startNode.x;
+    
+    // Apply initial zoom scale
+    gsap.set(wrapper, { scale: 1.3 });
     centerCamera(startNode.x, startNode.y, 0);
 
     // Draggable
@@ -287,18 +290,22 @@ export default function FubaExplorer() {
     }
   };
 
-  const bark = (x: number, y: number) => {
+  // bark receives SVG coordinates and calculates screen position at display time
+  const bark = (targetX: number, targetY: number) => {
     const barkSound = barkSoundRef.current;
     if (barkSound) {
       barkSound.currentTime = 0;
       barkSound.play().catch(() => console.log('Áudio bloqueado pelo navegador'));
     }
 
+    // Calculate screen position at the moment of display
+    const screenPos = getScreenPosition(targetX, targetY);
+
     const bubble = document.createElement('div');
     bubble.className = 'bark-bubble';
     bubble.textContent = 'AU AU! 🐕';
-    bubble.style.left = (x + 50) + 'px';
-    bubble.style.top = (y - 80) + 'px';
+    bubble.style.left = (screenPos.x + 50) + 'px';
+    bubble.style.top = (screenPos.y - 80) + 'px';
     document.body.appendChild(bubble);
 
     gsap.fromTo(bubble,
@@ -395,7 +402,8 @@ export default function FubaExplorer() {
         isNavigatingRef.current = false;
         const targetScreenPos = getScreenPosition(target.x, target.y);
         createConfetti(targetScreenPos.x, targetScreenPos.y);
-        bark(targetScreenPos.x, targetScreenPos.y);
+        // Pass SVG coordinates to bark so it calculates screen position at display time
+        bark(target.x, target.y);
         setTimeout(() => { enterSubLevel(target); }, 1500);
       }
     });
@@ -427,8 +435,9 @@ export default function FubaExplorer() {
         const cx = (gsap.getProperty(fuba, "x") as number) + 35;
         const cy = (gsap.getProperty(fuba, "y") as number) + 35;
 
-        if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: -1 });
-        else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: 1 });
+        // Flip logic: right = normal (scaleX: 1), left = flip (scaleX: -1)
+        if (cx > lastFubaXRef.current + 0.5) gsap.set(fuba, { scaleX: 1 });
+        else if (cx < lastFubaXRef.current - 0.5) gsap.set(fuba, { scaleX: -1 });
         lastFubaXRef.current = cx;
 
         if (Math.random() > 0.7) createDust(cx, cy);
@@ -574,10 +583,10 @@ export default function FubaExplorer() {
     gsap.to(wrapper, {
       x: -fx * currentScaleRef.current + window.innerWidth / 2,
       y: -fy * currentScaleRef.current + window.innerHeight / 2,
-      scale: 1, duration: 0.8, ease: "power2.inOut",
+      scale: 1.3, duration: 0.8, ease: "power2.inOut",
       onUpdate: updateParallax
     });
-    currentScaleRef.current = 1;
+    currentScaleRef.current = 1.3;
     gsap.set(fuba, { scaleX: 1 });
   };
 
