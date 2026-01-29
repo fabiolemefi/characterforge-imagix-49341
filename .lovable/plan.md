@@ -1,50 +1,116 @@
 
-# Plano: Permitir Visualização de Todos os Links do Efi Link
+# Plano: Substituir Imagens por Placeholder nos Blocos
 
-## Situação Atual
+## Contexto
 
-A tabela `efi_links` possui estas políticas RLS:
+O usuário quer:
+1. **Atualizar blocos existentes**: Substituir todas as URLs de imagens no banco de dados pela URL do placeholder
+2. **Importação com IA**: Ao importar blocos via "Importar com IA", substituir automaticamente todas as URLs de imagens pelo placeholder
 
-| Operação | Política Atual |
-|----------|----------------|
-| SELECT | `auth.uid() = user_id` (apenas links próprios) |
-| INSERT | `auth.uid() = user_id` (criar apenas próprios) |
-| UPDATE | `auth.uid() = user_id` (editar apenas próprios) |
-| DELETE | `auth.uid() = user_id` (excluir apenas próprios) |
+**URL do Placeholder**: `https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png`
 
-## Alteração Necessária
+## Parte 1: Atualizar Blocos Existentes no Banco
 
-Modificar apenas a política de **SELECT** para permitir que todos os usuários autenticados vejam todos os links.
+Consulta no banco identificou blocos com imagens (exemplos):
+- `Hero com Imagem` - contém `src="https://image.comunicacao.sejaefi.com.br/..."`
+- `Header com Navegação` - contém `xlink:href="./media/..."` e `src="./media/..."`
+- Outros blocos com `srcset`, `src`, `xlink:href`
 
-### Migration SQL
+### Ação: Executar Migration SQL
 
 ```sql
--- Remover política atual de SELECT
-DROP POLICY IF EXISTS "Users can view their own links" ON public.efi_links;
-
--- Criar nova política: todos os autenticados podem ver todos os links
-CREATE POLICY "Authenticated users can view all links"
-  ON public.efi_links
-  FOR SELECT
-  TO authenticated
-  USING (true);
+UPDATE efi_code_blocks
+SET html_content = regexp_replace(
+  regexp_replace(
+    regexp_replace(
+      html_content,
+      'src="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"',
+      'src="https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png"',
+      'gi'
+    ),
+    'srcset="[^"]*"',
+    'srcset="https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png"',
+    'gi'
+  ),
+  'xlink:href="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"',
+  'xlink:href="https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png"',
+  'gi'
+)
+WHERE html_content IS NOT NULL
+  AND (
+    html_content LIKE '%src=%' 
+    OR html_content LIKE '%srcset=%'
+    OR html_content LIKE '%xlink:href=%'
+  );
 ```
 
-## Políticas Finais
+## Parte 2: Substituição Automática na Importação com IA
 
-| Operação | Política | Comportamento |
-|----------|----------|---------------|
-| SELECT | `true` (para authenticated) | Todos veem todos os links |
-| INSERT | `auth.uid() = user_id` | Criar apenas próprios |
-| UPDATE | `auth.uid() = user_id` | Editar apenas próprios |
-| DELETE | `auth.uid() = user_id` | Excluir apenas próprios |
+### Arquivo: `supabase/functions/analyze-html-blocks/index.ts`
 
-## Considerações de UX
+A edge function `analyze-html-blocks` é quem processa o HTML e retorna os blocos. Vou adicionar pós-processamento para substituir todas as URLs de imagem pelo placeholder.
 
-Após a alteração, pode ser útil adicionar na listagem uma indicação de quem criou cada link (nome ou email do criador). Isso pode ser implementado posteriormente se desejado.
+| Linha | Alteração |
+|-------|-----------|
+| ~129-136 | Adicionar função de substituição de imagens após normalização dos blocos |
 
-## Resumo
+### Código Adicionado
 
-- Apenas a política de SELECT será alterada
-- INSERT/UPDATE/DELETE continuam restritos ao próprio usuário
-- Nenhuma alteração no código frontend é necessária
+```typescript
+const PLACEHOLDER_IMAGE = 'https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png';
+
+// Função para substituir URLs de imagem pelo placeholder
+const replaceImageUrls = (html: string): string => {
+  return html
+    // Substitui src="..." que aponta para imagens
+    .replace(/src="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"/gi, `src="${PLACEHOLDER_IMAGE}"`)
+    // Substitui srcset="..."
+    .replace(/srcset="[^"]*"/gi, `srcset="${PLACEHOLDER_IMAGE}"`)
+    // Substitui xlink:href="..." para SVGs
+    .replace(/xlink:href="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"/gi, `xlink:href="${PLACEHOLDER_IMAGE}"`)
+    // Substitui URLs em background-image inline
+    .replace(/url\(['"]?[^'")\s]*\.(jpg|jpeg|png|gif|webp|svg)[^'")\s]*['"]?\)/gi, `url("${PLACEHOLDER_IMAGE}")`);
+};
+```
+
+### Aplicação no Fluxo
+
+No momento da normalização dos blocos (linhas ~129-136), aplicar a função:
+
+```typescript
+const normalizedBlocks = blocks.map((block: any, index: number) => ({
+  name: block.name || `Bloco ${index + 1}`,
+  category: ['layout', 'texto', 'midia', 'interativo'].includes(block.category) 
+    ? block.category 
+    : 'layout',
+  description: block.description || '',
+  html_content: replaceImageUrls(block.html_content || block.html || ''), // <-- AQUI
+})).filter((block: any) => block.html_content && block.html_content.trim().length > 0);
+```
+
+## Resumo das Alterações
+
+| Componente | Alteração |
+|------------|-----------|
+| Database | Migration SQL para atualizar blocos existentes |
+| `analyze-html-blocks/index.ts` | Adicionar função `replaceImageUrls` e aplicar nos blocos |
+
+## Fluxo Final
+
+```text
+1. BLOCOS EXISTENTES
+   ├── Migration SQL substitui todas as URLs de imagem → placeholder
+   └── Imagens existentes apontam para placeholder
+
+2. NOVOS BLOCOS (Importar com IA)
+   ├── Usuário cola HTML
+   ├── Edge function analisa e extrai blocos
+   ├── Função replaceImageUrls() substitui todas as URLs → placeholder
+   └── Blocos salvos já com placeholder
+```
+
+## Benefícios
+
+- Blocos nunca ficam com imagens quebradas
+- Administrador pode substituir pelo ativo correto na edição individual
+- Consistência visual na biblioteca de blocos
