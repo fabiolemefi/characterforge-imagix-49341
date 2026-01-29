@@ -279,8 +279,22 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         // Check for inner images/icons (useful for "Change Icon" button)
         const innerImg = element.querySelector('img');
         const innerSvg = element.querySelector('svg');
-        const hasInnerImage = !!innerImg || !!innerSvg;
-        const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
+        const innerSvgImage = innerSvg ? innerSvg.querySelector('image') : null;
+        
+        // Determine if there's an inner image (regular img OR svg with image element)
+        const hasInnerImage = !!innerImg || !!innerSvgImage;
+        
+        // Get the image src - from img tag OR from svg image's xlink:href/href
+        let innerImageSrc = null;
+        let innerImageType = null; // 'img' or 'svg-image'
+        
+        if (innerImg) {
+          innerImageSrc = innerImg.getAttribute('src');
+          innerImageType = 'img';
+        } else if (innerSvgImage) {
+          innerImageSrc = innerSvgImage.getAttribute('xlink:href') || innerSvgImage.getAttribute('href');
+          innerImageType = 'svg-image';
+        }
         
         // Calculate the CORRECT occurrence index for the inner image
         let innerImageOccurrenceIndex = 0;
@@ -290,6 +304,13 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
             return i.getAttribute('src') === innerImageSrc;
           });
           innerImageOccurrenceIndex = sameSourceImgs.indexOf(innerImg);
+        } else if (innerSvgImage && innerImageSrc) {
+          const allSvgImages = Array.from(block.querySelectorAll('svg image'));
+          const sameSourceSvgImages = allSvgImages.filter(function(i) {
+            const src = i.getAttribute('xlink:href') || i.getAttribute('href');
+            return src === innerImageSrc;
+          });
+          innerImageOccurrenceIndex = sameSourceSvgImages.indexOf(innerSvgImage);
         }
         
         // Find occurrence index for the link/button element itself
@@ -307,7 +328,8 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           occurrenceIndex: occurrenceIndex,
           hasInnerImage: hasInnerImage,
           innerImageSrc: innerImageSrc,
-          innerImageOccurrenceIndex: innerImageOccurrenceIndex
+          innerImageOccurrenceIndex: innerImageOccurrenceIndex,
+          innerImageType: innerImageType
         }, '*');
         
         return;
