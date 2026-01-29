@@ -190,6 +190,7 @@ export const IframePreview = ({
         className="w-full border-0 block"
         style={{ 
           flex: 1,
+          width: '100%',
           minHeight: `${height}px`,
           pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
         }}
