@@ -1,86 +1,63 @@
 
-# Plano: Restaurar Funcionalidade de Clicar para Abrir Painel de Propriedades
+
+# Plano: Corrigir Clique para Abrir Painel de Propriedades
 
 ## Problema Identificado
 
-Analisando o código, identifiquei que o clique no bloco HTML não está selecionando o componente no Craft.js porque:
+O clique não funciona por dois motivos:
 
-1. O wrapper do `HtmlBlock` tem `connect(drag(ref))` que habilita drag-and-drop e deveria habilitar seleção por clique
-2. Porém, o `IframePreview` tem um overlay invisível que captura todos os cliques **antes** de chegarem ao wrapper
-3. O overlay chama `handleContainerClick`, que apenas ativa o modo de edição interno (`setIsEditing(true)`)
-4. **O Craft.js nunca é notificado para selecionar o nó**, então o painel de propriedades não abre
-
+### 1. Erro de Runtime (principal)
 ```text
-Fluxo atual (quebrado):
-Clique no bloco → Overlay captura → handleContainerClick → setIsEditing(true)
-                                                         ↳ Craft.js NÃO sabe que precisa selecionar!
+Erro: Cannot read properties of undefined (reading 'stopPropagation')
+```
 
-Fluxo esperado:
-Clique no bloco → Overlay captura → handleContainerClick → selectNode(id) → Painel abre!
-                                                         → setIsEditing(true)
+O clique pode vir de duas fontes:
+- **Overlay** (passa o evento MouseEvent)
+- **postMessage do iframe** (NÃO passa evento - é `undefined`)
+
+Quando vem do iframe via postMessage, `handleContainerClick(e)` recebe `undefined` e `e.stopPropagation()` falha.
+
+### 2. Fluxo do Clique
+```text
+Clique no conteúdo do iframe
+  → iframe envia postMessage('eficode-iframe-click')
+  → IframePreview recebe e chama onClick() SEM argumento
+  → handleContainerClick(undefined) 
+  → undefined.stopPropagation() ← ERRO!
 ```
 
 ## Solução
 
-Usar a API do Craft.js para selecionar o nó programaticamente quando o bloco for clicado:
-
-1. Extrair o `id` do nó via `useNode`
-2. Extrair `actions` do `useEditor` que contém `selectNode()`
-3. Chamar `actions.selectNode(id)` no `handleContainerClick`
-
-## Alterações
+Tornar o handler defensivo para aceitar evento opcional:
 
 ### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-| Linha | Alteração |
-|-------|-----------|
-| 304-307 | Adicionar `id` no `useNode` e `actions` no `useEditor` |
-| 320-326 | Chamar `actions.selectNode(id)` em `handleContainerClick` |
+**Alteração (linhas 321-335):**
 
-### Código Detalhado
-
-**Antes (linhas 304-307):**
 ```tsx
-const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
-  selected: state.events.selected,
-}));
-const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
-```
-
-**Depois:**
-```tsx
-const { connectors: { connect, drag }, selected, actions: { setProp }, id } = useNode((state) => ({
-  selected: state.events.selected,
-}));
-const { enabled, actions: editorActions } = useEditor((state) => ({ 
-  enabled: state.options.enabled 
-}));
-```
-
----
-
-**Antes (linhas 320-326):**
-```tsx
-const handleContainerClick = useCallback((e: React.MouseEvent) => {
-  e.stopPropagation();
-  if (enabled && selected && !isEditing) {
-    originalTemplateRef.current = template;
-    setIsEditing(true);
-  }
-}, [enabled, selected, isEditing, template]);
-```
-
-**Depois:**
-```tsx
+// Antes
 const handleContainerClick = useCallback((e: React.MouseEvent) => {
   e.stopPropagation();
   
-  // Primeiro, selecionar o nó no Craft.js para abrir o painel de propriedades
   if (enabled && !selected) {
     editorActions.selectNode(id);
   }
   
-  // Depois, se já estava selecionado, ativar modo de edição
+  if (enabled && selected && !isEditing) {
+    originalTemplateRef.current = template;
+    setIsEditing(true);
+  }
+}, [enabled, selected, isEditing, template, editorActions, id]);
+
+// Depois
+const handleContainerClick = useCallback((e?: React.MouseEvent) => {
+  // Defensivo: só chamar stopPropagation se evento existir
+  e?.stopPropagation();
+  
+  if (enabled && !selected) {
+    editorActions.selectNode(id);
+  }
+  
   if (enabled && selected && !isEditing) {
     originalTemplateRef.current = template;
     setIsEditing(true);
@@ -88,19 +65,23 @@ const handleContainerClick = useCallback((e: React.MouseEvent) => {
 }, [enabled, selected, isEditing, template, editorActions, id]);
 ```
 
-## Comportamento Esperado
+A única mudança é:
+1. `(e: React.MouseEvent)` → `(e?: React.MouseEvent)` (evento opcional)
+2. `e.stopPropagation()` → `e?.stopPropagation()` (optional chaining)
 
-Após as alterações:
+## Sobre os Iframes
 
-| Estado Atual | Ação do Clique | Resultado |
-|--------------|----------------|-----------|
-| Bloco não selecionado | Clicar | Seleciona o bloco, painel de propriedades abre |
-| Bloco selecionado | Clicar | Ativa modo de edição de texto inline |
-| Bloco em modo edição | Clicar fora | Sai do modo edição, salva alterações |
+Sim, cada bloco é um iframe separado. Isso foi implementado intencionalmente para:
+- **Isolar o CSS Tailwind v4** dos blocos do Tailwind v3 da plataforma
+- **Evitar conflitos de estilos** entre o editor e o conteúdo dos blocos
+- **Permitir que blocos usem qualquer CSS** sem afetar o editor
 
-## Resumo de Arquivos
+Esta arquitetura está documentada na memória `css-isolation-strategy`.
 
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `HtmlBlock.tsx` | 304-307 | Adicionar `id` e `editorActions` nas hooks |
-| `HtmlBlock.tsx` | 320-326 | Chamar `editorActions.selectNode(id)` no clique |
+## Resumo
+
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| `HtmlBlock.tsx` | 322 | Tornar `e` opcional: `(e?: React.MouseEvent)` |
+| `HtmlBlock.tsx` | 323 | Usar optional chaining: `e?.stopPropagation()` |
+
