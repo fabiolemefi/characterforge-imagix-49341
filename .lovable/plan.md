@@ -1,110 +1,71 @@
 
-# Plano: Corrigir Problemas Após Edição de Texto e Remover Borda Azul
+# Plano: Corrigir Salvamento de Edições de Texto
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. Reload da Página / Bloco Desaparecendo / Duplicação
+Quando o usuário edita texto no iframe e clica fora, as alterações não estão sendo salvas no banco de dados. Analisando o código e os logs de rede, descobri duas causas raiz:
 
-O problema está no fluxo de `handleIframeEditEnd` combinado com o `templateKey`:
+### Causa 1: Condição `!isEditing` bloqueando o salvamento
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Usuário clica fora → blur no iframe (150ms delay)          │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ postMessage: 'eficode-edit-end' com HTML editado            │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ handleIframeEditEnd → setProp → htmlTemplate atualizado     │
-│ → templateKey MUDA → IframePreview RECRIA com nova key      │
-│ → MAS: o blur do iframe antigo ainda está processando       │
-│ → MÚLTIPLOS 'eficode-edit-end' são disparados               │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ PROBLEMA: Race condition causa comportamento errático       │
-│ - Craft.js pode estar em estado inconsistente               │
-│ - A re-criação do iframe durante o processamento causa bugs │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Causa Raiz**: Quando `handleIframeEditEnd` chama `setProp`, isso muda o `template`, que muda o `templateKey`, que força a recriação do `IframePreview`. Durante este processo, o listener de mensagens ainda está ativo e pode receber eventos duplicados, ou o estado do Craft.js pode ficar corrompido.
-
-### 2. Borda Azul de Seleção
-
-A linha 446 no `HtmlBlock.tsx` aplica um `boxShadow` quando o bloco está selecionado:
+O `handleIframeEditEnd` tem a condição:
 ```tsx
-style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
+if (processingEditEnd.current || !isEditing) return;
 ```
 
-O usuário quer remover isso completamente.
+O problema é que o `blur` no iframe usa um `setTimeout` de 150ms antes de enviar a mensagem. Durante esse delay:
+- O usuário pode clicar em outro lugar
+- O componente pode perder seleção (`selected = false`)
+- O `useEffect` que observa `selected` chama `setIsEditing(false)` antes da mensagem chegar
+
+Quando a mensagem `eficode-edit-end` finalmente chega, `isEditing` já é `false` e o handler retorna imediatamente sem salvar.
+
+### Causa 2: Iframe não atualiza `srcdoc` dinamicamente
+
+O React atualiza o atributo `srcdoc` do iframe quando o prop `html` muda, **mas iframes não recarregam seu conteúdo quando `srcdoc` é alterado depois do mount inicial**. Isso significa que mesmo que `setProp` funcione, o iframe continua mostrando o conteúdo antigo até ser recriado.
 
 ## Solução
 
-### Parte 1: Evitar Recriação do Iframe Durante Edição
+### Parte 1: Remover a condição `!isEditing` do handler
 
-Não podemos usar `templateKey` que recria o iframe sempre que o template muda, pois isso causa a race condition. Em vez disso:
+A flag `processingEditEnd` já é suficiente para evitar duplicatas. Precisamos aceitar a mensagem mesmo se `isEditing` já foi resetado.
 
-1. **Remover `templateKey`** do IframePreview - não forçar recriação via key
-2. **Controlar atualização via postMessage** em vez de recriar o componente
-3. **Adicionar flag para ignorar eventos duplicados** após edição
+### Parte 2: Adicionar ref para manter a flag de edição
 
-### Parte 2: Remover Borda Azul
+Usar um `useRef` para rastrear se estávamos editando, que não é afetado pelo ciclo de vida do React.
 
-Simplesmente remover o `style={{ boxShadow: ... }}` da div container.
+### Parte 3: Forçar atualização do iframe via postMessage
+
+Em vez de depender de `srcdoc` para atualizar o conteúdo, enviar uma mensagem para o iframe atualizar seu próprio `innerHTML` quando o template muda externamente.
+
+---
 
 ## Alterações Detalhadas
 
 ### Arquivo 1: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-| Linhas | Alteração |
-|--------|-----------|
-| 327-336 | Remover o `templateKey` (não é mais necessário) |
-| 434 | Adicionar flag para evitar processamento duplo de `edit-end` |
-| 446 | Remover o `boxShadow` da seleção (borda azul) |
-| 448 | Remover `key={templateKey}` do IframePreview |
+**Alteração 1**: Adicionar ref para rastrear estado de edição
 
-**Código Atual (com bugs):**
 ```tsx
-// Linhas 327-336 - templateKey que causa recriação problemática
-const templateKey = useMemo(() => {
-  let hash = 0;
-  for (let i = 0; i < template.length; i++) {
-    const char = template.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash;
-}, [template]);
-
-// Linha 446 - borda azul
-style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
-
-// Linha 448 - key que força recriação
-<IframePreview
-  key={templateKey}
-  ...
-/>
-```
-
-**Código Corrigido:**
-```tsx
-// REMOVER templateKey (não usar mais)
-
-// Adicionar ref para controlar processamento de edit-end
+const [isEditing, setIsEditing] = useState(false);
+const wasEditingRef = useRef(false); // NOVO: Rastrear se estava editando
 const processingEditEnd = useRef(false);
 
-// Handler atualizado com proteção contra duplicatas
+// Manter ref sincronizada
+useEffect(() => {
+  wasEditingRef.current = isEditing;
+}, [isEditing]);
+```
+
+**Alteração 2**: Modificar handler para usar a ref
+
+```tsx
 const handleIframeEditEnd = useCallback((newHtml: string) => {
-  // Ignorar se já estamos processando ou se não estamos editando
-  if (processingEditEnd.current || !isEditing) return;
+  // Usar wasEditingRef para verificar (não depender do state que pode estar desatualizado)
+  if (processingEditEnd.current) return;
+  if (!wasEditingRef.current && !isEditing) return; // Aceitar se estava editando recentemente
   
   processingEditEnd.current = true;
+  wasEditingRef.current = false; // Reset
   
   if (newHtml) {
     const normalized = normalizeHtml(newHtml);
@@ -119,135 +80,107 @@ const handleIframeEditEnd = useCallback((newHtml: string) => {
   }
   setIsEditing(false);
   
-  // Reset flag após um tempo seguro
   setTimeout(() => {
     processingEditEnd.current = false;
   }, 200);
 }, [template, setProp, isEditing]);
+```
 
-// Linha 446 - REMOVER boxShadow (sem borda azul)
-<div
-  ref={(ref) => {
-    containerRef.current = ref;
-    if (ref && enabled) {
-      connect(drag(ref));
-    }
-  }}
-  className={`relative w-full ${className}`}
-  // SEM style={{ boxShadow: ... }}
->
+**Alteração 3**: Marcar `wasEditingRef` quando iniciar edição
 
-// Linha 448 - REMOVER key (não forçar recriação)
-<IframePreview
-  html={template}
-  editable={isEditing}
-  ...
-/>
+```tsx
+// Na função handleContainerClick, antes de setIsEditing(true):
+wasEditingRef.current = true;
+setIsEditing(true);
 ```
 
 ### Arquivo 2: `src/components/eficode/user-components/IframePreview.tsx`
 
-| Linhas | Alteração |
-|--------|-----------|
-| 113-125 | Adicionar proteção para não enviar edit-end múltiplas vezes |
+**Alteração 4**: Adicionar listener para atualizar conteúdo via postMessage
 
-**Código Atual:**
+No script interno do iframe:
 ```javascript
-// Blur com delay (pode disparar múltiplas vezes)
-document.body.addEventListener('blur', () => {
-  if (!editMode) return;
-  clearTimeout(debounceTimer);
-  clearTimeout(blurTimer);
-  
-  blurTimer = setTimeout(() => {
-    window.parent.postMessage({ 
-      type: 'eficode-edit-end',
-      html: document.body.innerHTML 
-    }, '*');
-  }, 150);
-});
-```
-
-**Código Corrigido:**
-```javascript
-// Blur com delay e proteção contra duplicatas
-let editEndSent = false;
-
-document.body.addEventListener('blur', () => {
-  if (!editMode || editEndSent) return;
-  clearTimeout(debounceTimer);
-  clearTimeout(blurTimer);
-  
-  blurTimer = setTimeout(() => {
-    if (!editEndSent) {
-      editEndSent = true;
-      editMode = false; // Desativar editMode imediatamente
-      document.body.contentEditable = 'false';
-      window.parent.postMessage({ 
-        type: 'eficode-edit-end',
-        html: document.body.innerHTML 
-      }, '*');
-    }
-  }, 150);
-});
-
-// Reset editEndSent quando ativar edição
 window.addEventListener('message', (e) => {
-  if (e.data?.type === 'eficode-set-editable') {
-    editMode = e.data.editable;
-    if (editMode) {
-      editEndSent = false; // Reset para permitir novo edit-end
-    }
-    document.body.contentEditable = editMode ? 'true' : 'false';
-    if (editMode) document.body.focus({ preventScroll: true });
+  // ... código existente ...
+  
+  // NOVO: Atualizar conteúdo quando receber nova versão do parent
+  if (e.data?.type === 'eficode-update-content') {
+    document.body.innerHTML = e.data.html;
+    sendHeight();
   }
 });
 ```
+
+**Alteração 5**: Enviar mensagem de atualização quando html prop muda
+
+No componente pai, adicionar useEffect:
+```tsx
+// Atualizar conteúdo do iframe quando html muda externamente (sem recriar)
+const prevHtmlRef = useRef(html);
+useEffect(() => {
+  if (html !== prevHtmlRef.current && iframeRef.current?.contentWindow) {
+    iframeRef.current.contentWindow.postMessage(
+      { type: 'eficode-update-content', html },
+      '*'
+    );
+    prevHtmlRef.current = html;
+  }
+}, [html]);
+```
+
+---
 
 ## Fluxo Corrigido
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Usuário clica fora → blur no iframe                         │
+│ Usuário edita texto no iframe                               │
+│ wasEditingRef.current = true                                │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ editEndSent = false? Sim → continua                         │
-│ editEndSent = true, editMode = false                        │
-│ postMessage: 'eficode-edit-end' (apenas UMA VEZ)            │
+│ Clica fora → blur dispara                                   │
+│ setTimeout 150ms inicia                                     │
+│ (Enquanto isso, selected pode mudar e isEditing → false)    │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ handleIframeEditEnd recebe mensagem                         │
-│ processingEditEnd = true? Não → processa                    │
-│ setProp → template atualizado                               │
-│ setIsEditing(false)                                         │
+│ postMessage('eficode-edit-end', html)                       │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ IframePreview NÃO é recriado (sem key={templateKey})        │
-│ O HTML já foi atualizado pelo contentEditable               │
-│ Apenas o estado do Craft.js é sincronizado                  │
+│ handleIframeEditEnd:                                        │
+│ - processingEditEnd.current = false ✓                       │
+│ - wasEditingRef.current = true ✓ (ainda true!)              │
+│ → PROCESSA o HTML e salva via setProp                       │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Usuário clica em "Salvar"                                   │
+│ query.serialize() captura o htmlTemplate atualizado         │
+│ → Banco de dados recebe as alterações corretas              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## Resumo de Alterações
 
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `HtmlBlock.tsx` | 327-336 | Remover `templateKey` useMemo |
-| `HtmlBlock.tsx` | 319+ | Adicionar `processingEditEnd` ref |
-| `HtmlBlock.tsx` | 421-435 | Atualizar `handleIframeEditEnd` com proteção |
-| `HtmlBlock.tsx` | 446 | Remover `boxShadow` (borda azul) |
-| `HtmlBlock.tsx` | 448 | Remover `key={templateKey}` |
-| `IframePreview.tsx` | 72-96 | Adicionar `editEndSent` flag e proteção |
+| Arquivo | Alteração |
+|---------|-----------|
+| `HtmlBlock.tsx` | Adicionar `wasEditingRef` para rastrear estado de edição independente do ciclo React |
+| `HtmlBlock.tsx` | Modificar `handleIframeEditEnd` para usar `wasEditingRef` em vez de apenas `isEditing` |
+| `HtmlBlock.tsx` | Marcar `wasEditingRef = true` quando iniciar edição |
+| `IframePreview.tsx` | Adicionar listener `eficode-update-content` para atualizar conteúdo via postMessage |
+| `IframePreview.tsx` | Adicionar useEffect para sincronizar mudanças do prop `html` com o iframe |
 
 ## Benefícios
 
-1. **Sem recarga/duplicação**: O iframe não é recriado a cada mudança de template
-2. **Sem race condition**: Flags de controle garantem processamento único
-3. **Sem borda azul**: Visual limpo sem indicador de seleção
-4. **Estabilidade**: Estado do Craft.js permanece consistente
+1. **Salvamento confiável**: As edições serão capturadas mesmo com delays de mensagens
+2. **Sincronização bidirecional**: Mudanças no painel de settings também atualizam o iframe
+3. **Sem recriação de iframe**: Atualizações via postMessage são mais rápidas e suaves
+4. **Robustez**: O sistema não depende do timing preciso de estados React
