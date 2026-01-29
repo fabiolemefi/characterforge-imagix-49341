@@ -318,22 +318,12 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const processingEditEnd = useRef(false);
   
   // Extrair valores de nodeProps para reatividade correta
   const html = nodeProps?.html;
   const htmlTemplate = nodeProps?.htmlTemplate;
   const template = htmlTemplate || html || '';
-  
-  // Key estável baseada em hash do template para forçar recriação do iframe quando imagens mudam
-  const templateKey = useMemo(() => {
-    let hash = 0;
-    for (let i = 0; i < template.length; i++) {
-      const char = template.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash;
-  }, [template]);
   
   // Ref para guardar o template antes de começar a editar
   const originalTemplateRef = useRef<string>(template);
@@ -418,8 +408,13 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
     // Atualização em tempo real durante edição (opcional)
   }, []);
 
-  // Handler para quando a edição no iframe termina
+  // Handler para quando a edição no iframe termina - com proteção contra duplicatas
   const handleIframeEditEnd = useCallback((newHtml: string) => {
+    // Ignorar se já estamos processando ou se não estamos editando
+    if (processingEditEnd.current || !isEditing) return;
+    
+    processingEditEnd.current = true;
+    
     if (newHtml) {
       const normalized = normalizeHtml(newHtml);
       const currentNormalized = normalizeHtml(template);
@@ -432,21 +427,24 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
       }
     }
     setIsEditing(false);
-  }, [template, setProp]);
+    
+    // Reset flag após um tempo seguro
+    setTimeout(() => {
+      processingEditEnd.current = false;
+    }, 200);
+  }, [template, setProp, isEditing]);
 
   return (
     <div
       ref={(ref) => {
-        containerRef.current = ref; // Manter referência para postMessage
+        containerRef.current = ref;
         if (ref && enabled) {
           connect(drag(ref));
         }
       }}
       className={`relative w-full ${className}`}
-      style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
     >
       <IframePreview
-        key={templateKey}
         html={template}
         editable={isEditing}
         onClick={handleContainerClick}
