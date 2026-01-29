@@ -49,11 +49,29 @@ export const IframePreview = ({
   // Build the complete HTML document for the iframe - memoizado
   const srcdoc = useMemo(() => `
 <!DOCTYPE html>
-<html>
+<html style="width: 100%; height: auto;">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    /* Reset essencial para responsividade */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+    }
+    body {
+      overflow-x: hidden;
+    }
+    img, video, iframe {
+      max-width: 100%;
+      height: auto;
+    }
+    
     /* Global CSS do admin - controla 100% dos estilos */
     ${globalCss}
     
