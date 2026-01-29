@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Undo2, Redo2, Eye, Download, Monitor, Tablet, Smartphone, Code, Layers, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, Undo2, Redo2, Eye, Download, Monitor, Tablet, Smartphone, Code, Layers, ChevronDown, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,12 +35,14 @@ interface ImageSource {
 }
 
 type ViewMode = 'visual' | 'code';
-type ViewportSize = 'desktop' | 'tablet' | 'mobile';
+type ViewportSize = 'xl' | 'lg' | 'md' | 'sm';
+type ThemeMode = 'light' | 'dark';
 
 const viewportWidths: Record<ViewportSize, string> = {
-  desktop: '100%',
-  tablet: '768px',
-  mobile: '375px'
+  xl: '1896px',
+  lg: '1342px',
+  md: '776px',
+  sm: '360px'
 };
 
 export default function EfiCodeEditor() {
@@ -72,7 +74,8 @@ export default function EfiCodeEditor() {
   const [siteName, setSiteName] = useState('');
   const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
-  const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop');
+  const [viewportSize, setViewportSize] = useState<ViewportSize>('xl');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [codeContent, setCodeContent] = useState<string>('');
   
   // State for tracking unsaved changes
@@ -478,14 +481,32 @@ export default function EfiCodeEditor() {
             onValueChange={value => value && setViewportSize(value as ViewportSize)} 
             className="border rounded-md"
           >
-            <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
-              <Monitor className="h-4 w-4" />
+            <ToggleGroupItem value="xl" aria-label="Extra Large (1896px)" className="px-3 text-xs font-medium">
+              XL
             </ToggleGroupItem>
-            <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
-              <Tablet className="h-4 w-4" />
+            <ToggleGroupItem value="lg" aria-label="Large (1342px)" className="px-3 text-xs font-medium">
+              LG
             </ToggleGroupItem>
-            <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
-              <Smartphone className="h-4 w-4" />
+            <ToggleGroupItem value="md" aria-label="Medium (776px)" className="px-3 text-xs font-medium">
+              MD
+            </ToggleGroupItem>
+            <ToggleGroupItem value="sm" aria-label="Small (360px)" className="px-3 text-xs font-medium">
+              SM
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Theme Mode Toggle */}
+          <ToggleGroup 
+            type="single" 
+            value={themeMode} 
+            onValueChange={value => value && setThemeMode(value as ThemeMode)} 
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="light" aria-label="Light Mode" className="px-3">
+              <Sun className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="dark" aria-label="Dark Mode" className="px-3">
+              <Moon className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -601,7 +622,7 @@ export default function EfiCodeEditor() {
                 className={`transition-all duration-300 ${pageSettings.containerClasses || ''}`}
                 style={{
                   minHeight: '600px',
-                  maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
+                  maxWidth: viewportSize === 'xl' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
                   width: viewportWidths[viewportSize],
                   paddingTop: `${pageSettings.paddingTop || 0}px`,
                   paddingBottom: `${pageSettings.paddingBottom || 0}px`,
@@ -615,6 +636,7 @@ export default function EfiCodeEditor() {
                   globalCss={globalCss}
                   selectedBlockId={selectedBlockId}
                   viewportWidth="100%"
+                  themeMode={themeMode}
                   onBlockClick={handleBlockClick}
                   onBlockDoubleClick={handleBlockDoubleClick}
                   onBlockEdit={handleBlockEdit}

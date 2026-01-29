@@ -6,6 +6,7 @@ interface UnifiedIframeProps {
   globalCss: string;
   selectedBlockId: string | null;
   viewportWidth: string;
+  themeMode?: 'light' | 'dark';
   onBlockClick: (blockId: string) => void;
   onBlockDoubleClick: (blockId: string) => void;
   onBlockEdit: (blockId: string, newHtml: string) => void;
@@ -16,6 +17,7 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
   globalCss,
   selectedBlockId,
   viewportWidth,
+  themeMode = 'light',
   onBlockClick,
   onBlockDoubleClick,
   onBlockEdit,
@@ -35,7 +37,7 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
     `).join('\n');
 
     return `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="${themeMode}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -340,7 +342,7 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
   </script>
 </body>
 </html>`;
-  }, [blocks, globalCss, selectedBlockId]);
+  }, [blocks, globalCss, selectedBlockId, themeMode]);
 
   // Handle messages from iframe
   useEffect(() => {
