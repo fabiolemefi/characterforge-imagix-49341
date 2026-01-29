@@ -330,8 +330,16 @@ export default function EfiCodeEditor() {
               backgroundAttachment: pageSettings.backgroundAttachment || 'scroll',
               backgroundRepeat: pageSettings.backgroundRepeat || 'no-repeat',
             }}>
-              {/* Inject Global CSS + Inline Styles scoped to viewport */}
-              <style dangerouslySetInnerHTML={{ __html: `${globalCss}\n${pageSettings.inlineStyles || ''}` }} />
+              {/* Inject Global CSS + Inline Styles with HIGH SPECIFICITY scoped to viewport */}
+              {/* This ensures Tailwind v4 from blocks prevails over platform's Tailwind v3 */}
+              <style dangerouslySetInnerHTML={{ 
+                __html: `
+                  /* CSS Global com escopo de alta especificidade */
+                  .efi-editor-viewport { ${globalCss} }
+                  /* Inline styles da página */
+                  ${pageSettings.inlineStyles || ''}
+                ` 
+              }} />
               
               {viewMode === 'visual' ? (
                 <div 
