@@ -6,6 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const PLACEHOLDER_IMAGE = 'https://dbxaamdirxjrbolsegwz.supabase.co/storage/v1/object/public/efi-code-assets/library/sys/1769692921451-qtvxdp29lj.png';
+
+// Função para substituir URLs de imagem pelo placeholder
+const replaceImageUrls = (html: string): string => {
+  return html
+    // Substitui src="..." que aponta para imagens
+    .replace(/src="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"/gi, `src="${PLACEHOLDER_IMAGE}"`)
+    // Substitui srcset="..."
+    .replace(/srcset="[^"]*"/gi, `srcset="${PLACEHOLDER_IMAGE}"`)
+    // Substitui xlink:href="..." para SVGs
+    .replace(/xlink:href="[^"]*\.(jpg|jpeg|png|gif|webp|svg)[^"]*"/gi, `xlink:href="${PLACEHOLDER_IMAGE}"`)
+    // Substitui URLs em background-image inline
+    .replace(/url\(['"]?[^'")\s]*\.(jpg|jpeg|png|gif|webp|svg)[^'")\s]*['"]?\)/gi, `url("${PLACEHOLDER_IMAGE}")`);
+};
+
 const SYSTEM_PROMPT = `Você é um especialista em análise de HTML para extração de blocos reutilizáveis.
 
 Sua tarefa é receber um HTML completo (página inteira) e extrair blocos individuais que podem ser reutilizados em um editor visual de páginas.
@@ -132,7 +147,7 @@ Deno.serve(async (req) => {
         ? block.category 
         : 'layout',
       description: block.description || '',
-      html_content: block.html_content || block.html || '',
+      html_content: replaceImageUrls(block.html_content || block.html || ''),
     })).filter((block: any) => block.html_content && block.html_content.trim().length > 0);
 
     console.log(`Extraídos ${normalizedBlocks.length} blocos válidos`);
