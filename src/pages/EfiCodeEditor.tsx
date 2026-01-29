@@ -191,7 +191,7 @@ export default function EfiCodeEditor() {
       // If there's a pending preview, open it
       if (pendingPreviewRef.current) {
         pendingPreviewRef.current = false;
-        window.open(`/efi-code/${id}/preview`, '_blank');
+        window.open(`https://martech-efi.lovable.app/efi-code/${id}/preview`, '_blank');
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -536,7 +536,7 @@ function EditorActions({
       onPreviewRequest();
     } else {
       // No changes, open preview directly
-      window.open(`/efi-code/${siteId}/preview`, '_blank');
+      window.open(`https://martech-efi.lovable.app/efi-code/${siteId}/preview`, '_blank');
     }
   };
 
