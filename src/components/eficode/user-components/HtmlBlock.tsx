@@ -322,6 +322,10 @@ const { connectors: { connect, drag }, selected, actions: { setProp }, id } = us
   const handleContainerClick = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation(); // Impedir propagação que pode causar re-renders no editor
     
+    // Capturar scroll antes de qualquer ação para evitar scroll jump
+    const scrollContainer = document.querySelector('main.overflow-auto');
+    const scrollTop = scrollContainer?.scrollTop || 0;
+    
     // Primeiro, selecionar o nó no Craft.js para abrir o painel de propriedades
     if (enabled && !selected) {
       editorActions.selectNode(id);
@@ -332,6 +336,13 @@ const { connectors: { connect, drag }, selected, actions: { setProp }, id } = us
       originalTemplateRef.current = template;
       setIsEditing(true);
     }
+    
+    // Restaurar scroll após micro-tarefa (após React processar)
+    requestAnimationFrame(() => {
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollTop;
+      }
+    });
   }, [enabled, selected, isEditing, template, editorActions, id]);
 
   // Handler para finalizar edição - mais defensivo

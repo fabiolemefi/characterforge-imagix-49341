@@ -91,7 +91,7 @@ export const IframePreview = ({
       if (e.data?.type === 'eficode-set-editable') {
         editMode = e.data.editable;
         document.body.contentEditable = editMode ? 'true' : 'false';
-        if (editMode) document.body.focus();
+        if (editMode) document.body.focus({ preventScroll: true });
       }
     });
     
