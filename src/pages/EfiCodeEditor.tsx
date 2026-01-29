@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Editor, Frame, Element, useEditor } from '@craftjs/core';
 import { ArrowLeft, Save, Undo2, Redo2, Eye, Download, Monitor, Tablet, Smartphone, Code, Layers, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,23 +22,10 @@ import { useEfiCodeSite, useEfiCodeSites, PageSettings, defaultPageSettings } fr
 import { useEfiCodeConfig } from '@/hooks/useEfiCodeConfig';
 import { Toolbox } from '@/components/eficode/editor/Toolbox';
 import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
+import { UnifiedIframe } from '@/components/eficode/editor/UnifiedIframe';
+import { BlockList } from '@/components/eficode/editor/BlockList';
 import { generateFullHtml } from '@/lib/efiCodeHtmlGenerator';
-import { EfiCodeProvider } from '@/components/eficode/EfiCodeContext';
-import { Container, Text, Heading, Button as CraftButton, Image, Divider, Spacer, HtmlBlock } from '@/components/eficode/user-components';
-
-const resolvers = {
-  Container,
-  Text,
-  Heading,
-  Button: CraftButton,
-  Image,
-  Divider,
-  Spacer,
-  HtmlBlock,
-  'Bloco HTML': HtmlBlock,
-  // Alias for backward compatibility
-  'Element': Container // Fallback for generic Elements
-};
+import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
 
 type ViewMode = 'visual' | 'code';
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
@@ -57,8 +43,26 @@ export default function EfiCodeEditor() {
   const { updateSite } = useEfiCodeSites();
   const { globalCss } = useEfiCodeConfig();
   
+  // Zustand store
+  const {
+    blocks,
+    selectedBlockId,
+    selectBlock,
+    addBlock,
+    removeBlock,
+    duplicateBlock,
+    updateBlockHtml,
+    reorderBlocks,
+    serialize,
+    deserialize,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    reset,
+  } = useEfiCodeEditorStore();
+  
   const [siteName, setSiteName] = useState('');
-  const [editorState, setEditorState] = useState<string | null>(null);
   const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
   const [viewportSize, setViewportSize] = useState<ViewportSize>('desktop');
@@ -72,6 +76,7 @@ export default function EfiCodeEditor() {
   // Refs for original values comparison
   const originalSiteNameRef = useRef<string>('');
   const originalPageSettingsRef = useRef<PageSettings>(defaultPageSettings);
+  const originalBlocksRef = useRef<string>('');
   const isInitialLoadRef = useRef(true);
   
   // Callback ref for preview after save
@@ -80,6 +85,10 @@ export default function EfiCodeEditor() {
   // Ref to prevent editor reload after save
   const justSavedRef = useRef(false);
 
+  // Iframe ref for editing control
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Load site data into store
   useEffect(() => {
     if (site) {
       // If we just saved OR are currently saving, don't reload the editor
@@ -89,7 +98,9 @@ export default function EfiCodeEditor() {
       
       setSiteName(site.name);
       if (site.content && Object.keys(site.content).length > 0) {
-        setEditorState(JSON.stringify(site.content));
+        deserialize(site.content);
+      } else {
+        reset();
       }
       if (site.page_settings) {
         setPageSettings(site.page_settings);
@@ -99,10 +110,20 @@ export default function EfiCodeEditor() {
       if (isInitialLoadRef.current) {
         originalSiteNameRef.current = site.name;
         originalPageSettingsRef.current = site.page_settings || defaultPageSettings;
+        originalBlocksRef.current = JSON.stringify(site.content || {});
         isInitialLoadRef.current = false;
       }
     }
-  }, [site, isSaving]);
+  }, [site, isSaving, deserialize, reset]);
+
+  // Track changes
+  useEffect(() => {
+    if (!site || isInitialLoadRef.current) return;
+    
+    const currentBlocks = JSON.stringify(serialize());
+    const hasBlockChanges = currentBlocks !== originalBlocksRef.current;
+    setHasEditorChanges(hasBlockChanges);
+  }, [blocks, site, serialize]);
 
   // Calculate if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -156,11 +177,12 @@ export default function EfiCodeEditor() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const handleSave = useCallback(async (query: any) => {
+  // Save handler
+  const handleSave = useCallback(async () => {
     if (!id) return;
     
     setIsSaving(true);
-    const serialized = query.serialize();
+    const serialized = serialize();
     
     // Mark BEFORE save to prevent reload from query invalidation
     justSavedRef.current = true;
@@ -169,16 +191,14 @@ export default function EfiCodeEditor() {
       await updateSite.mutateAsync({
         id,
         name: siteName,
-        content: JSON.parse(serialized),
+        content: serialized,
         page_settings: pageSettings
       });
-      
-      // Update editorState with what we just saved (don't depend on refetch)
-      setEditorState(serialized);
       
       // Reset original values after successful save
       originalSiteNameRef.current = siteName;
       originalPageSettingsRef.current = pageSettings;
+      originalBlocksRef.current = JSON.stringify(serialized);
       setHasEditorChanges(false);
       
       toast.success('Site salvo com sucesso!');
@@ -195,17 +215,17 @@ export default function EfiCodeEditor() {
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      justSavedRef.current = false; // Reset on error
+      justSavedRef.current = false;
       pendingPreviewRef.current = false;
     } finally {
       setIsSaving(false);
     }
-  }, [id, siteName, pageSettings, updateSite]);
+  }, [id, siteName, pageSettings, updateSite, serialize]);
 
-  const handleExport = useCallback((query: any) => {
-    const serialized = query.serialize();
-    const nodes = JSON.parse(serialized);
-    const html = generateFullHtml(nodes, siteName, pageSettings, globalCss);
+  // Export handler
+  const handleExport = useCallback(() => {
+    const serialized = serialize();
+    const html = generateFullHtml(serialized, siteName, pageSettings, globalCss);
     
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -218,18 +238,94 @@ export default function EfiCodeEditor() {
     URL.revokeObjectURL(url);
     
     toast.success('HTML exportado!');
-  }, [siteName, pageSettings, globalCss]);
+  }, [siteName, pageSettings, globalCss, serialize]);
 
-  const handleGenerateCode = useCallback((query: any) => {
-    const serialized = query.serialize();
-    const nodes = JSON.parse(serialized);
-    const html = generateFullHtml(nodes, siteName, pageSettings, globalCss);
+  // Generate code for preview
+  const handleGenerateCode = useCallback(() => {
+    const serialized = serialize();
+    const html = generateFullHtml(serialized, siteName, pageSettings, globalCss);
     setCodeContent(html);
-  }, [siteName, pageSettings, globalCss]);
+  }, [siteName, pageSettings, globalCss, serialize]);
 
-  const handleEditorChangeStatus = useCallback((hasChanges: boolean) => {
-    setHasEditorChanges(hasChanges);
-  }, []);
+  // Handle view mode change
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    if (mode === 'code') {
+      handleGenerateCode();
+    }
+    setViewMode(mode);
+  }, [handleGenerateCode]);
+
+  // Preview handler
+  const handlePreview = useCallback(() => {
+    if (!id) return;
+    
+    if (hasUnsavedChanges) {
+      setShowPreviewDialog(true);
+    } else {
+      window.open(`https://martech-efi.lovable.app/efi-code/${id}/preview`, '_blank');
+    }
+  }, [id, hasUnsavedChanges]);
+
+  // Preview confirm handler
+  const handlePreviewConfirm = useCallback(async () => {
+    pendingPreviewRef.current = true;
+    setShowPreviewDialog(false);
+    await handleSave();
+  }, [handleSave]);
+
+  // Block interaction handlers
+  const handleBlockClick = useCallback((blockId: string) => {
+    selectBlock(blockId);
+  }, [selectBlock]);
+
+  const handleBlockDoubleClick = useCallback((blockId: string) => {
+    selectBlock(blockId);
+    // Enable editing in iframe
+    const iframe = document.querySelector('iframe[title="Efi Code Editor Preview"]') as any;
+    if (iframe?.enableEditing) {
+      iframe.enableEditing(blockId);
+    }
+  }, [selectBlock]);
+
+  const handleBlockEdit = useCallback((blockId: string, newHtml: string) => {
+    updateBlockHtml(blockId, newHtml);
+  }, [updateBlockHtml]);
+
+  // Block list handlers
+  const handleMoveUp = useCallback((blockId: string) => {
+    const index = blocks.findIndex(b => b.id === blockId);
+    if (index > 0) {
+      reorderBlocks(index, index - 1);
+    }
+  }, [blocks, reorderBlocks]);
+
+  const handleMoveDown = useCallback((blockId: string) => {
+    const index = blocks.findIndex(b => b.id === blockId);
+    if (index < blocks.length - 1) {
+      reorderBlocks(index, index + 1);
+    }
+  }, [blocks, reorderBlocks]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, handleSave]);
 
   if (isLoading) {
     return (
@@ -257,383 +353,261 @@ export default function EfiCodeEditor() {
   }
 
   return (
-    <EfiCodeProvider globalCss={globalCss}>
-      <Editor resolver={resolvers}>
-        <div className="h-screen flex flex-col bg-background">
-          {/* Header */}
-          <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={handleBack}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <Input 
-                value={siteName} 
-                onChange={e => setSiteName(e.target.value)} 
-                className="w-64 font-medium" 
-                placeholder="Nome do site" 
-              />
-              
-              {/* Responsiveness Toggles */}
-              <ToggleGroup 
-                type="single" 
-                value={viewportSize} 
-                onValueChange={value => value && setViewportSize(value as ViewportSize)} 
-                className="border rounded-md"
-              >
-                <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
-                  <Monitor className="h-4 w-4" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
-                  <Tablet className="h-4 w-4" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
-                  <Smartphone className="h-4 w-4" />
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <EditorActions 
-                siteId={id} 
-                viewMode={viewMode} 
-                onViewModeChange={setViewMode} 
-                onSave={handleSave} 
-                onExport={handleExport} 
-                onGenerateCode={handleGenerateCode}
-                onEditorChangeStatus={handleEditorChangeStatus}
-                hasUnsavedChanges={hasUnsavedChanges}
-                isSaving={isSaving}
-                onPreviewRequest={() => setShowPreviewDialog(true)}
-              />
-            </div>
-          </header>
-
-          {/* Main Editor Area */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Left Sidebar - Toolbox + Settings */}
-            <aside className="w-64 border-r bg-background overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1">
-                <Toolbox pageSettings={pageSettings} onPageSettingsChange={setPageSettings} />
-              </ScrollArea>
-            </aside>
-
-            {/* Center - Viewport */}
-            <main className="flex-1 overflow-auto" style={{
-              backgroundColor: pageSettings.backgroundColor === 'transparent' 
-                ? 'transparent' 
-                : pageSettings.backgroundColor,
-              backgroundImage: pageSettings.backgroundImage 
-                ? `url(${pageSettings.backgroundImage})` 
-                : undefined,
-              backgroundSize: pageSettings.backgroundSize || 'cover',
-              backgroundPosition: pageSettings.backgroundPosition || 'center',
-              backgroundAttachment: pageSettings.backgroundAttachment || 'scroll',
-              backgroundRepeat: pageSettings.backgroundRepeat || 'no-repeat',
-            }}>
-              {/* Inject Global CSS + Inline Styles with HIGH SPECIFICITY scoped to viewport */}
-              {/* This ensures Tailwind v4 from blocks prevails over platform's Tailwind v3 */}
-              <style dangerouslySetInnerHTML={{ 
-                __html: `
-                  /* CSS Global com escopo de alta especificidade */
-                  .efi-editor-viewport { ${globalCss} }
-                  /* Inline styles da página */
-                  ${pageSettings.inlineStyles || ''}
-                ` 
-              }} />
-              
-              {viewMode === 'visual' ? (
-                <div className="min-h-full flex justify-center">
-                  <div 
-                    className={`transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
-                    style={{
-                      minHeight: '600px',
-                      maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
-                      width: viewportWidths[viewportSize],
-                      paddingTop: `${pageSettings.paddingTop || 0}px`,
-                      paddingBottom: `${pageSettings.paddingBottom || 0}px`,
-                      paddingLeft: `${pageSettings.paddingLeft || 0}px`,
-                      paddingRight: `${pageSettings.paddingRight || 0}px`,
-                    }}
-                  >
-                    <EditorFrame editorState={editorState} />
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col">
-                  <div className="bg-muted/50 px-4 py-2 border-b rounded-t-lg flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">HTML Gerado (somente leitura)</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => {
-                        navigator.clipboard.writeText(codeContent);
-                        toast.success('Código copiado!');
-                      }}
-                    >
-                      Copiar
-                    </Button>
-                  </div>
-                  <textarea 
-                    value={codeContent} 
-                    readOnly 
-                    className="flex-1 w-full font-mono text-sm p-4 bg-secondary text-secondary-foreground rounded-b-lg resize-none focus:outline-none" 
-                    spellCheck={false} 
-                  />
-                </div>
-              )}
-            </main>
-
-            {/* Right Sidebar - Component Settings */}
-            <aside className="w-72 border-l bg-background overflow-hidden">
-              <SettingsPanel />
-            </aside>
-          </div>
-        </div>
-
-        {/* Navigation Exit Dialog */}
-        <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
-              <AlertDialogDescription>
-                Você tem alterações que não foram salvas. Se sair agora, essas alterações serão perdidas.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={handleCancelExit}>
-                Cancelar
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmExit}>
-                Sair sem salvar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Preview Confirmation Dialog */}
-        <AlertDialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Visualizar Prévia
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Para visualizar a prévia, é necessário salvar as alterações atuais primeiro.
-                <br /><br />
-                Deseja salvar e continuar?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <PreviewConfirmButton 
-                siteId={id}
-                onSave={handleSave}
-                onClose={() => setShowPreviewDialog(false)}
-                pendingPreviewRef={pendingPreviewRef}
-              />
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </Editor>
-    </EfiCodeProvider>
-  );
-}
-
-// Button component that can access query from useEditor
-function PreviewConfirmButton({ 
-  siteId, 
-  onSave, 
-  onClose,
-  pendingPreviewRef
-}: { 
-  siteId: string | undefined;
-  onSave: (query: any) => Promise<void>;
-  onClose: () => void;
-  pendingPreviewRef: React.MutableRefObject<boolean>;
-}) {
-  const { query } = useEditor();
-  
-  const handleConfirm = async () => {
-    pendingPreviewRef.current = true;
-    onClose();
-    await onSave(query);
-  };
-  
-  return (
-    <AlertDialogAction onClick={handleConfirm}>
-      Salvar e Abrir
-    </AlertDialogAction>
-  );
-}
-
-// Componente para o Frame que carrega o estado salvo
-function EditorFrame({ editorState }: { editorState: string | null }) {
-  const { actions } = useEditor();
-  
-  useEffect(() => {
-    if (editorState) {
-      try {
-        const parsed = JSON.parse(editorState);
-        console.log('[EfiCode] Deserializando estado:', parsed);
-
-        // Log component types for debugging
-        Object.entries(parsed).forEach(([nodeId, node]: [string, any]) => {
-          if (node?.type?.resolvedName) {
-            console.log(`[EfiCode] Node ${nodeId}: ${node.type.resolvedName}`);
-          }
-        });
-        actions.deserialize(editorState);
-
-        // Force ROOT to have transparent background to inherit from pageSettings
-        setTimeout(() => {
-          actions.setProp('ROOT', (props: any) => {
-            props.background = 'transparent';
-          });
-        }, 0);
-      } catch (error) {
-        console.error('[EfiCode] Erro ao restaurar estado:', error);
-      }
-    }
-  }, [editorState, actions]);
-  
-  return (
-    <Frame>
-      <Element is={Container} canvas background="transparent" padding={0} minHeight={400} alignItems="stretch" />
-    </Frame>
-  );
-}
-
-// Componente separado para acessar o hook useEditor
-function EditorActions({
-  siteId,
-  viewMode,
-  onViewModeChange,
-  onSave,
-  onExport,
-  onGenerateCode,
-  onEditorChangeStatus,
-  hasUnsavedChanges,
-  isSaving,
-  onPreviewRequest
-}: {
-  siteId: string | undefined;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
-  onSave: (query: any) => Promise<void>;
-  onExport: (query: any) => void;
-  onGenerateCode: (query: any) => void;
-  onEditorChangeStatus: (hasChanges: boolean) => void;
-  hasUnsavedChanges: boolean;
-  isSaving: boolean;
-  onPreviewRequest: () => void;
-}) {
-  const { query, canUndo, canRedo, actions } = useEditor((state, query) => ({
-    canUndo: query.history.canUndo(),
-    canRedo: query.history.canRedo()
-  }));
-
-  // Propagate editor change status to parent
-  useEffect(() => {
-    onEditorChangeStatus(canUndo);
-  }, [canUndo, onEditorChangeStatus]);
-
-  const handlePreview = async () => {
-    if (!siteId) return;
-    
-    if (hasUnsavedChanges) {
-      // Show dialog asking to save first
-      onPreviewRequest();
-    } else {
-      // No changes, open preview directly
-      window.open(`https://martech-efi.lovable.app/efi-code/${siteId}/preview`, '_blank');
-    }
-  };
-
-  const handleViewModeChange = (mode: ViewMode) => {
-    if (mode === 'code') {
-      onGenerateCode(query);
-    }
-    onViewModeChange(mode);
-  };
-
-  return (
-    <>
-      {/* Visual/Code Toggle */}
-      <ToggleGroup 
-        type="single" 
-        value={viewMode} 
-        onValueChange={value => value && handleViewModeChange(value as ViewMode)} 
-        className="border rounded-md"
-      >
-        <ToggleGroupItem value="visual" aria-label="Visual" className="px-3 gap-1.5">
-          <Layers className="h-4 w-4" />
-          <span className="text-xs">Visual</span>
-        </ToggleGroupItem>
-        <ToggleGroupItem value="code" aria-label="Código" className="px-3 gap-1.5">
-          <Code className="h-4 w-4" />
-          <span className="text-xs">Código</span>
-        </ToggleGroupItem>
-      </ToggleGroup>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      {/* Undo/Redo */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        disabled={!canUndo} 
-        onClick={() => actions.history.undo()} 
-        title="Desfazer"
-      >
-        <Undo2 className="h-4 w-4" />
-      </Button>
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        disabled={!canRedo} 
-        onClick={() => actions.history.redo()} 
-        title="Refazer"
-      >
-        <Redo2 className="h-4 w-4" />
-      </Button>
-
-      <div className="w-px h-6 bg-border mx-1" />
-
-      {/* Actions Dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            Ações
-            <ChevronDown className="h-4 w-4 ml-1" />
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="h-14 border-b flex items-center justify-between px-4 bg-background">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-popover">
-          <DropdownMenuItem onClick={handlePreview}>
-            <Eye className="h-4 w-4 mr-2" />
-            Prévia
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onExport(query)}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar HTML
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <Input 
+            value={siteName} 
+            onChange={e => setSiteName(e.target.value)} 
+            className="w-64 font-medium" 
+            placeholder="Nome do site" 
+          />
+          
+          {/* Responsiveness Toggles */}
+          <ToggleGroup 
+            type="single" 
+            value={viewportSize} 
+            onValueChange={value => value && setViewportSize(value as ViewportSize)} 
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="desktop" aria-label="Desktop" className="px-3">
+              <Monitor className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="tablet" aria-label="Tablet" className="px-3">
+              <Tablet className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="mobile" aria-label="Mobile" className="px-3">
+              <Smartphone className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* Visual/Code Toggle */}
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={value => value && handleViewModeChange(value as ViewMode)} 
+            className="border rounded-md"
+          >
+            <ToggleGroupItem value="visual" aria-label="Visual" className="px-3 gap-1.5">
+              <Layers className="h-4 w-4" />
+              <span className="text-xs">Visual</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="code" aria-label="Código" className="px-3 gap-1.5">
+              <Code className="h-4 w-4" />
+              <span className="text-xs">Código</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
 
-      {/* Save Button with Unsaved Indicator */}
-      <Button 
-        size="sm" 
-        variant={hasUnsavedChanges ? "default" : "outline"}
-        onClick={() => onSave(query)}
-        disabled={isSaving}
-        className={hasUnsavedChanges ? "relative" : ""}
-      >
-        {hasUnsavedChanges && (
-          <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-500 animate-pulse" />
-        )}
-        <Save className="h-4 w-4 mr-2" />
-        {isSaving ? 'Salvando...' : (hasUnsavedChanges ? 'Salvar*' : 'Salvar')}
-      </Button>
-    </>
+          <div className="w-px h-6 bg-border mx-1" />
+
+          {/* Undo/Redo */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            disabled={!canUndo()} 
+            onClick={undo} 
+            title="Desfazer (Ctrl+Z)"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            disabled={!canRedo()} 
+            onClick={redo} 
+            title="Refazer (Ctrl+Shift+Z)"
+          >
+            <Redo2 className="h-4 w-4" />
+          </Button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          {/* Actions Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                Ações
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={handlePreview}>
+                <Eye className="h-4 w-4 mr-2" />
+                Prévia
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExport}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportar HTML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Save Button with Unsaved Indicator */}
+          <Button 
+            size="sm" 
+            variant={hasUnsavedChanges ? "default" : "outline"}
+            onClick={handleSave}
+            disabled={isSaving}
+            className={hasUnsavedChanges ? "relative" : ""}
+          >
+            {hasUnsavedChanges && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-500 animate-pulse" />
+            )}
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? 'Salvando...' : (hasUnsavedChanges ? 'Salvar*' : 'Salvar')}
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Editor Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Toolbox + Settings */}
+        <aside className="w-64 border-r bg-background overflow-hidden flex flex-col">
+          <ScrollArea className="flex-1">
+            <Toolbox 
+              pageSettings={pageSettings} 
+              onPageSettingsChange={setPageSettings}
+              onAddBlock={addBlock}
+            />
+          </ScrollArea>
+        </aside>
+
+        {/* Center - Viewport */}
+        <main className="flex-1 overflow-auto" style={{
+          backgroundColor: pageSettings.backgroundColor === 'transparent' 
+            ? 'transparent' 
+            : pageSettings.backgroundColor,
+          backgroundImage: pageSettings.backgroundImage 
+            ? `url(${pageSettings.backgroundImage})` 
+            : undefined,
+          backgroundSize: pageSettings.backgroundSize || 'cover',
+          backgroundPosition: pageSettings.backgroundPosition || 'center',
+          backgroundAttachment: pageSettings.backgroundAttachment || 'scroll',
+          backgroundRepeat: pageSettings.backgroundRepeat || 'no-repeat',
+        }}>
+          {viewMode === 'visual' ? (
+            <div className="min-h-full flex justify-center">
+              <div 
+                className={`transition-all duration-300 ${pageSettings.containerClasses || ''}`}
+                style={{
+                  minHeight: '600px',
+                  maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
+                  width: viewportWidths[viewportSize],
+                  paddingTop: `${pageSettings.paddingTop || 0}px`,
+                  paddingBottom: `${pageSettings.paddingBottom || 0}px`,
+                  paddingLeft: `${pageSettings.paddingLeft || 0}px`,
+                  paddingRight: `${pageSettings.paddingRight || 0}px`,
+                }}
+              >
+                <UnifiedIframe
+                  blocks={blocks}
+                  globalCss={globalCss}
+                  selectedBlockId={selectedBlockId}
+                  viewportWidth="100%"
+                  onBlockClick={handleBlockClick}
+                  onBlockDoubleClick={handleBlockDoubleClick}
+                  onBlockEdit={handleBlockEdit}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col">
+              <div className="bg-muted/50 px-4 py-2 border-b rounded-t-lg flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">HTML Gerado (somente leitura)</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    navigator.clipboard.writeText(codeContent);
+                    toast.success('Código copiado!');
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
+              <textarea 
+                value={codeContent} 
+                readOnly 
+                className="flex-1 w-full font-mono text-sm p-4 bg-secondary text-secondary-foreground rounded-b-lg resize-none focus:outline-none" 
+                spellCheck={false} 
+              />
+            </div>
+          )}
+        </main>
+
+        {/* Right Sidebar - Block List + Settings */}
+        <aside className="w-72 border-l bg-background overflow-hidden flex flex-col">
+          <div className="p-4 border-b">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Blocos ({blocks.length})
+            </h3>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              <BlockList
+                blocks={blocks}
+                selectedBlockId={selectedBlockId}
+                onSelectBlock={selectBlock}
+                onReorder={reorderBlocks}
+                onDelete={removeBlock}
+                onDuplicate={duplicateBlock}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
+              />
+            </div>
+          </ScrollArea>
+          <SettingsPanel />
+        </aside>
+      </div>
+
+      {/* Navigation Exit Dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem alterações que não foram salvas. Se sair agora, essas alterações serão perdidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelExit}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmExit}>
+              Sair sem salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Preview Confirmation Dialog */}
+      <AlertDialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Visualizar Prévia
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Para visualizar a prévia, é necessário salvar as alterações atuais primeiro.
+              <br /><br />
+              Deseja salvar e continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePreviewConfirm}>
+              Salvar e Abrir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
