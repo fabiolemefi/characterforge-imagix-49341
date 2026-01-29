@@ -1,240 +1,212 @@
 
-# Plano: Modo de Substituição - Todas ou Individual
+# Plano: Trocar Imagens Clicando Diretamente no Preview
 
 ## Objetivo
 
-Adicionar opção para o usuário escolher entre:
-1. **Substituir todas** - comportamento atual (uma imagem para todos os breakpoints)
-2. **Substituir individual** - expandir o grupo mostrando cada source/breakpoint separadamente
+Permitir que o usuário clique diretamente em uma imagem no preview do iframe para abrir o seletor de imagens, em vez de precisar usar apenas o painel lateral.
 
-## Mudanças na Interface
+## Abordagem Técnica
 
-### Novo Layout para Grupos com Múltiplos Sources
+### Fluxo Proposto
 
-```
-┌─────────────────────────────────────────────┐
-│  [Imagem Preview]        [5 tamanhos ▾]    │
-│                                             │
-│  [Trocar todas]   [Expandir individuais]    │
-└─────────────────────────────────────────────┘
-```
-
-### Quando "Expandir individuais" é clicado:
-
-```
-┌─────────────────────────────────────────────┐
-│  ▼ Imagem Responsiva (5 tamanhos)           │
-├─────────────────────────────────────────────┤
-│  360px     [thumb]  [Trocar]                │
-│  992px     [thumb]  [Trocar]                │
-│  1366px    [thumb]  [Trocar]                │
-│  1920px    [thumb]  [Trocar]                │
-│  Fallback  [thumb]  [Trocar]                │
-├─────────────────────────────────────────────┤
-│  [Trocar todas de uma vez]                  │
-└─────────────────────────────────────────────┘
+```text
+1. Usuário clica em uma imagem no iframe
+2. Iframe detecta que é uma <img> ou <picture>
+3. Envia mensagem postMessage com dados da imagem (src, blockId)
+4. EfiCodeEditor recebe a mensagem
+5. Abre o ImagePickerModal diretamente
+6. Ao selecionar nova imagem, substitui no HTML do bloco
 ```
 
-## Implementação Técnica
+## Mudanças Necessárias
 
-### Arquivo: `src/components/eficode/editor/SettingsPanel.tsx`
+### 1. UnifiedIframe.tsx - Detectar cliques em imagens
 
-#### 1. Novo Estado para Controlar Expansão
+Adicionar lógica no script do iframe para detectar cliques especificamente em elementos `<img>`:
 
 ```typescript
-const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-const toggleGroupExpansion = (groupId: string) => {
-  setExpandedGroups(prev => {
-    const next = new Set(prev);
-    if (next.has(groupId)) {
-      next.delete(groupId);
+// Dentro do script do iframe
+document.addEventListener('click', function(e) {
+  // Verificar se clicou em uma imagem
+  const img = e.target.closest('img');
+  const picture = e.target.closest('picture');
+  
+  if (img) {
+    e.stopPropagation(); // Evitar propagação para o bloco
+    
+    const block = img.closest('[data-block-id]');
+    if (!block) return;
+    
+    const blockId = block.dataset.blockId;
+    const imgSrc = img.getAttribute('src');
+    
+    // Se está dentro de um picture, enviar info do picture completo
+    if (picture) {
+      const sources = Array.from(picture.querySelectorAll('source')).map(s => ({
+        src: s.getAttribute('srcset'),
+        media: s.getAttribute('media'),
+        tagType: 'source'
+      }));
+      sources.push({ src: imgSrc, tagType: 'img' });
+      
+      window.parent.postMessage({
+        type: 'eficode-image-click',
+        blockId: blockId,
+        imageSrc: imgSrc,
+        isPicture: true,
+        sources: sources
+      }, '*');
     } else {
-      next.add(groupId);
+      // Imagem simples
+      window.parent.postMessage({
+        type: 'eficode-image-click',
+        blockId: blockId,
+        imageSrc: imgSrc,
+        isPicture: false
+      }, '*');
     }
-    return next;
-  });
-};
-```
-
-#### 2. Novo Estado para Edição de Source Individual
-
-```typescript
-// Atualizar editingGroup para suportar source individual
-const [editingSource, setEditingSource] = useState<ImageSource | null>(null);
-```
-
-#### 3. Nova Função de Substituição Individual
-
-```typescript
-const replaceSingleSource = (html: string, source: ImageSource, newSrc: string): string => {
-  const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    return;
+  }
   
-  if (source.tagType === 'source') {
-    const regex = new RegExp(`(<source[^>]*srcset=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-    return html.replace(regex, `$1${newSrc}$2`);
+  // ... resto da lógica de clique em blocos
+});
+```
+
+Adicionar estilos para feedback visual nas imagens:
+
+```css
+/* Indicador de que imagens são clicáveis */
+.efi-block img {
+  cursor: pointer;
+  transition: outline 0.15s ease, opacity 0.15s ease;
+}
+
+.efi-block img:hover {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+  opacity: 0.9;
+}
+```
+
+### 2. UnifiedIframe.tsx - Nova prop para callback de imagem
+
+Adicionar nova prop para notificar cliques em imagens:
+
+```typescript
+interface UnifiedIframeProps {
+  blocks: Block[];
+  globalCss: string;
+  selectedBlockId: string | null;
+  viewportWidth: string;
+  onBlockClick: (blockId: string) => void;
+  onBlockDoubleClick: (blockId: string) => void;
+  onBlockEdit: (blockId: string, newHtml: string) => void;
+  onImageClick?: (blockId: string, imageSrc: string, isPicture: boolean, sources?: ImageSource[]) => void; // NOVO
+}
+```
+
+### 3. EfiCodeEditor.tsx - Handler para clique em imagem
+
+Adicionar estado e handlers para gerenciar a abertura do modal:
+
+```typescript
+// Novos estados
+const [imagePickerOpen, setImagePickerOpen] = useState(false);
+const [editingImageContext, setEditingImageContext] = useState<{
+  blockId: string;
+  imageSrc: string;
+  isPicture: boolean;
+  sources?: ImageSource[];
+} | null>(null);
+
+// Handler para clique em imagem no iframe
+const handleImageClick = useCallback((
+  blockId: string, 
+  imageSrc: string, 
+  isPicture: boolean, 
+  sources?: ImageSource[]
+) => {
+  selectBlock(blockId);
+  setEditingImageContext({ blockId, imageSrc, isPicture, sources });
+  setImagePickerOpen(true);
+}, [selectBlock]);
+
+// Handler para seleção de imagem
+const handleImageSelect = useCallback((image: { url: string }) => {
+  if (!editingImageContext) return;
+  
+  const block = blocks.find(b => b.id === editingImageContext.blockId);
+  if (!block) return;
+  
+  let newHtml = block.html;
+  
+  if (editingImageContext.sources) {
+    // Substituir todas as sources do picture
+    for (const source of editingImageContext.sources) {
+      const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const attr = source.tagType === 'source' ? 'srcset' : 'src';
+      const regex = new RegExp(`(<${source.tagType}[^>]*${attr}=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      newHtml = newHtml.replace(regex, `$1${image.url}$2`);
+    }
   } else {
+    // Substituir imagem simples
+    const escapedSrc = editingImageContext.imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-    return html.replace(regex, `$1${newSrc}$2`);
-  }
-};
-```
-
-#### 4. Atualizar handleImageSelect
-
-```typescript
-const handleImageSelect = (image: { url: string; name?: string }) => {
-  if (selectedBlock) {
-    let newHtml = selectedBlock.html;
-    let message = 'Imagem atualizada!';
-    
-    if (editingSource) {
-      // Substituição individual
-      newHtml = replaceSingleSource(selectedBlock.html, editingSource, image.url);
-      const breakpoint = editingSource.media || 'fallback';
-      message = `Imagem ${breakpoint} atualizada!`;
-    } else if (editingGroup) {
-      // Substituição de todas
-      newHtml = replaceImageGroup(selectedBlock.html, editingGroup, image.url);
-      // ... mensagens existentes
-    }
-    
-    if (newHtml !== selectedBlock.html) {
-      updateBlockHtml(selectedBlock.id, newHtml);
-      toast.success(message);
-    }
+    newHtml = newHtml.replace(regex, `$1${image.url}$2`);
   }
   
+  updateBlockHtml(editingImageContext.blockId, newHtml);
   setImagePickerOpen(false);
-  setEditingGroup(null);
-  setEditingSource(null);
-};
+  setEditingImageContext(null);
+  toast.success('Imagem atualizada!');
+}, [editingImageContext, blocks, updateBlockHtml]);
 ```
 
-#### 5. Nova UI para Grupo Expandido
+### 4. EfiCodeEditor.tsx - Adicionar ImagePickerModal
+
+Importar e renderizar o modal:
 
 ```tsx
-{imageGroups.map((group) => {
-  const isExpanded = expandedGroups.has(group.id);
-  const hasMultipleSources = group.sources.length > 1;
-  
-  return (
-    <div key={group.id} className="border rounded-md overflow-hidden bg-secondary/50">
-      {/* Header com preview e badges */}
-      <div className="relative p-2">
-        {getTypeBadge(group)}
-        
-        <div className="flex items-center gap-2">
-          <img 
-            src={group.previewSrc} 
-            className="w-12 h-12 object-contain rounded"
-          />
-          
-          <div className="flex-1 text-xs text-muted-foreground">
-            {hasMultipleSources ? (
-              <span>{group.sources.length} tamanhos</span>
-            ) : (
-              <span>Imagem única</span>
-            )}
-          </div>
-          
-          {hasMultipleSources && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => toggleGroupExpansion(group.id)}
-            >
-              {isExpanded ? <ChevronUp /> : <ChevronDown />}
-            </Button>
-          )}
-        </div>
-        
-        {/* Botão para trocar todas */}
-        <Button
-          size="sm"
-          variant="secondary"
-          className="w-full mt-2"
-          onClick={() => openImagePicker(group)}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" />
-          {hasMultipleSources ? 'Trocar todas' : 'Trocar'}
-        </Button>
-      </div>
-      
-      {/* Lista expandida de sources individuais */}
-      {isExpanded && hasMultipleSources && (
-        <div className="border-t bg-background/50 p-2 space-y-2">
-          {group.sources.map((source, idx) => (
-            <div 
-              key={idx}
-              className="flex items-center gap-2 p-1.5 rounded bg-secondary/30"
-            >
-              <img 
-                src={source.src}
-                className="w-8 h-8 object-contain rounded"
-              />
-              
-              <span className="flex-1 text-xs font-medium">
-                {source.media || (source.tagType === 'img' ? 'Fallback (>1920px)' : `Breakpoint ${idx + 1}`)}
-              </span>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setEditingSource(source);
-                  setEditingGroup(group);
-                  setImagePickerOpen(true);
-                }}
-              >
-                Trocar
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-})}
-```
+import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 
-## Fluxo de Uso
-
-### Cenário 1: Trocar Todas (Comportamento Padrão)
+// No JSX, no final do componente:
+<ImagePickerModal
+  open={imagePickerOpen}
+  onOpenChange={(open) => {
+    setImagePickerOpen(open);
+    if (!open) setEditingImageContext(null);
+  }}
+  onSelect={handleImageSelect}
+/>
 ```
-1. Usuário vê grupo com badge "5 tamanhos"
-2. Clica em "Trocar todas"
-3. Seleciona imagem
-4. TODAS as sources são atualizadas com a mesma imagem
-```
-
-### Cenário 2: Trocar Individual
-```
-1. Usuário vê grupo com badge "5 tamanhos"
-2. Clica no botão de expandir (▼)
-3. Vê lista de breakpoints: 360px, 992px, 1366px, 1920px, Fallback
-4. Clica em "Trocar" no breakpoint específico (ex: 360px)
-5. Seleciona imagem otimizada para mobile
-6. APENAS a source de 360px é atualizada
-```
-
-## Benefícios
-
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Substituição em massa | Sim | Sim (padrão) |
-| Substituição individual | Não | Sim (expansível) |
-| Otimização por breakpoint | Não | Sim |
-| Complexidade UI | Simples | Progressiva (simples → detalhada) |
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/components/eficode/editor/SettingsPanel.tsx` | Adicionar estados de expansão, UI expandida, substituição individual |
+| `src/components/eficode/editor/UnifiedIframe.tsx` | Adicionar detecção de clique em imagens, estilos hover, nova mensagem postMessage |
+| `src/pages/EfiCodeEditor.tsx` | Adicionar estados, handler, importar e renderizar ImagePickerModal |
 
-## Ícones Necessários
+## Experiência do Usuário
 
-Adicionar ao import do lucide-react:
-- `ChevronDown`
-- `ChevronUp`
+### Antes
+- Clicar na imagem = seleciona o bloco
+- Trocar imagem = precisa ir no painel lateral
+
+### Depois  
+- Clicar na imagem = abre seletor de imagens diretamente
+- Imagem tem outline roxo no hover indicando que é clicável
+- Trocar imagem = ainda funciona no painel lateral (duas opções)
+
+## Considerações
+
+### Conflito com Seleção de Bloco
+
+O clique na imagem vai usar `stopPropagation()` para não propagar para o bloco. Isso significa que:
+- Clicar em uma imagem = abre seletor de imagens
+- Clicar em outra área do bloco = seleciona o bloco
+
+### Indicador Visual
+
+Adicionar outline roxo no hover das imagens para indicar que são clicáveis, diferenciando do outline azul de seleção de blocos.
