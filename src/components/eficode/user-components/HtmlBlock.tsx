@@ -301,10 +301,12 @@ const normalizeHtml = (html: string): string => {
 };
 
 export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
-  const { connectors: { connect, drag }, selected, actions: { setProp } } = useNode((state) => ({
+const { connectors: { connect, drag }, selected, actions: { setProp }, id } = useNode((state) => ({
     selected: state.events.selected,
   }));
-  const { enabled } = useEditor((state) => ({ enabled: state.options.enabled }));
+  const { enabled, actions: editorActions } = useEditor((state) => ({ 
+    enabled: state.options.enabled 
+  }));
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -319,11 +321,18 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
   // Handler para iniciar edição - com stopPropagation para evitar re-renders
   const handleContainerClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation(); // Impedir propagação que pode causar re-renders no editor
+    
+    // Primeiro, selecionar o nó no Craft.js para abrir o painel de propriedades
+    if (enabled && !selected) {
+      editorActions.selectNode(id);
+    }
+    
+    // Depois, se já estava selecionado, ativar modo de edição inline
     if (enabled && selected && !isEditing) {
       originalTemplateRef.current = template;
       setIsEditing(true);
     }
-  }, [enabled, selected, isEditing, template]);
+  }, [enabled, selected, isEditing, template, editorActions, id]);
 
   // Handler para finalizar edição - mais defensivo
   const handleBlur = useCallback((e: React.FocusEvent) => {
