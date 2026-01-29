@@ -318,9 +318,9 @@ const { connectors: { connect, drag }, selected, actions: { setProp }, id } = us
   // Ref para o template inicial na montagem (para identificação estável)
   const initialTemplateRef = useRef<string>(template);
 
-  // Handler para iniciar edição - com stopPropagation para evitar re-renders
-  const handleContainerClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Impedir propagação que pode causar re-renders no editor
+  // Handler para iniciar edição - defensivo para aceitar evento opcional (postMessage não passa evento)
+  const handleContainerClick = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation(); // Impedir propagação que pode causar re-renders no editor
     
     // Primeiro, selecionar o nó no Craft.js para abrir o painel de propriedades
     if (enabled && !selected) {
