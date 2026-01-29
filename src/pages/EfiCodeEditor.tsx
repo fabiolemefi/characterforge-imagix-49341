@@ -93,6 +93,7 @@ export default function EfiCodeEditor() {
     isPicture: boolean;
     sources?: ImageSource[];
     occurrenceIndex?: number;
+    imageType?: 'img' | 'svg-image' | null;
   } | null>(null);
   
   // State for link/button editing from preview
@@ -107,6 +108,7 @@ export default function EfiCodeEditor() {
     hasInnerImage: boolean;
     innerImageSrc: string | null;
     innerImageOccurrenceIndex?: number;
+    innerImageType?: 'img' | 'svg-image' | null;
   } | null>(null);
   
   // Refs for original values comparison
@@ -392,8 +394,47 @@ export default function EfiCodeEditor() {
           return match;
         });
       }
+    } else if (editingImageContext.imageType === 'svg-image') {
+      // Replace SVG image element (xlink:href and href attributes, plus src if present)
+      const escapedSrc = editingImageContext.imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Replace xlink:href
+      const xlinkRegex = new RegExp(`(<image[^>]*xlink:href=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      let matchIndex = 0;
+      newHtml = newHtml.replace(xlinkRegex, (match, p1, p2) => {
+        if (matchIndex === occurrenceIndex) {
+          matchIndex++;
+          return `${p1}${image.url}${p2}`;
+        }
+        matchIndex++;
+        return match;
+      });
+      
+      // Also replace href attribute if present
+      const hrefRegex = new RegExp(`(<image[^>]*\\s)href=["']${escapedSrc}["']`, 'gi');
+      matchIndex = 0;
+      newHtml = newHtml.replace(hrefRegex, (match, p1) => {
+        if (matchIndex === occurrenceIndex) {
+          matchIndex++;
+          return `${p1}href="${image.url}"`;
+        }
+        matchIndex++;
+        return match;
+      });
+      
+      // Also replace src attribute if present (fallback)
+      const srcRegex = new RegExp(`(<image[^>]*\\s)src=["']${escapedSrc}["']`, 'gi');
+      matchIndex = 0;
+      newHtml = newHtml.replace(srcRegex, (match, p1) => {
+        if (matchIndex === occurrenceIndex) {
+          matchIndex++;
+          return `${p1}src="${image.url}"`;
+        }
+        matchIndex++;
+        return match;
+      });
     } else {
-      // Replace single image - only the N-th occurrence
+      // Replace single img element - only the N-th occurrence
       const escapedSrc = editingImageContext.imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
       
@@ -427,7 +468,8 @@ export default function EfiCodeEditor() {
     occurrenceIndex: number,
     hasInnerImage: boolean,
     innerImageSrc: string | null,
-    innerImageOccurrenceIndex?: number
+    innerImageOccurrenceIndex?: number,
+    innerImageType?: 'img' | 'svg-image' | null
   ) => {
     selectBlock(blockId);
     setEditingLinkContext({ 
@@ -439,7 +481,8 @@ export default function EfiCodeEditor() {
       occurrenceIndex,
       hasInnerImage,
       innerImageSrc,
-      innerImageOccurrenceIndex
+      innerImageOccurrenceIndex,
+      innerImageType
     });
     setLinkEditorOpen(true);
   }, [selectBlock]);
@@ -519,7 +562,8 @@ export default function EfiCodeEditor() {
         blockId: editingLinkContext.blockId,
         imageSrc: editingLinkContext.innerImageSrc || '',
         isPicture: false,
-        occurrenceIndex: editingLinkContext.innerImageOccurrenceIndex ?? 0
+        occurrenceIndex: editingLinkContext.innerImageOccurrenceIndex ?? 0,
+        imageType: editingLinkContext.innerImageType
       });
       setImagePickerOpen(true);
     }
@@ -548,7 +592,8 @@ export default function EfiCodeEditor() {
           event.data.occurrenceIndex,
           event.data.hasInnerImage,
           event.data.innerImageSrc,
-          event.data.innerImageOccurrenceIndex
+          event.data.innerImageOccurrenceIndex,
+          event.data.innerImageType
         );
       }
     };
