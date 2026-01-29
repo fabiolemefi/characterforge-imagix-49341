@@ -1,305 +1,145 @@
 
-# Plano: Corrigir Edição de Textos nos Blocos
+# Plano: Corrigir Atualização de Imagens no Bloco
 
 ## Problema Identificado
 
-O segundo clique não está entrando em modo de edição corretamente. Analisando o fluxo:
+Quando o usuário substitui uma imagem através do painel de propriedades (Settings), a mudança é salva no Craft.js via `setProp`, mas o componente `HtmlBlock` não está refletindo essa mudança visualmente no iframe.
+
+### Fluxo Atual (com bug)
 
 ```text
-1º clique → eficode-iframe-click → handleContainerClick → selectNode(id) → selected=true
-2º clique → eficode-iframe-click → handleContainerClick → setIsEditing(true) → isEditing=true
-         → IframePreview recebe editable=true
-         → useEffect envia postMessage para iframe
-         → MAS: o evento de blur pode estar disparando antes
+┌─────────────────────────────────────────────────────────────┐
+│ HtmlBlockSettings: handleReplaceImage                       │
+│ └─ setProp → props.htmlTemplate = newTemplate               │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ HtmlBlock: useNode observa state.data.props.htmlTemplate    │
+│ └─ html e htmlTemplate são extraídos                        │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ PROBLEMA: O Craft.js pode não estar notificando mudança     │
+│ porque o selector retorna objetos sem identidade estável    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Causa Raiz
 
-1. **Timing do postMessage**: O `useEffect` que envia `eficode-set-editable` só roda após o render, mas o clique já passou
-2. **Overlay bloqueando**: O overlay invisível (linhas 199-206) intercepta cliques mesmo quando deveria permitir edição
-3. **Blur prematuro**: Quando clicamos no bloco, o `blur` do iframe anterior pode disparar `eficode-edit-end` e desativar a edição
+O `useNode` está retornando valores primitivos (`html`, `htmlTemplate`) mas o Craft.js pode não estar detectando a mudança corretamente quando:
 
-## Diagrama do Fluxo Atual (com bug)
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Usuário clica 2ª vez no bloco                               │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Overlay intercepta clique → onClick() → handleContainerClick│
-│ setIsEditing(true) → React schedula re-render               │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Re-render: IframePreview com editable=true                  │
-│ Overlay é removido do DOM                                   │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ useEffect detecta editable=true → postMessage iframe        │
-│ Iframe ativa contentEditable=true + focus                   │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│ PROBLEMA: Outro bloco pode ter disparado blur              │
-│ ou o clique não foi no iframe (foi no overlay removido)    │
-└─────────────────────────────────────────────────────────────┘
-```
+1. O selector cria novos objetos a cada render (identity mismatch)
+2. O Craft.js compara por referência, não por valor
+3. O componente não re-renderiza porque React memo/referências não mudam
 
 ## Solução
 
-### Estratégia: Comunicação Síncrona + Verificação de Source
+### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-1. **Enviar postMessage imediatamente** no handleContainerClick, não esperar useEffect
-2. **Não depender do overlay** para segundo clique - deixar o iframe receber o clique diretamente
-3. **Identificar source do blur** para não desativar edição quando foco vai para o mesmo bloco
+#### Alteração 1: Usar `nodeProps` completo em vez de selecionar valores específicos
 
-### Arquivo 1: `src/components/eficode/user-components/HtmlBlock.tsx`
+O problema é que estamos selecionando apenas `html` e `htmlTemplate` de `state.data.props`, mas o Craft.js pode não estar detectando mudanças nesses valores primitivos corretamente. Vamos usar o spread do `props` completo:
 
-| Linhas | Alteração |
-|--------|-----------|
-| 332-356 | Enviar postMessage diretamente ao ativar edição, sem esperar useEffect |
-| Nova | Adicionar ref para o IframePreview e acessar iframe diretamente |
+**Antes (linha 303-316):**
+```tsx
+export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
+  const { 
+    connectors: { connect, drag }, 
+    selected, 
+    actions: { setProp }, 
+    id,
+    html,
+    htmlTemplate 
+  } = useNode((state) => ({
+    selected: state.events.selected,
+    html: state.data.props.html,
+    htmlTemplate: state.data.props.htmlTemplate,
+  }));
+```
 
-**Mudança no handleContainerClick:**
+**Depois:**
+```tsx
+export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
+  const { 
+    connectors: { connect, drag }, 
+    selected, 
+    actions: { setProp }, 
+    id,
+    props: nodeProps
+  } = useNode((state) => ({
+    selected: state.events.selected,
+    props: state.data.props,
+  }));
+  
+  // Extrair valores diretamente de nodeProps para garantir reatividade
+  const html = nodeProps?.html;
+  const htmlTemplate = nodeProps?.htmlTemplate;
+```
+
+#### Alteração 2: Adicionar key no IframePreview para forçar recriação
+
+Para garantir que o iframe seja recriado quando o template muda (especialmente para imagens), vamos adicionar uma key baseada em um hash ou timestamp do template:
+
+**Na renderização do IframePreview (linha 437-444):**
+```tsx
+<IframePreview
+  key={template} // Forçar recriação quando template muda
+  html={template}
+  editable={isEditing}
+  onClick={handleContainerClick}
+  onHtmlChange={handleIframeHtmlChange}
+  onEditEnd={handleIframeEditEnd}
+  minHeight={0}
+/>
+```
+
+**Nota:** Usar `template` como key pode ser ineficiente para HTML muito grande. Alternativa com hash:
 
 ```tsx
-// Adicionar ref para acessar o iframe
-const iframeRef = useRef<HTMLIFrameElement | null>(null);
+// Criar hash simples para key
+const templateKey = useMemo(() => {
+  let hash = 0;
+  for (let i = 0; i < template.length; i++) {
+    const char = template.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash;
+}, [template]);
 
-const handleContainerClick = useCallback((e?: React.MouseEvent) => {
-  e?.stopPropagation();
-  
-  const scrollContainer = document.querySelector('main.overflow-auto');
-  const scrollTop = scrollContainer?.scrollTop || 0;
-  
-  if (enabled && !selected) {
-    editorActions.selectNode(id);
-  }
-  
-  if (enabled && selected && !isEditing) {
-    originalTemplateRef.current = template;
-    setIsEditing(true);
-    
-    // Ativar edição IMEDIATAMENTE via postMessage (não esperar useEffect)
-    requestAnimationFrame(() => {
-      const iframe = containerRef.current?.querySelector('iframe');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage(
-          { type: 'eficode-set-editable', editable: true },
-          '*'
-        );
-      }
-    });
-  }
-  
-  requestAnimationFrame(() => {
-    if (scrollContainer) scrollContainer.scrollTop = scrollTop;
-  });
-}, [enabled, selected, isEditing, template, editorActions, id]);
+// No render
+<IframePreview
+  key={templateKey}
+  html={template}
+  ...
+/>
 ```
 
-### Arquivo 2: `src/components/eficode/user-components/IframePreview.tsx`
-
-| Linhas | Alteração |
-|--------|-----------|
-| 112-120 | Adicionar delay no blur para evitar desativação prematura |
-| 133-138 | Permitir que o primeiro clique em modo não-edição ative edição via parent |
-| 199-206 | Remover overlay completamente - deixar iframe receber cliques sempre |
-
-**Mudança 1: Remover overlay e permitir cliques diretos no iframe**
-
-O overlay está causando problemas. Vamos removê-lo e deixar o iframe sempre receber cliques:
-
-```tsx
-// Remover linhas 199-206 (overlay)
-// Alterar pointerEvents do iframe (linha 194)
-style={{ 
-  // ...outros estilos...
-  pointerEvents: 'auto', // Sempre permitir cliques no iframe
-}}
-```
-
-**Mudança 2: Adicionar delay no blur para evitar race condition**
-
-```javascript
-// No script interno do iframe (linha 112-120)
-document.body.addEventListener('blur', () => {
-  if (!editMode) return;
-  clearTimeout(debounceTimer);
-  
-  // Delay para evitar desativar edição se o usuário só está clicando em outro lugar do mesmo bloco
-  setTimeout(() => {
-    // Verificar se ainda não está em modo de edição (pode ter sido reativado)
-    if (editMode && document.activeElement !== document.body) {
-      window.parent.postMessage({ 
-        type: 'eficode-edit-end',
-        html: document.body.innerHTML 
-      }, '*');
-    }
-  }, 100);
-});
-```
-
-**Mudança 3: Script interno deve notificar parent sobre clique mesmo quando editável**
-
-Quando o usuário clica em um bloco diferente enquanto está editando outro, precisamos:
-1. Finalizar edição do bloco atual
-2. Selecionar o novo bloco
-
-```javascript
-// No script interno, clique deve verificar se é para selecionar ou editar
-document.body.addEventListener('mousedown', (e) => {
-  if (!editMode) {
-    // Não está editando - notificar parent para selecionar/ativar edição
-    window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
-  }
-  // Se está editando, o clique é para editar texto - não fazer nada especial
-});
-```
-
-## Código Final
-
-### IframePreview.tsx - Script interno completo:
-
-```javascript
-let editMode = false;
-
-function sendHeight() {
-  const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
-  window.parent.postMessage({ type: 'eficode-iframe-height', height }, '*');
-}
-
-const observer = new ResizeObserver(sendHeight);
-observer.observe(document.body);
-window.addEventListener('load', sendHeight);
-sendHeight();
-
-// Controle de edição via postMessage
-window.addEventListener('message', (e) => {
-  if (e.data?.type === 'eficode-set-editable') {
-    editMode = e.data.editable;
-    document.body.contentEditable = editMode ? 'true' : 'false';
-    if (editMode) document.body.focus({ preventScroll: true });
-  }
-});
-
-// Input handling
-let debounceTimer;
-document.body.addEventListener('input', () => {
-  if (!editMode) return;
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    window.parent.postMessage({ 
-      type: 'eficode-html-change', 
-      html: document.body.innerHTML 
-    }, '*');
-  }, 100);
-  sendHeight();
-});
-
-// Blur com delay para evitar race condition
-let blurTimer;
-document.body.addEventListener('blur', () => {
-  if (!editMode) return;
-  clearTimeout(debounceTimer);
-  clearTimeout(blurTimer);
-  
-  blurTimer = setTimeout(() => {
-    window.parent.postMessage({ 
-      type: 'eficode-edit-end',
-      html: document.body.innerHTML 
-    }, '*');
-  }, 150);
-});
-
-// Cancelar blur timer se receber foco novamente
-document.body.addEventListener('focus', () => {
-  clearTimeout(blurTimer);
-});
-
-// Escape para sair
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && editMode) {
-    clearTimeout(debounceTimer);
-    clearTimeout(blurTimer);
-    window.parent.postMessage({ 
-      type: 'eficode-edit-end',
-      html: document.body.innerHTML 
-    }, '*');
-  }
-});
-
-// Mousedown para capturar clique (antes do focus)
-document.body.addEventListener('mousedown', (e) => {
-  if (!editMode) {
-    window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
-  }
-});
-```
-
-### IframePreview.tsx - Render sem overlay:
-
-```tsx
-return (
-  <div className={`relative w-full ${className}`}>
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcdoc}
-      scrolling="no"
-      style={{ 
-        display: 'block',
-        width: '100%',
-        height: `${height}px`,
-        border: 'none',
-        margin: 0,
-        padding: 0,
-        overflow: 'hidden',
-        pointerEvents: 'auto', // Sempre permitir interação
-      }}
-      title="HTML Preview"
-      sandbox="allow-scripts allow-same-origin"
-    />
-    {/* Overlay removido - cliques vão direto para o iframe */}
-  </div>
-);
-```
-
-## Fluxo Corrigido
+## Diagrama do Fluxo Corrigido
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ 1º clique: mousedown no iframe                              │
-│ → postMessage: eficode-iframe-click                         │
-│ → handleContainerClick: selectNode(id)                      │
-│ → selected = true                                           │
+│ HtmlBlockSettings: handleReplaceImage                       │
+│ └─ setProp → props.htmlTemplate = newTemplate               │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 2º clique: mousedown no iframe                              │
-│ → postMessage: eficode-iframe-click (editMode ainda false)  │
-│ → handleContainerClick: já selected, setIsEditing(true)     │
-│ → requestAnimationFrame: postMessage eficode-set-editable   │
-│ → iframe ativa contentEditable + focus                      │
+│ HtmlBlock: useNode observa state.data.props (objeto inteiro)│
+│ └─ nodeProps muda → html/htmlTemplate são extraídos         │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Usuário edita texto no iframe                               │
-│ → input events → debounced postMessage: eficode-html-change │
+│ template muda → templateKey muda → IframePreview recria     │
+│ └─ Novo srcdoc gerado com a nova URL de imagem              │
 └─────────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Clique fora ou ESC                                          │
-│ → blur (com delay) → postMessage: eficode-edit-end          │
-│ → handleIframeEditEnd: salva HTML, setIsEditing(false)      │
+│ Iframe exibe a nova imagem corretamente                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -307,7 +147,69 @@ return (
 
 | Arquivo | Linhas | Alteração |
 |---------|--------|-----------|
-| `HtmlBlock.tsx` | 332-356 | Enviar postMessage imediatamente ao ativar edição |
-| `IframePreview.tsx` | 72-139 | Refatorar script: mousedown em vez de click, blur com delay, focus cancela blur |
-| `IframePreview.tsx` | 194 | pointerEvents sempre 'auto' |
-| `IframePreview.tsx` | 199-206 | Remover overlay completamente |
+| `HtmlBlock.tsx` | 303-323 | Mudar useNode para observar `state.data.props` inteiro e extrair valores depois |
+| `HtmlBlock.tsx` | 320-326 | Adicionar `templateKey` com hash simples para key do IframePreview |
+| `HtmlBlock.tsx` | 437 | Adicionar `key={templateKey}` no IframePreview |
+
+## Código Final
+
+```tsx
+export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
+  const { 
+    connectors: { connect, drag }, 
+    selected, 
+    actions: { setProp }, 
+    id,
+    props: nodeProps
+  } = useNode((state) => ({
+    selected: state.events.selected,
+    props: state.data.props,
+  }));
+  const { enabled, actions: editorActions } = useEditor((state) => ({ 
+    enabled: state.options.enabled 
+  }));
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // Extrair valores de nodeProps para reatividade correta
+  const html = nodeProps?.html;
+  const htmlTemplate = nodeProps?.htmlTemplate;
+  const template = htmlTemplate || html || '';
+  
+  // Key estável baseada em hash do template para forçar recriação do iframe
+  const templateKey = useMemo(() => {
+    let hash = 0;
+    for (let i = 0; i < template.length; i++) {
+      const char = template.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash;
+  }, [template]);
+  
+  // ... resto do código ...
+  
+  return (
+    <div
+      ref={(ref) => {
+        if (ref && enabled) {
+          connect(drag(ref));
+        }
+      }}
+      className={`relative w-full ${className}`}
+      style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
+    >
+      <IframePreview
+        key={templateKey}
+        html={template}
+        editable={isEditing}
+        onClick={handleContainerClick}
+        onHtmlChange={handleIframeHtmlChange}
+        onEditEnd={handleIframeEditEnd}
+        minHeight={0}
+      />
+    </div>
+  );
+};
+```
