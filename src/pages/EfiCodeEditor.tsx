@@ -40,7 +40,7 @@ type ViewportSize = 'xl' | 'lg' | 'md' | 'sm';
 type ThemeMode = 'light' | 'dark';
 
 const viewportWidths: Record<ViewportSize, string> = {
-  xl: '1896px',
+  xl: '100%',
   lg: '1342px',
   md: '776px',
   sm: '360px'
@@ -612,7 +612,7 @@ export default function EfiCodeEditor() {
             onValueChange={value => value && setViewportSize(value as ViewportSize)} 
             className="border rounded-md"
           >
-            <ToggleGroupItem value="xl" aria-label="Extra Large (1896px)" className="px-3 text-xs font-medium">
+            <ToggleGroupItem value="xl" aria-label="Extra Large (100%)" className="px-3 text-xs font-medium">
               XL
             </ToggleGroupItem>
             <ToggleGroupItem value="lg" aria-label="Large (1342px)" className="px-3 text-xs font-medium">
@@ -753,7 +753,7 @@ export default function EfiCodeEditor() {
                 className={`transition-all duration-300 ${pageSettings.containerClasses || ''}`}
                 style={{
                   minHeight: '600px',
-                  maxWidth: viewportSize === 'xl' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
+                  maxWidth: viewportSize === 'xl' ? 'none' : viewportWidths[viewportSize],
                   width: viewportWidths[viewportSize],
                   paddingTop: `${pageSettings.paddingTop || 0}px`,
                   paddingBottom: `${pageSettings.paddingBottom || 0}px`,
