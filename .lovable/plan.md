@@ -1,237 +1,179 @@
 
-# Plano: Vincular Imagens Responsivas (Desktop + Mobile)
+# Plano: Suporte a Picture/Source para Múltiplos Breakpoints
 
 ## Problema Identificado
 
-Os blocos HTML usam imagens **diferentes** para versões responsivas:
+O bloco usa a estrutura HTML5 `<picture>` com múltiplos breakpoints:
 
 ```html
-<!-- Desktop - URL A -->
-<img src="https://...sede/imagem-A.png" class="hidden md:block">
-
-<!-- Mobile - URL B (diferente!) -->
-<img src="https://...sys/imagem-B.png" class="block md:hidden">
+<picture>
+  <source srcset="img-360.png" media="(max-width: 360px)">
+  <source srcset="img-992.png" media="(max-width: 992px)">
+  <source srcset="img-1366.png" media="(max-width: 1366px)">
+  <source srcset="img-1920.png" media="(max-width: 1920px)">
+  <img src="img-fallback.png" alt="...">  <!-- Acima de 1920px -->
+</picture>
 ```
 
-A lógica atual agrupa apenas por URL idêntica. Como as URLs são diferentes, cada uma aparece como uma imagem separada no painel.
+O código atual só detecta `<img>`, ignorando completamente as tags `<source>`.
 
-## Solução Proposta
+## Solução
 
-Detectar imagens que são "pares responsivos" analisando suas classes CSS (ex: `hidden md:block` / `block md:hidden`) e agrupá-las juntas.
+### Opção 1: Substituir Todas as Fontes do Picture (Recomendada)
 
-### 1. Detectar Pares Responsivos
+Quando o usuário troca a imagem, substituir TODAS as `<source srcset>` e o `<img src>` dentro do mesmo `<picture>`. Uma imagem para todos os breakpoints.
 
-Analisar as classes de cada `<img>` para identificar padrões responsivos:
+### Opção 2: Campos Separados por Breakpoint
+
+Mostrar campos separados para cada breakpoint (360px, 992px, 1366px, 1920px, fallback). Mais controle, mas interface mais complexa.
+
+## Implementação Escolhida: Opção 1
+
+A maioria dos usuários quer usar a mesma imagem em todos os tamanhos. A interface ficará simples.
+
+### Mudanças no Código
+
+**Arquivo:** `src/components/eficode/editor/SettingsPanel.tsx`
+
+#### 1. Nova Interface para Picture Groups
 
 ```typescript
-interface ImageWithContext {
-  src: string;
-  alt: string;
-  responsiveType: 'desktop' | 'mobile' | 'both';
-  fullMatch: string; // Tag completa para substituição
-}
-
-const isDesktopOnly = (classes: string) => 
-  /hidden\s+(sm|md|lg|xl):block/.test(classes) || 
-  /(sm|md|lg|xl):block\s+hidden/.test(classes);
-
-const isMobileOnly = (classes: string) => 
-  /block\s+(sm|md|lg|xl):hidden/.test(classes) || 
-  /(sm|md|lg|xl):hidden\s+block/.test(classes);
-```
-
-### 2. Agrupar Imagens por Contexto
-
-Quando duas imagens consecutivas têm padrões complementares (uma desktop, outra mobile), agrupá-las:
-
-```typescript
-interface ResponsiveImageGroup {
-  desktopSrc: string | null;
-  mobileSrc: string | null;
-  alt: string;
-  previewSrc: string; // Usar desktop ou mobile para preview
-}
-```
-
-### 3. Substituir Ambas ao Mesmo Tempo
-
-Quando usuário troca uma imagem do grupo, substituir TODAS as URLs do grupo:
-
-```typescript
-const replaceResponsiveGroup = (
-  html: string, 
-  group: ResponsiveImageGroup, 
-  newSrc: string
-): string => {
-  let result = html;
-  
-  if (group.desktopSrc) {
-    result = replaceAllImageOccurrences(result, group.desktopSrc, newSrc);
-  }
-  if (group.mobileSrc) {
-    result = replaceAllImageOccurrences(result, group.mobileSrc, newSrc);
-  }
-  
-  return result;
-};
-```
-
-### 4. Interface Atualizada
-
-Mostrar grupos responsivos com indicador visual:
-
-```
-┌─────────────────────────────────┐
-│  [Imagem Preview]               │
-│  📱💻 Desktop + Mobile          │
-│        [Trocar]                 │
-└─────────────────────────────────┘
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/components/eficode/editor/SettingsPanel.tsx` | Refatorar extração para detectar pares responsivos e substituir ambos |
-
-## Implementação Detalhada
-
-### Nova Interface
-
-```typescript
-interface ResponsiveImageGroup {
+interface PictureGroup {
   id: string;
+  type: 'picture' | 'img';
   sources: Array<{
     src: string;
-    type: 'desktop' | 'mobile' | 'universal';
+    media?: string;  // Ex: "(max-width: 360px)"
+    tagType: 'source' | 'img';
   }>;
   previewSrc: string;
   alt: string;
 }
 ```
 
-### Nova Extração
+#### 2. Nova Função de Extração
 
 ```typescript
-const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
-  const groups: ResponsiveImageGroup[] = [];
-  const imgRegex = /<img\s+([^>]*?)src=(["'])([^"']*)\2([^>]*)>/gi;
-  const images: Array<{ src: string; classes: string; alt: string; type: 'desktop' | 'mobile' | 'universal' }> = [];
+const extractPictureGroups = (html: string): PictureGroup[] => {
+  const groups: PictureGroup[] = [];
   
-  let match;
-  while ((match = imgRegex.exec(html)) !== null) {
-    const fullTag = match[0];
-    const src = match[3];
-    const classMatch = fullTag.match(/class=(["'])([^"']*)\1/i);
-    const classes = classMatch ? classMatch[2] : '';
-    const altMatch = fullTag.match(/alt=(["'])([^"']*)\1/i);
-    const alt = altMatch ? altMatch[2] : '';
+  // 1. Extrair elementos <picture> completos
+  const pictureRegex = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
+  let pictureMatch;
+  let pictureIndex = 0;
+  
+  while ((pictureMatch = pictureRegex.exec(html)) !== null) {
+    const pictureContent = pictureMatch[1];
+    const sources: PictureGroup['sources'] = [];
     
-    let type: 'desktop' | 'mobile' | 'universal' = 'universal';
-    if (/hidden\s+(sm|md|lg|xl):block|(sm|md|lg|xl):block.*hidden/.test(classes)) {
-      type = 'desktop';
-    } else if (/block\s+(sm|md|lg|xl):hidden|(sm|md|lg|xl):hidden.*block/.test(classes)) {
-      type = 'mobile';
+    // Extrair todas as <source srcset="...">
+    const sourceRegex = /<source[^>]*srcset=(["'])([^"']*)\1[^>]*(?:media=(["'])([^"']*)\3)?[^>]*>/gi;
+    let sourceMatch;
+    while ((sourceMatch = sourceRegex.exec(pictureContent)) !== null) {
+      sources.push({
+        src: sourceMatch[2],
+        media: sourceMatch[4] || undefined,
+        tagType: 'source'
+      });
     }
     
-    images.push({ src, classes, alt, type });
-  }
-  
-  // Agrupar imagens consecutivas desktop+mobile como um par
-  const processed = new Set<number>();
-  
-  for (let i = 0; i < images.length; i++) {
-    if (processed.has(i)) continue;
-    
-    const current = images[i];
-    const next = images[i + 1];
-    
-    // Verificar se é um par responsivo
-    if (next && 
-        ((current.type === 'desktop' && next.type === 'mobile') ||
-         (current.type === 'mobile' && next.type === 'desktop'))) {
-      // Criar grupo com ambas
-      groups.push({
-        id: `group-${i}`,
-        sources: [
-          { src: current.src, type: current.type },
-          { src: next.src, type: next.type }
-        ],
-        previewSrc: current.type === 'desktop' ? current.src : next.src,
-        alt: current.alt || next.alt
+    // Extrair o <img> fallback
+    const imgMatch = pictureContent.match(/<img[^>]*src=(["'])([^"']*)\1[^>]*>/i);
+    if (imgMatch) {
+      sources.push({
+        src: imgMatch[2],
+        media: undefined,
+        tagType: 'img'
       });
-      processed.add(i);
-      processed.add(i + 1);
-    } else {
-      // Imagem individual
-      groups.push({
-        id: `group-${i}`,
-        sources: [{ src: current.src, type: current.type }],
-        previewSrc: current.src,
-        alt: current.alt
-      });
-      processed.add(i);
     }
+    
+    // Pegar alt do img
+    const altMatch = pictureContent.match(/alt=(["'])([^"']*)\1/i);
+    
+    if (sources.length > 0) {
+      groups.push({
+        id: `picture-${pictureIndex}`,
+        type: 'picture',
+        sources,
+        previewSrc: sources.find(s => s.tagType === 'img')?.src || sources[0].src,
+        alt: altMatch ? altMatch[2] : ''
+      });
+    }
+    pictureIndex++;
   }
+  
+  // 2. Extrair <img> órfãos (não dentro de <picture>)
+  // Remover pictures do HTML para buscar imgs órfãos
+  const htmlWithoutPictures = html.replace(/<picture[^>]*>[\s\S]*?<\/picture>/gi, '');
+  // ... lógica existente de extractResponsiveGroups para imgs órfãos
   
   return groups;
 };
 ```
 
-### Nova Substituição
+#### 3. Nova Função de Substituição
 
 ```typescript
-const replaceImageGroup = (
-  html: string, 
-  group: ResponsiveImageGroup, 
-  newSrc: string
-): string => {
+const replacePictureGroup = (html: string, group: PictureGroup, newSrc: string): string => {
   let result = html;
   
   for (const source of group.sources) {
-    result = replaceAllImageOccurrences(result, source.src, newSrc);
+    const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    if (source.tagType === 'source') {
+      // Substituir srcset em <source>
+      const regex = new RegExp(`(<source[^>]*srcset=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      result = result.replace(regex, `$1${newSrc}$2`);
+    } else {
+      // Substituir src em <img>
+      const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      result = result.replace(regex, `$1${newSrc}$2`);
+    }
   }
   
   return result;
 };
 ```
 
-### UI com Indicador Responsivo
+#### 4. UI Atualizada
 
 ```tsx
-{imageGroups.map((group) => (
-  <div key={group.id} className="relative group border rounded-md overflow-hidden">
-    {/* Badge indicando tipo */}
-    <span className="absolute top-1 right-1 z-10 bg-primary/90 text-xs px-1.5 py-0.5 rounded">
-      {group.sources.length > 1 ? '📱💻' : group.sources[0].type === 'desktop' ? '💻' : '📱'}
-    </span>
-    
-    <img src={group.previewSrc} ... />
-    
-    <Button onClick={() => openImagePicker(group)}>
-      Trocar {group.sources.length > 1 ? 'ambas' : ''}
-    </Button>
-  </div>
-))}
+{/* Badge para picture com múltiplos breakpoints */}
+{group.type === 'picture' && group.sources.length > 1 && (
+  <span className="absolute top-1 right-1 z-10 bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+    {group.sources.length} tamanhos
+  </span>
+)}
+
+{/* Botão de ação */}
+<Button onClick={() => openImagePicker(group)}>
+  <RefreshCw className="h-4 w-4 mr-1" />
+  Trocar {group.type === 'picture' ? 'todos' : ''}
+</Button>
 ```
 
 ## Fluxo Atualizado
 
 ```
-1. Bloco tem 2 imagens: desktop (URL A) e mobile (URL B)
-2. Sistema detecta que são par responsivo (classes complementares)
-3. Painel mostra UM thumbnail com badge "📱💻"
-4. Usuário clica "Trocar"
-5. Seleciona nova imagem
-6. Sistema substitui AMBAS as URLs (A → nova, B → nova)
-7. Preview mostra imagem atualizada em qualquer viewport
+1. Usuário seleciona bloco com <picture> (5 breakpoints)
+2. Painel mostra UMA imagem com badge "5 tamanhos"
+3. Usuário clica "Trocar todos"
+4. Seleciona nova imagem
+5. Sistema substitui TODAS as sources + img fallback
+6. Preview mostra nova imagem em TODOS os viewports
 ```
+
+## Arquivos a Modificar
+
+| Arquivo | Modificação |
+|---------|-------------|
+| `src/components/eficode/editor/SettingsPanel.tsx` | Refatorar extração para suportar `<picture>/<source>` |
 
 ## Benefícios
 
 | Aspecto | Antes | Depois |
 |---------|-------|--------|
-| Imagens responsivas | Mostradas separadamente | Agrupadas como par |
-| Substituição | Uma URL por vez | Todas do grupo |
-| UX | Confuso | Intuitivo |
-| Indicador visual | Nenhum | Badge 📱💻 |
+| Detecção | Apenas `<img>` | `<picture>` + `<source>` + `<img>` |
+| Substituição | 1 URL | Todas as URLs do picture |
+| UX | Confuso (só funciona em 1 breakpoint) | Claro (todos os tamanhos) |
+| Badge visual | Nenhum | "5 tamanhos" |
