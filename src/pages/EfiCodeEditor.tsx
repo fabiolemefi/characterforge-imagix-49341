@@ -25,6 +25,7 @@ import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
 import { UnifiedIframe } from '@/components/eficode/editor/UnifiedIframe';
 import { BlockList } from '@/components/eficode/editor/BlockList';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
+import { LinkEditorModal } from '@/components/eficode/LinkEditorModal';
 import { generateFullHtml } from '@/lib/efiCodeHtmlGenerator';
 import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
 
@@ -91,6 +92,16 @@ export default function EfiCodeEditor() {
     isPicture: boolean;
     sources?: ImageSource[];
     occurrenceIndex?: number;
+  } | null>(null);
+  
+  // State for link/button editing from preview
+  const [linkEditorOpen, setLinkEditorOpen] = useState(false);
+  const [editingLinkContext, setEditingLinkContext] = useState<{
+    blockId: string;
+    elementType: 'link' | 'button';
+    href: string | null;
+    text: string;
+    occurrenceIndex: number;
   } | null>(null);
   
   // Refs for original values comparison
@@ -378,7 +389,72 @@ export default function EfiCodeEditor() {
     setEditingImageContext(null);
   }, [editingImageContext, blocks, updateBlockHtml]);
 
-  // Listen for image click messages from iframe
+  // Handle link/button click from preview iframe
+  const handleLinkClick = useCallback((
+    blockId: string,
+    elementType: 'link' | 'button',
+    href: string | null,
+    text: string,
+    occurrenceIndex: number
+  ) => {
+    selectBlock(blockId);
+    setEditingLinkContext({ blockId, elementType, href, text, occurrenceIndex });
+    setLinkEditorOpen(true);
+  }, [selectBlock]);
+
+  // Handle link/button save from modal
+  const handleLinkSave = useCallback((newText: string, newHref: string | null) => {
+    if (!editingLinkContext) return;
+    
+    const block = blocks.find(b => b.id === editingLinkContext.blockId);
+    if (!block) return;
+    
+    const { elementType, text: originalText, occurrenceIndex } = editingLinkContext;
+    let newHtml = block.html;
+    
+    // Regex to find the element
+    const tagName = elementType === 'link' ? 'a' : 'button';
+    
+    // Find all occurrences and replace only the N-th one
+    const regex = new RegExp(`(<${tagName}[^>]*>)([\\s\\S]*?)(<\\/${tagName}>)`, 'gi');
+    let matchIndex = 0;
+    
+    newHtml = newHtml.replace(regex, (match, openTag, content, closeTag) => {
+      if (matchIndex === occurrenceIndex) {
+        matchIndex++;
+        
+        // Update href if it's a link
+        let updatedOpenTag = openTag;
+        if (elementType === 'link' && newHref !== null) {
+          if (openTag.includes('href=')) {
+            updatedOpenTag = openTag.replace(/href=(["'])[^"']*\1/, `href="${newHref}"`);
+          } else {
+            // Add href if it doesn't exist
+            updatedOpenTag = openTag.replace(/>$/, ` href="${newHref}">`);
+          }
+        }
+        
+        // Update text (preserving inner HTML if present)
+        const updatedContent = content.trim() === originalText.trim() 
+          ? newText 
+          : content.replace(originalText, newText);
+        
+        return `${updatedOpenTag}${updatedContent}${closeTag}`;
+      }
+      matchIndex++;
+      return match;
+    });
+    
+    if (newHtml !== block.html) {
+      updateBlockHtml(editingLinkContext.blockId, newHtml);
+      toast.success(elementType === 'link' ? 'Link atualizado!' : 'Botão atualizado!');
+    }
+    
+    setLinkEditorOpen(false);
+    setEditingLinkContext(null);
+  }, [editingLinkContext, blocks, updateBlockHtml]);
+
+  // Listen for image and link click messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
@@ -391,12 +467,20 @@ export default function EfiCodeEditor() {
           event.data.sources,
           event.data.occurrenceIndex
         );
+      } else if (event.data.type === 'eficode-link-click') {
+        handleLinkClick(
+          event.data.blockId,
+          event.data.elementType,
+          event.data.href,
+          event.data.text,
+          event.data.occurrenceIndex
+        );
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [handleImageClick]);
+  }, [handleImageClick, handleLinkClick]);
 
   // Block list handlers
   const handleMoveUp = useCallback((blockId: string) => {
@@ -604,7 +688,7 @@ export default function EfiCodeEditor() {
         </aside>
 
         {/* Center - Viewport */}
-        <main className="flex-1 overflow-auto" style={{
+        <main className="flex-1 overflow-auto efi-code-scrollbar" style={{
           backgroundColor: pageSettings.backgroundColor === 'transparent' 
             ? 'transparent' 
             : pageSettings.backgroundColor,
@@ -744,6 +828,19 @@ export default function EfiCodeEditor() {
         if (!open) setEditingImageContext(null);
       }}
       onSelectImage={handleImageSelect}
+    />
+
+    {/* Link Editor Modal for direct link/button editing */}
+    <LinkEditorModal
+      open={linkEditorOpen}
+      onOpenChange={(open) => {
+        setLinkEditorOpen(open);
+        if (!open) setEditingLinkContext(null);
+      }}
+      elementType={editingLinkContext?.elementType || 'link'}
+      initialText={editingLinkContext?.text || ''}
+      initialHref={editingLinkContext?.href || null}
+      onSave={handleLinkSave}
     />
     </div>
   );
