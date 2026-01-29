@@ -300,9 +300,19 @@ const normalizeHtml = (html: string): string => {
     .replace(/\s+$/gm, '');                // Remover espaços no final de cada linha
 };
 
-export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps) => {
-const { connectors: { connect, drag }, selected, actions: { setProp }, id } = useNode((state) => ({
+export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
+  // Observar props diretamente do useNode para reagir a mudanças via setProp (ex: Settings panel)
+  const { 
+    connectors: { connect, drag }, 
+    selected, 
+    actions: { setProp }, 
+    id,
+    html,
+    htmlTemplate 
+  } = useNode((state) => ({
     selected: state.events.selected,
+    html: state.data.props.html,
+    htmlTemplate: state.data.props.htmlTemplate,
   }));
   const { enabled, actions: editorActions } = useEditor((state) => ({ 
     enabled: state.options.enabled 
