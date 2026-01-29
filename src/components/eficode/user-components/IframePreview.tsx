@@ -86,10 +86,16 @@ export const IframePreview = ({
     window.addEventListener('load', sendHeight);
     sendHeight();
     
+    // Flag para evitar envio duplicado de edit-end
+    let editEndSent = false;
+    
     // Escutar comandos do parent para controlar edição
     window.addEventListener('message', (e) => {
       if (e.data?.type === 'eficode-set-editable') {
         editMode = e.data.editable;
+        if (editMode) {
+          editEndSent = false; // Reset para permitir novo edit-end
+        }
         document.body.contentEditable = editMode ? 'true' : 'false';
         if (editMode) document.body.focus({ preventScroll: true });
       }
@@ -109,18 +115,23 @@ export const IframePreview = ({
       sendHeight();
     });
     
-    // Blur com delay para evitar race condition
+    // Blur com delay e proteção contra duplicatas
     let blurTimer;
     document.body.addEventListener('blur', () => {
-      if (!editMode) return;
+      if (!editMode || editEndSent) return;
       clearTimeout(debounceTimer);
       clearTimeout(blurTimer);
       
       blurTimer = setTimeout(() => {
-        window.parent.postMessage({ 
-          type: 'eficode-edit-end',
-          html: document.body.innerHTML 
-        }, '*');
+        if (!editEndSent) {
+          editEndSent = true;
+          editMode = false;
+          document.body.contentEditable = 'false';
+          window.parent.postMessage({ 
+            type: 'eficode-edit-end',
+            html: document.body.innerHTML 
+          }, '*');
+        }
       }, 150);
     });
     
@@ -131,9 +142,12 @@ export const IframePreview = ({
     
     // Escape para sair do modo de edição
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && editMode) {
+      if (e.key === 'Escape' && editMode && !editEndSent) {
         clearTimeout(debounceTimer);
         clearTimeout(blurTimer);
+        editEndSent = true;
+        editMode = false;
+        document.body.contentEditable = 'false';
         window.parent.postMessage({ 
           type: 'eficode-edit-end',
           html: document.body.innerHTML 
