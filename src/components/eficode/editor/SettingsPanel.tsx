@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Settings, Info, Image, Code, RefreshCw } from 'lucide-react';
+import { Settings, Info, Image, Code, RefreshCw, Monitor, Smartphone } from 'lucide-react';
 import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import {
@@ -13,49 +13,118 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
-interface UniqueBlockImage {
-  src: string;
+interface ResponsiveImageGroup {
+  id: string;
+  sources: Array<{
+    src: string;
+    type: 'desktop' | 'mobile' | 'universal';
+  }>;
+  previewSrc: string;
   alt: string;
-  count: number;
 }
 
-// Extract unique images from HTML (agrupadas por URL)
-const extractUniqueImages = (html: string): UniqueBlockImage[] => {
-  const imageMap = new Map<string, UniqueBlockImage>();
-  const imgRegex = /<img\s+[^>]*?src=(["'])([^"']*)\1[^>]*>/gi;
-  let match;
+// Detect responsive type from CSS classes
+const getResponsiveType = (classes: string): 'desktop' | 'mobile' | 'universal' => {
+  // Desktop: hidden by default, visible on md+ (hidden md:block, hidden lg:block, etc.)
+  if (/hidden\s+(sm|md|lg|xl|2xl):block/.test(classes) || 
+      /(sm|md|lg|xl|2xl):block\s+hidden/.test(classes) ||
+      /hidden\s+(sm|md|lg|xl|2xl):inline/.test(classes) ||
+      /(sm|md|lg|xl|2xl):inline\s+hidden/.test(classes)) {
+    return 'desktop';
+  }
   
+  // Mobile: visible by default, hidden on md+ (block md:hidden, etc.)
+  if (/block\s+(sm|md|lg|xl|2xl):hidden/.test(classes) || 
+      /(sm|md|lg|xl|2xl):hidden\s+block/.test(classes) ||
+      /inline\s+(sm|md|lg|xl|2xl):hidden/.test(classes) ||
+      /(sm|md|lg|xl|2xl):hidden\s+inline/.test(classes)) {
+    return 'mobile';
+  }
+  
+  return 'universal';
+};
+
+// Extract images and group responsive pairs
+const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
+  const groups: ResponsiveImageGroup[] = [];
+  const imgRegex = /<img\s+[^>]*?src=(["'])([^"']*)\1[^>]*>/gi;
+  const images: Array<{ src: string; classes: string; alt: string; type: 'desktop' | 'mobile' | 'universal' }> = [];
+  
+  let match;
   while ((match = imgRegex.exec(html)) !== null) {
-    const fullMatch = match[0];
+    const fullTag = match[0];
     const src = match[2];
-    const altMatch = fullMatch.match(/alt=(["'])([^"']*)\1/i);
+    const classMatch = fullTag.match(/class=(["'])([^"']*)\1/i);
+    const classes = classMatch ? classMatch[2] : '';
+    const altMatch = fullTag.match(/alt=(["'])([^"']*)\1/i);
     const alt = altMatch ? altMatch[2] : '';
     
-    if (imageMap.has(src)) {
-      imageMap.get(src)!.count++;
+    const type = getResponsiveType(classes);
+    images.push({ src, classes, alt, type });
+  }
+  
+  // Group consecutive desktop+mobile pairs
+  const processed = new Set<number>();
+  
+  for (let i = 0; i < images.length; i++) {
+    if (processed.has(i)) continue;
+    
+    const current = images[i];
+    const next = images[i + 1];
+    
+    // Check if this is a responsive pair (desktop + mobile or mobile + desktop)
+    if (next && !processed.has(i + 1) &&
+        ((current.type === 'desktop' && next.type === 'mobile') ||
+         (current.type === 'mobile' && next.type === 'desktop'))) {
+      // Create group with both images
+      const desktopImg = current.type === 'desktop' ? current : next;
+      groups.push({
+        id: `group-${i}`,
+        sources: [
+          { src: current.src, type: current.type },
+          { src: next.src, type: next.type }
+        ],
+        previewSrc: desktopImg.src, // Use desktop image for preview
+        alt: current.alt || next.alt
+      });
+      processed.add(i);
+      processed.add(i + 1);
     } else {
-      imageMap.set(src, { src, alt, count: 1 });
+      // Single image
+      groups.push({
+        id: `group-${i}`,
+        sources: [{ src: current.src, type: current.type }],
+        previewSrc: current.src,
+        alt: current.alt
+      });
+      processed.add(i);
     }
   }
   
-  return Array.from(imageMap.values());
+  return groups;
 };
 
-// Replace ALL occurrences of an image URL in HTML
-const replaceAllImageOccurrences = (html: string, oldSrc: string, newSrc: string): string => {
-  // Escape special regex characters in URL
-  const escapedSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Replace ALL occurrences of multiple image URLs in HTML
+const replaceImageGroup = (html: string, group: ResponsiveImageGroup, newSrc: string): string => {
+  let result = html;
   
-  // Replace all occurrences of the old src with the new one
-  const regex = new RegExp(`(<img\\s+[^>]*?src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-  return html.replace(regex, `$1${newSrc}$2`);
+  for (const source of group.sources) {
+    // Escape special regex characters in URL
+    const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Replace all occurrences of this src
+    const regex = new RegExp(`(<img\\s+[^>]*?src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+    result = result.replace(regex, `$1${newSrc}$2`);
+  }
+  
+  return result;
 };
 
 export const SettingsPanel = () => {
   const { selectedBlockId, blocks, updateBlockHtml } = useEfiCodeEditorStore();
   
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
-  const [editingSrc, setEditingSrc] = useState<string | null>(null);
+  const [editingGroup, setEditingGroup] = useState<ResponsiveImageGroup | null>(null);
   const [htmlEditorOpen, setHtmlEditorOpen] = useState(false);
   const [tempHtml, setTempHtml] = useState('');
   
@@ -64,27 +133,31 @@ export const SettingsPanel = () => {
     ? blocks.find(b => b.id === selectedBlockId) 
     : null;
 
-  // Extract unique images from selected block
-  const blockImages = useMemo(() => {
+  // Extract responsive image groups from selected block
+  const imageGroups = useMemo(() => {
     if (!selectedBlock) return [];
-    return extractUniqueImages(selectedBlock.html);
+    return extractResponsiveGroups(selectedBlock.html);
   }, [selectedBlock]);
 
-  // Handle image replacement - replaces ALL occurrences of the same URL
+  // Handle image replacement - replaces ALL sources in the group
   const handleImageSelect = (image: { url: string; name?: string }) => {
     console.log('[SettingsPanel] Selecionando imagem:', image.url);
     
-    if (selectedBlock && editingSrc !== null) {
+    if (selectedBlock && editingGroup) {
       const originalHtml = selectedBlock.html;
-      const newHtml = replaceAllImageOccurrences(originalHtml, editingSrc, image.url);
+      const newHtml = replaceImageGroup(originalHtml, editingGroup, image.url);
       
-      console.log('[SettingsPanel] Old src:', editingSrc);
+      console.log('[SettingsPanel] Group sources:', editingGroup.sources.map(s => s.src));
       console.log('[SettingsPanel] New src:', image.url);
       console.log('[SettingsPanel] HTML changed:', originalHtml !== newHtml);
       
       if (originalHtml !== newHtml) {
         updateBlockHtml(selectedBlock.id, newHtml);
-        toast.success('Imagem atualizada em todas as ocorrências!');
+        const count = editingGroup.sources.length;
+        toast.success(count > 1 
+          ? `Imagem atualizada em ${count} versões (desktop + mobile)!` 
+          : 'Imagem atualizada!'
+        );
       } else {
         console.error('[SettingsPanel] ERRO: HTML não foi modificado!');
         toast.error('Erro ao atualizar imagem');
@@ -92,12 +165,12 @@ export const SettingsPanel = () => {
     }
     
     setImagePickerOpen(false);
-    setEditingSrc(null);
+    setEditingGroup(null);
   };
 
-  // Open image picker for specific image URL
-  const openImagePicker = (src: string) => {
-    setEditingSrc(src);
+  // Open image picker for a group
+  const openImagePicker = (group: ResponsiveImageGroup) => {
+    setEditingGroup(group);
     setImagePickerOpen(true);
   };
 
@@ -124,6 +197,35 @@ export const SettingsPanel = () => {
     tempDiv.innerHTML = html;
     const text = tempDiv.textContent || tempDiv.innerText || '';
     return text.trim().substring(0, 100) || 'Bloco HTML';
+  };
+
+  // Get badge for responsive type
+  const getTypeBadge = (group: ResponsiveImageGroup) => {
+    if (group.sources.length > 1) {
+      return (
+        <span className="absolute top-1 right-1 z-10 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+          <Smartphone className="h-3 w-3" />
+          <Monitor className="h-3 w-3" />
+        </span>
+      );
+    }
+    
+    const type = group.sources[0].type;
+    if (type === 'desktop') {
+      return (
+        <span className="absolute top-1 right-1 z-10 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+          <Monitor className="h-3 w-3" />
+        </span>
+      );
+    }
+    if (type === 'mobile') {
+      return (
+        <span className="absolute top-1 right-1 z-10 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+          <Smartphone className="h-3 w-3" />
+        </span>
+      );
+    }
+    return null;
   };
 
   // Se um bloco está selecionado, mostrar suas informações e propriedades
@@ -156,32 +258,28 @@ export const SettingsPanel = () => {
             </div>
 
             {/* Images Section */}
-            {blockImages.length > 0 && (
+            {imageGroups.length > 0 && (
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-2">
                   <Image className="h-4 w-4 text-muted-foreground" />
                   <span className="text-xs font-semibold text-muted-foreground uppercase">
-                    Imagens ({blockImages.length})
+                    Imagens ({imageGroups.length})
                   </span>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
-                  {blockImages.map((img) => (
+                  {imageGroups.map((group) => (
                     <div 
-                      key={img.src}
+                      key={group.id}
                       className="relative group border rounded-md overflow-hidden bg-secondary/50"
                     >
-                      {/* Badge showing count if image appears multiple times */}
-                      {img.count > 1 && (
-                        <span className="absolute top-1 right-1 z-10 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full font-medium">
-                          {img.count}x
-                        </span>
-                      )}
+                      {/* Badge showing responsive type */}
+                      {getTypeBadge(group)}
                       
                       <div className="aspect-square flex items-center justify-center p-1">
                         <img 
-                          src={img.src} 
-                          alt={img.alt || 'Imagem do bloco'}
+                          src={group.previewSrc} 
+                          alt={group.alt || 'Imagem do bloco'}
                           className="max-w-full max-h-full object-contain"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
@@ -193,13 +291,29 @@ export const SettingsPanel = () => {
                         size="sm"
                         variant="secondary"
                         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-background/80 h-full rounded-none"
-                        onClick={() => openImagePicker(img.src)}
+                        onClick={() => openImagePicker(group)}
                       >
                         <RefreshCw className="h-4 w-4 mr-1" />
-                        Trocar
+                        {group.sources.length > 1 ? 'Trocar ambas' : 'Trocar'}
                       </Button>
                     </div>
                   ))}
+                </div>
+                
+                {/* Legend */}
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground pt-1">
+                  <span className="flex items-center gap-1">
+                    <Monitor className="h-3 w-3 text-blue-500" /> Desktop
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Smartphone className="h-3 w-3 text-green-500" /> Mobile
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="flex items-center text-primary">
+                      <Smartphone className="h-3 w-3" />
+                      <Monitor className="h-3 w-3" />
+                    </span> Par responsivo
+                  </span>
                 </div>
               </div>
             )}
@@ -222,7 +336,7 @@ export const SettingsPanel = () => {
               <div className="flex items-start gap-2 text-xs text-muted-foreground">
                 <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
                 <p>
-                  Clique duas vezes no bloco para editar o texto diretamente. Use o painel para trocar imagens.
+                  Clique duas vezes no bloco para editar o texto. Imagens com ícones 📱💻 são pares responsivos e serão trocadas juntas.
                 </p>
               </div>
             </div>
