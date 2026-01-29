@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useNode, useEditor } from '@craftjs/core';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -301,18 +301,16 @@ const normalizeHtml = (html: string): string => {
 };
 
 export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
-  // Observar props diretamente do useNode para reagir a mudanças via setProp (ex: Settings panel)
+  // Observar props como objeto completo para garantir reatividade em todas as mudanças
   const { 
     connectors: { connect, drag }, 
     selected, 
     actions: { setProp }, 
     id,
-    html,
-    htmlTemplate 
+    props: nodeProps
   } = useNode((state) => ({
     selected: state.events.selected,
-    html: state.data.props.html,
-    htmlTemplate: state.data.props.htmlTemplate,
+    props: state.data.props,
   }));
   const { enabled, actions: editorActions } = useEditor((state) => ({ 
     enabled: state.options.enabled 
@@ -320,13 +318,25 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Extrair valores de nodeProps para reatividade correta
+  const html = nodeProps?.html;
+  const htmlTemplate = nodeProps?.htmlTemplate;
   const template = htmlTemplate || html || '';
+  
+  // Key estável baseada em hash do template para forçar recriação do iframe quando imagens mudam
+  const templateKey = useMemo(() => {
+    let hash = 0;
+    for (let i = 0; i < template.length; i++) {
+      const char = template.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash;
+  }, [template]);
   
   // Ref para guardar o template antes de começar a editar
   const originalTemplateRef = useRef<string>(template);
-  
-  // Ref para o template inicial na montagem (para identificação estável)
-  const initialTemplateRef = useRef<string>(template);
 
   // Handler para iniciar edição - defensivo para aceitar evento opcional (postMessage não passa evento)
   const handleContainerClick = useCallback((e?: React.MouseEvent) => {
@@ -435,6 +445,7 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
       style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
     >
       <IframePreview
+        key={templateKey}
         html={template}
         editable={isEditing}
         onClick={handleContainerClick}
