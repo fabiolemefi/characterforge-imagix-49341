@@ -13,12 +13,17 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 
-interface ResponsiveImageGroup {
+interface ImageSource {
+  src: string;
+  media?: string;  // Ex: "(max-width: 360px)"
+  tagType: 'source' | 'img';
+  responsiveType?: 'desktop' | 'mobile' | 'universal';
+}
+
+interface PictureGroup {
   id: string;
-  sources: Array<{
-    src: string;
-    type: 'desktop' | 'mobile' | 'universal';
-  }>;
+  type: 'picture' | 'responsive-pair' | 'single';
+  sources: ImageSource[];
   previewSrc: string;
   alt: string;
 }
@@ -44,14 +49,71 @@ const getResponsiveType = (classes: string): 'desktop' | 'mobile' | 'universal' 
   return 'universal';
 };
 
-// Extract images and group responsive pairs
-const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
-  const groups: ResponsiveImageGroup[] = [];
+// Extract picture elements with multiple sources
+const extractPictureGroups = (html: string): PictureGroup[] => {
+  const groups: PictureGroup[] = [];
+  
+  // 1. Extract complete <picture> elements
+  const pictureRegex = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
+  let pictureMatch;
+  let pictureIndex = 0;
+  
+  while ((pictureMatch = pictureRegex.exec(html)) !== null) {
+    const pictureContent = pictureMatch[1];
+    const sources: ImageSource[] = [];
+    
+    // Extract all <source srcset="..."> - handle srcset before or after media
+    const sourceRegex = /<source[^>]*>/gi;
+    let sourceMatch;
+    while ((sourceMatch = sourceRegex.exec(pictureContent)) !== null) {
+      const sourceTag = sourceMatch[0];
+      
+      // Extract srcset
+      const srcsetMatch = sourceTag.match(/srcset=(["'])([^"']*)\1/i);
+      // Extract media
+      const mediaMatch = sourceTag.match(/media=(["'])([^"']*)\1/i);
+      
+      if (srcsetMatch) {
+        sources.push({
+          src: srcsetMatch[2],
+          media: mediaMatch ? mediaMatch[2] : undefined,
+          tagType: 'source'
+        });
+      }
+    }
+    
+    // Extract the <img> fallback
+    const imgMatch = pictureContent.match(/<img[^>]*src=(["'])([^"']*)\1[^>]*>/i);
+    if (imgMatch) {
+      sources.push({
+        src: imgMatch[2],
+        media: undefined,
+        tagType: 'img'
+      });
+    }
+    
+    // Get alt from img
+    const altMatch = pictureContent.match(/alt=(["'])([^"']*)\1/i);
+    
+    if (sources.length > 0) {
+      groups.push({
+        id: `picture-${pictureIndex}`,
+        type: 'picture',
+        sources,
+        previewSrc: sources.find(s => s.tagType === 'img')?.src || sources[0].src,
+        alt: altMatch ? altMatch[2] : ''
+      });
+    }
+    pictureIndex++;
+  }
+  
+  // 2. Extract orphan <img> tags (not inside <picture>)
+  const htmlWithoutPictures = html.replace(/<picture[^>]*>[\s\S]*?<\/picture>/gi, '___PICTURE_PLACEHOLDER___');
   const imgRegex = /<img\s+[^>]*?src=(["'])([^"']*)\1[^>]*>/gi;
-  const images: Array<{ src: string; classes: string; alt: string; type: 'desktop' | 'mobile' | 'universal' }> = [];
+  const orphanImages: Array<{ src: string; classes: string; alt: string; type: 'desktop' | 'mobile' | 'universal' }> = [];
   
   let match;
-  while ((match = imgRegex.exec(html)) !== null) {
+  while ((match = imgRegex.exec(htmlWithoutPictures)) !== null) {
     const fullTag = match[0];
     const src = match[2];
     const classMatch = fullTag.match(/class=(["'])([^"']*)\1/i);
@@ -60,31 +122,31 @@ const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
     const alt = altMatch ? altMatch[2] : '';
     
     const type = getResponsiveType(classes);
-    images.push({ src, classes, alt, type });
+    orphanImages.push({ src, classes, alt, type });
   }
   
-  // Group consecutive desktop+mobile pairs
+  // Group consecutive desktop+mobile pairs for orphan images
   const processed = new Set<number>();
   
-  for (let i = 0; i < images.length; i++) {
+  for (let i = 0; i < orphanImages.length; i++) {
     if (processed.has(i)) continue;
     
-    const current = images[i];
-    const next = images[i + 1];
+    const current = orphanImages[i];
+    const next = orphanImages[i + 1];
     
-    // Check if this is a responsive pair (desktop + mobile or mobile + desktop)
+    // Check if this is a responsive pair
     if (next && !processed.has(i + 1) &&
         ((current.type === 'desktop' && next.type === 'mobile') ||
          (current.type === 'mobile' && next.type === 'desktop'))) {
-      // Create group with both images
       const desktopImg = current.type === 'desktop' ? current : next;
       groups.push({
-        id: `group-${i}`,
+        id: `img-pair-${i}`,
+        type: 'responsive-pair',
         sources: [
-          { src: current.src, type: current.type },
-          { src: next.src, type: next.type }
+          { src: current.src, tagType: 'img', responsiveType: current.type },
+          { src: next.src, tagType: 'img', responsiveType: next.type }
         ],
-        previewSrc: desktopImg.src, // Use desktop image for preview
+        previewSrc: desktopImg.src,
         alt: current.alt || next.alt
       });
       processed.add(i);
@@ -92,8 +154,9 @@ const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
     } else {
       // Single image
       groups.push({
-        id: `group-${i}`,
-        sources: [{ src: current.src, type: current.type }],
+        id: `img-single-${i}`,
+        type: 'single',
+        sources: [{ src: current.src, tagType: 'img', responsiveType: current.type }],
         previewSrc: current.src,
         alt: current.alt
       });
@@ -104,17 +167,22 @@ const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
   return groups;
 };
 
-// Replace ALL occurrences of multiple image URLs in HTML
-const replaceImageGroup = (html: string, group: ResponsiveImageGroup, newSrc: string): string => {
+// Replace ALL occurrences of image URLs in a group
+const replaceImageGroup = (html: string, group: PictureGroup, newSrc: string): string => {
   let result = html;
   
   for (const source of group.sources) {
-    // Escape special regex characters in URL
     const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    // Replace all occurrences of this src
-    const regex = new RegExp(`(<img\\s+[^>]*?src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-    result = result.replace(regex, `$1${newSrc}$2`);
+    if (source.tagType === 'source') {
+      // Replace srcset in <source>
+      const regex = new RegExp(`(<source[^>]*srcset=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      result = result.replace(regex, `$1${newSrc}$2`);
+    } else {
+      // Replace src in <img>
+      const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      result = result.replace(regex, `$1${newSrc}$2`);
+    }
   }
   
   return result;
@@ -124,7 +192,7 @@ export const SettingsPanel = () => {
   const { selectedBlockId, blocks, updateBlockHtml } = useEfiCodeEditorStore();
   
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<ResponsiveImageGroup | null>(null);
+  const [editingGroup, setEditingGroup] = useState<PictureGroup | null>(null);
   const [htmlEditorOpen, setHtmlEditorOpen] = useState(false);
   const [tempHtml, setTempHtml] = useState('');
   
@@ -136,7 +204,7 @@ export const SettingsPanel = () => {
   // Extract responsive image groups from selected block
   const imageGroups = useMemo(() => {
     if (!selectedBlock) return [];
-    return extractResponsiveGroups(selectedBlock.html);
+    return extractPictureGroups(selectedBlock.html);
   }, [selectedBlock]);
 
   // Handle image replacement - replaces ALL sources in the group
@@ -154,10 +222,13 @@ export const SettingsPanel = () => {
       if (originalHtml !== newHtml) {
         updateBlockHtml(selectedBlock.id, newHtml);
         const count = editingGroup.sources.length;
-        toast.success(count > 1 
-          ? `Imagem atualizada em ${count} versões (desktop + mobile)!` 
-          : 'Imagem atualizada!'
-        );
+        let message = 'Imagem atualizada!';
+        if (editingGroup.type === 'picture' && count > 1) {
+          message = `Imagem atualizada em ${count} breakpoints!`;
+        } else if (editingGroup.type === 'responsive-pair') {
+          message = 'Imagem atualizada (desktop + mobile)!';
+        }
+        toast.success(message);
       } else {
         console.error('[SettingsPanel] ERRO: HTML não foi modificado!');
         toast.error('Erro ao atualizar imagem');
@@ -169,7 +240,7 @@ export const SettingsPanel = () => {
   };
 
   // Open image picker for a group
-  const openImagePicker = (group: ResponsiveImageGroup) => {
+  const openImagePicker = (group: PictureGroup) => {
     setEditingGroup(group);
     setImagePickerOpen(true);
   };
@@ -199,9 +270,19 @@ export const SettingsPanel = () => {
     return text.trim().substring(0, 100) || 'Bloco HTML';
   };
 
-  // Get badge for responsive type
-  const getTypeBadge = (group: ResponsiveImageGroup) => {
-    if (group.sources.length > 1) {
+  // Get badge for group type
+  const getTypeBadge = (group: PictureGroup) => {
+    // Picture with multiple sources (breakpoints)
+    if (group.type === 'picture' && group.sources.length > 1) {
+      return (
+        <span className="absolute top-1 right-1 z-10 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full font-medium">
+          {group.sources.length} tamanhos
+        </span>
+      );
+    }
+    
+    // Responsive pair (desktop + mobile)
+    if (group.type === 'responsive-pair') {
       return (
         <span className="absolute top-1 right-1 z-10 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
           <Smartphone className="h-3 w-3" />
@@ -210,17 +291,18 @@ export const SettingsPanel = () => {
       );
     }
     
-    const type = group.sources[0].type;
-    if (type === 'desktop') {
+    // Single image with responsive type
+    const respType = group.sources[0]?.responsiveType;
+    if (respType === 'desktop') {
       return (
-        <span className="absolute top-1 right-1 z-10 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+        <span className="absolute top-1 right-1 z-10 bg-accent text-accent-foreground text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
           <Monitor className="h-3 w-3" />
         </span>
       );
     }
-    if (type === 'mobile') {
+    if (respType === 'mobile') {
       return (
-        <span className="absolute top-1 right-1 z-10 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+        <span className="absolute top-1 right-1 z-10 bg-accent text-accent-foreground text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
           <Smartphone className="h-3 w-3" />
         </span>
       );
@@ -303,10 +385,10 @@ export const SettingsPanel = () => {
                 {/* Legend */}
                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground pt-1">
                   <span className="flex items-center gap-1">
-                    <Monitor className="h-3 w-3 text-blue-500" /> Desktop
+                    <Monitor className="h-3 w-3" /> Desktop
                   </span>
                   <span className="flex items-center gap-1">
-                    <Smartphone className="h-3 w-3 text-green-500" /> Mobile
+                    <Smartphone className="h-3 w-3" /> Mobile
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="flex items-center text-primary">
