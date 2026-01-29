@@ -399,7 +399,7 @@ const { connectors: { connect, drag }, selected, actions: { setProp }, id } = us
           connect(drag(ref));
         }
       }}
-      className={`relative w-full h-full flex-1 flex flex-col ${className}`}
+      className={`relative w-full ${className}`}
       style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
     >
       {isEditing ? (
@@ -409,14 +409,14 @@ const { connectors: { connect, drag }, selected, actions: { setProp }, id } = us
           editable={true}
           onHtmlChange={handleIframeHtmlChange}
           onEditEnd={handleIframeEditEnd}
-          minHeight={50}
+          minHeight={0}
         />
       ) : (
         // Modo preview: IframePreview com CSS global isolado (sem edição)
         <IframePreview
           html={template}
           onClick={handleContainerClick}
-          minHeight={50}
+          minHeight={0}
         />
       )}
     </div>
