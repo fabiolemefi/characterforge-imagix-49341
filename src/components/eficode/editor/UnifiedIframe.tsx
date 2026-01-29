@@ -200,9 +200,16 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         
         const element = link || button;
         const elementType = link ? 'link' : 'button';
-        const href = link ? link.getAttribute('href') : null;
+        const href = element.getAttribute('href');
+        const targetAttr = element.getAttribute('target');
         const text = element.textContent || '';
         const blockId = block.dataset.blockId;
+        
+        // Check for inner images/icons
+        const innerImg = element.querySelector('img');
+        const innerSvg = element.querySelector('svg');
+        const hasInnerImage = !!innerImg || !!innerSvg;
+        const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
         
         // Find occurrence index
         const selector = elementType === 'link' ? 'a' : 'button';
@@ -215,7 +222,10 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           elementType: elementType,
           href: href,
           text: text,
-          occurrenceIndex: occurrenceIndex
+          target: targetAttr,
+          occurrenceIndex: occurrenceIndex,
+          hasInnerImage: hasInnerImage,
+          innerImageSrc: innerImageSrc
         }, '*');
         
         return;

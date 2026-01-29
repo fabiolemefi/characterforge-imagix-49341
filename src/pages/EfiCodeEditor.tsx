@@ -101,7 +101,10 @@ export default function EfiCodeEditor() {
     elementType: 'link' | 'button';
     href: string | null;
     text: string;
+    target: string | null;
     occurrenceIndex: number;
+    hasInnerImage: boolean;
+    innerImageSrc: string | null;
   } | null>(null);
   
   // Refs for original values comparison
@@ -395,15 +398,27 @@ export default function EfiCodeEditor() {
     elementType: 'link' | 'button',
     href: string | null,
     text: string,
-    occurrenceIndex: number
+    target: string | null,
+    occurrenceIndex: number,
+    hasInnerImage: boolean,
+    innerImageSrc: string | null
   ) => {
     selectBlock(blockId);
-    setEditingLinkContext({ blockId, elementType, href, text, occurrenceIndex });
+    setEditingLinkContext({ 
+      blockId, 
+      elementType, 
+      href, 
+      text, 
+      target,
+      occurrenceIndex,
+      hasInnerImage,
+      innerImageSrc
+    });
     setLinkEditorOpen(true);
   }, [selectBlock]);
 
   // Handle link/button save from modal
-  const handleLinkSave = useCallback((newText: string, newHref: string | null) => {
+  const handleLinkSave = useCallback((newText: string, newHref: string | null, newTarget: string | null) => {
     if (!editingLinkContext) return;
     
     const block = blocks.find(b => b.id === editingLinkContext.blockId);
@@ -423,15 +438,27 @@ export default function EfiCodeEditor() {
       if (matchIndex === occurrenceIndex) {
         matchIndex++;
         
-        // Update href if it's a link
         let updatedOpenTag = openTag;
-        if (elementType === 'link' && newHref !== null) {
+        
+        // Update href
+        if (newHref !== null && newHref !== '') {
           if (openTag.includes('href=')) {
-            updatedOpenTag = openTag.replace(/href=(["'])[^"']*\1/, `href="${newHref}"`);
+            updatedOpenTag = updatedOpenTag.replace(/href=(["'])[^"']*\1/, `href="${newHref}"`);
           } else {
-            // Add href if it doesn't exist
-            updatedOpenTag = openTag.replace(/>$/, ` href="${newHref}">`);
+            updatedOpenTag = updatedOpenTag.replace(/>$/, ` href="${newHref}">`);
           }
+        }
+        
+        // Update target
+        if (newTarget) {
+          if (updatedOpenTag.includes('target=')) {
+            updatedOpenTag = updatedOpenTag.replace(/target=(["'])[^"']*\1/, `target="${newTarget}"`);
+          } else {
+            updatedOpenTag = updatedOpenTag.replace(/>$/, ` target="${newTarget}">`);
+          }
+        } else {
+          // Remove target if null (means _self)
+          updatedOpenTag = updatedOpenTag.replace(/\s*target=(["'])[^"']*\1/, '');
         }
         
         // Update text (preserving inner HTML if present)
@@ -454,6 +481,23 @@ export default function EfiCodeEditor() {
     setEditingLinkContext(null);
   }, [editingLinkContext, blocks, updateBlockHtml]);
 
+  // Handle changing image inside a link/button
+  const handleLinkImageChange = useCallback(() => {
+    if (editingLinkContext?.hasInnerImage) {
+      // Close link modal
+      setLinkEditorOpen(false);
+      
+      // Open image picker with link context
+      setEditingImageContext({
+        blockId: editingLinkContext.blockId,
+        imageSrc: editingLinkContext.innerImageSrc || '',
+        isPicture: false,
+        occurrenceIndex: editingLinkContext.occurrenceIndex
+      });
+      setImagePickerOpen(true);
+    }
+  }, [editingLinkContext]);
+
   // Listen for image and link click messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -473,7 +517,10 @@ export default function EfiCodeEditor() {
           event.data.elementType,
           event.data.href,
           event.data.text,
-          event.data.occurrenceIndex
+          event.data.target,
+          event.data.occurrenceIndex,
+          event.data.hasInnerImage,
+          event.data.innerImageSrc
         );
       }
     };
@@ -840,7 +887,11 @@ export default function EfiCodeEditor() {
       elementType={editingLinkContext?.elementType || 'link'}
       initialText={editingLinkContext?.text || ''}
       initialHref={editingLinkContext?.href || null}
+      initialTarget={editingLinkContext?.target || null}
+      hasInnerImage={editingLinkContext?.hasInnerImage || false}
+      innerImageSrc={editingLinkContext?.innerImageSrc || null}
       onSave={handleLinkSave}
+      onChangeImage={handleLinkImageChange}
     />
     </div>
   );
