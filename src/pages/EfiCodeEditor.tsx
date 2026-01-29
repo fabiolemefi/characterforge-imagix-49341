@@ -343,7 +343,7 @@ export default function EfiCodeEditor() {
               
               {viewMode === 'visual' ? (
                 <div 
-                  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
+                  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport h-full ${pageSettings.containerClasses || ''}`}
                   style={{
                     minHeight: '600px',
                     maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
