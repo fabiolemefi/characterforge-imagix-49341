@@ -26,7 +26,7 @@ export const SettingsPanel = () => {
   // Se um componente está selecionado, mostrar suas configurações
   if (selected) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col relative z-[9999]">
         <div className="p-4 border-b">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Propriedades
@@ -58,7 +58,7 @@ export const SettingsPanel = () => {
 
   // Se nenhum componente está selecionado, mostrar mensagem
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative z-[9999]">
       <div className="p-4 border-b">
         <div className="flex items-center gap-2">
           <Settings className="h-4 w-4 text-muted-foreground" />
