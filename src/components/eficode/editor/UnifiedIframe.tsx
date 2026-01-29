@@ -278,7 +278,17 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         const hasInnerImage = !!innerImg || !!innerSvg;
         const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
         
-        // Find occurrence index
+        // Calculate the CORRECT occurrence index for the inner image
+        let innerImageOccurrenceIndex = 0;
+        if (innerImg && innerImageSrc) {
+          const allImgs = Array.from(block.querySelectorAll('img'));
+          const sameSourceImgs = allImgs.filter(function(i) {
+            return i.getAttribute('src') === innerImageSrc;
+          });
+          innerImageOccurrenceIndex = sameSourceImgs.indexOf(innerImg);
+        }
+        
+        // Find occurrence index for the link/button element itself
         const selector = elementType === 'link' ? 'a' : 'button';
         const allElements = Array.from(block.querySelectorAll(selector));
         const occurrenceIndex = allElements.indexOf(element);
@@ -292,7 +302,8 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           target: targetAttr,
           occurrenceIndex: occurrenceIndex,
           hasInnerImage: hasInnerImage,
-          innerImageSrc: innerImageSrc
+          innerImageSrc: innerImageSrc,
+          innerImageOccurrenceIndex: innerImageOccurrenceIndex
         }, '*');
         
         return;
