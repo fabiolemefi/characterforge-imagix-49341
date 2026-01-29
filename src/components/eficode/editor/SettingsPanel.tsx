@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Settings, Info, Image, Code, RefreshCw, Monitor, Smartphone } from 'lucide-react';
+import { Settings, Info, Image, Code, RefreshCw, Monitor, Smartphone, ChevronDown, ChevronUp } from 'lucide-react';
 import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import {
@@ -188,11 +188,54 @@ const replaceImageGroup = (html: string, group: PictureGroup, newSrc: string): s
   return result;
 };
 
+// Replace a SINGLE source in a group
+const replaceSingleSource = (html: string, source: ImageSource, newSrc: string): string => {
+  const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  if (source.tagType === 'source') {
+    // Replace srcset in <source>
+    const regex = new RegExp(`(<source[^>]*srcset=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+    return html.replace(regex, `$1${newSrc}$2`);
+  } else {
+    // Replace src in <img>
+    const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+    return html.replace(regex, `$1${newSrc}$2`);
+  }
+};
+
+// Get label for a source based on its media query or type
+const getSourceLabel = (source: ImageSource, idx: number): string => {
+  if (source.media) {
+    // Extract breakpoint from media query like "(max-width: 360px)"
+    const match = source.media.match(/(\d+)px/);
+    if (match) {
+      return `≤${match[1]}px`;
+    }
+    return source.media;
+  }
+  
+  if (source.tagType === 'img') {
+    return 'Fallback (>1920px)';
+  }
+  
+  if (source.responsiveType === 'desktop') {
+    return 'Desktop';
+  }
+  
+  if (source.responsiveType === 'mobile') {
+    return 'Mobile';
+  }
+  
+  return `Variação ${idx + 1}`;
+};
+
 export const SettingsPanel = () => {
   const { selectedBlockId, blocks, updateBlockHtml } = useEfiCodeEditorStore();
   
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<PictureGroup | null>(null);
+  const [editingSource, setEditingSource] = useState<ImageSource | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [htmlEditorOpen, setHtmlEditorOpen] = useState(false);
   const [tempHtml, setTempHtml] = useState('');
   
@@ -207,27 +250,48 @@ export const SettingsPanel = () => {
     return extractPictureGroups(selectedBlock.html);
   }, [selectedBlock]);
 
-  // Handle image replacement - replaces ALL sources in the group
+  // Toggle group expansion
+  const toggleGroupExpansion = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  // Handle image replacement - replaces ALL sources in the group OR a single source
   const handleImageSelect = (image: { url: string; name?: string }) => {
     console.log('[SettingsPanel] Selecionando imagem:', image.url);
     
-    if (selectedBlock && editingGroup) {
+    if (selectedBlock) {
       const originalHtml = selectedBlock.html;
-      const newHtml = replaceImageGroup(originalHtml, editingGroup, image.url);
+      let newHtml = originalHtml;
+      let message = 'Imagem atualizada!';
       
-      console.log('[SettingsPanel] Group sources:', editingGroup.sources.map(s => s.src));
-      console.log('[SettingsPanel] New src:', image.url);
-      console.log('[SettingsPanel] HTML changed:', originalHtml !== newHtml);
-      
-      if (originalHtml !== newHtml) {
-        updateBlockHtml(selectedBlock.id, newHtml);
+      if (editingSource && editingGroup) {
+        // Individual replacement
+        newHtml = replaceSingleSource(originalHtml, editingSource, image.url);
+        const label = getSourceLabel(editingSource, 0);
+        message = `Imagem ${label} atualizada!`;
+      } else if (editingGroup) {
+        // Replace all sources in the group
+        newHtml = replaceImageGroup(originalHtml, editingGroup, image.url);
         const count = editingGroup.sources.length;
-        let message = 'Imagem atualizada!';
         if (editingGroup.type === 'picture' && count > 1) {
           message = `Imagem atualizada em ${count} breakpoints!`;
         } else if (editingGroup.type === 'responsive-pair') {
           message = 'Imagem atualizada (desktop + mobile)!';
         }
+      }
+      
+      console.log('[SettingsPanel] HTML changed:', originalHtml !== newHtml);
+      
+      if (originalHtml !== newHtml) {
+        updateBlockHtml(selectedBlock.id, newHtml);
         toast.success(message);
       } else {
         console.error('[SettingsPanel] ERRO: HTML não foi modificado!');
@@ -237,6 +301,7 @@ export const SettingsPanel = () => {
     
     setImagePickerOpen(false);
     setEditingGroup(null);
+    setEditingSource(null);
   };
 
   // Open image picker for a group
@@ -349,37 +414,104 @@ export const SettingsPanel = () => {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
-                  {imageGroups.map((group) => (
-                    <div 
-                      key={group.id}
-                      className="relative group border rounded-md overflow-hidden bg-secondary/50"
-                    >
-                      {/* Badge showing responsive type */}
-                      {getTypeBadge(group)}
-                      
-                      <div className="aspect-square flex items-center justify-center p-1">
-                        <img 
-                          src={group.previewSrc} 
-                          alt={group.alt || 'Imagem do bloco'}
-                          className="max-w-full max-h-full object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
-                          }}
-                        />
-                      </div>
-                      
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-background/80 h-full rounded-none"
-                        onClick={() => openImagePicker(group)}
+                <div className="space-y-2">
+                  {imageGroups.map((group) => {
+                    const isExpanded = expandedGroups.has(group.id);
+                    const hasMultipleSources = group.sources.length > 1;
+                    
+                    return (
+                      <div 
+                        key={group.id}
+                        className="border rounded-md overflow-hidden bg-secondary/50"
                       >
-                        <RefreshCw className="h-4 w-4 mr-1" />
-                        {group.sources.length > 1 ? 'Trocar ambas' : 'Trocar'}
-                      </Button>
-                    </div>
-                  ))}
+                        {/* Header with preview */}
+                        <div className="relative p-2">
+                          {/* Badge showing responsive type */}
+                          {getTypeBadge(group)}
+                          
+                          <div className="flex items-center gap-2">
+                            <img 
+                              src={group.previewSrc} 
+                              alt={group.alt || 'Imagem do bloco'}
+                              className="w-12 h-12 object-contain rounded border bg-background"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+                              }}
+                            />
+                            
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground truncate">
+                                {hasMultipleSources ? `${group.sources.length} tamanhos` : 'Imagem única'}
+                              </p>
+                              {group.alt && (
+                                <p className="text-xs text-muted-foreground/70 truncate">{group.alt}</p>
+                              )}
+                            </div>
+                            
+                            {hasMultipleSources && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => toggleGroupExpansion(group.id)}
+                              >
+                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </Button>
+                            )}
+                          </div>
+                          
+                          {/* Button to replace all */}
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="w-full mt-2"
+                            onClick={() => openImagePicker(group)}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            {hasMultipleSources ? 'Trocar todas' : 'Trocar'}
+                          </Button>
+                        </div>
+                        
+                        {/* Expanded list of individual sources */}
+                        {isExpanded && hasMultipleSources && (
+                          <div className="border-t bg-background/50 p-2 space-y-1.5">
+                            {group.sources.map((source, idx) => (
+                              <div 
+                                key={idx}
+                                className="flex items-center gap-2 p-1.5 rounded bg-secondary/30"
+                              >
+                                <img 
+                                  src={source.src}
+                                  alt={`Breakpoint ${idx + 1}`}
+                                  className="w-8 h-8 object-contain rounded border bg-background"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>';
+                                  }}
+                                />
+                                
+                                <span className="flex-1 text-xs font-medium truncate">
+                                  {getSourceLabel(source, idx)}
+                                </span>
+                                
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    setEditingSource(source);
+                                    setEditingGroup(group);
+                                    setImagePickerOpen(true);
+                                  }}
+                                >
+                                  Trocar
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 
                 {/* Legend */}
