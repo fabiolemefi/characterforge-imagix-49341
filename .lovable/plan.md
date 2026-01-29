@@ -1,74 +1,130 @@
 
-# Plano: Corrigir Responsividade do IframePreview
+
+# Plano: Fazer o Conteúdo do Iframe Ocupar Toda a Área do Editor
 
 ## Problema Identificado
 
-O iframe está com `w-full` (100% da largura do container), mas o conteúdo dentro do iframe não está ocupando toda a largura disponível. Isso ocorre porque:
+Analisando a imagem e o código, identifiquei a cadeia de elementos que precisa ser ajustada:
 
-1. O `<html>` e `<body>` do iframe não têm estilos de reset (`margin: 0`, `width: 100%`)
-2. O navegador aplica estilos padrão (margens, padding) antes do CSS global carregar
-3. O conteúdo HTML pode ter larguras fixas que não respondem ao viewport
+```text
+main.flex-1.overflow-auto           ← Área principal do editor
+  └── div.efi-editor-viewport       ← Container com maxWidth
+       └── Frame (Craft.js)
+            └── Element/Container   ← minHeight: 400, display: flex, flexDirection: column
+                 └── HtmlBlock      ← w-full (largura OK, mas altura não)
+                      └── IframePreview ← height baseada no conteúdo interno
+                           └── iframe   ← Só ocupa a altura do HTML
+```
+
+O problema é que o HtmlBlock/IframePreview não está expandindo para ocupar toda a altura disponível do Container pai.
 
 ## Solução
 
-Adicionar estilos de reset essenciais **antes** do CSS global no `srcdoc` do iframe para garantir que o documento ocupe 100% da largura.
+Modificar a cadeia de componentes para que os elementos filhos ocupem 100% do espaço disponível:
 
-## Alterações
+### 1. Container.tsx - Adicionar `flex-1` e `min-height`
+O Container ROOT precisa permitir que seus filhos expandam verticalmente.
+
+### 2. HtmlBlock.tsx - Adicionar `h-full` ao wrapper
+O wrapper do HtmlBlock precisa ocupar toda a altura disponível.
+
+### 3. IframePreview.tsx - Adicionar `h-full` e ajustar altura do iframe
+O wrapper do IframePreview precisa herdar a altura do pai, e o iframe precisa ocupar essa altura.
+
+### 4. EditorFrame - Ajustar Container ROOT
+O Container ROOT no EditorFrame precisa ter `alignItems: 'stretch'` e `min-height` adequado.
+
+## Alterações Detalhadas
 
 ### Arquivo: `src/components/eficode/user-components/IframePreview.tsx`
 
-Na construção do `srcdoc` (linhas 50-136), adicionar reset CSS no início:
+| Linha | Alteração |
+|-------|-----------|
+| 186 | Adicionar `h-full` à div wrapper e `flex flex-col` |
+| 191-192 | Mudar altura do iframe para `flex-1` ou `100%` |
 
-```typescript
-const srcdoc = useMemo(() => `
-<!DOCTYPE html>
-<html style="width: 100%; height: auto;">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    /* Reset essencial para responsividade */
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      min-height: 100%;
-    }
-    body {
-      overflow-x: hidden;
-    }
-    img, video, iframe {
-      max-width: 100%;
-      height: auto;
-    }
-    
-    /* Global CSS do admin - controla 100% dos estilos */
-    ${globalCss}
-    
-    /* Estilos para modo de edição */
-    body[contenteditable="true"] {
-      outline: none;
-      cursor: text;
-    }
-    // ... resto mantido
-  </style>
-</head>
-// ... resto do documento
-`, [globalCss, stableHtml, editable]);
+```tsx
+// Antes
+<div className={`relative ${className}`} style={{ minHeight: `${minHeight}px` }}>
+  <iframe ... style={{ height: `${height}px`, ... }} />
+
+// Depois  
+<div className={`relative h-full flex flex-col ${className}`} style={{ minHeight: `${minHeight}px` }}>
+  <iframe ... style={{ flex: 1, minHeight: `${height}px`, ... }} />
 ```
 
-## Resumo das Alterações
+### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
 
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `IframePreview.tsx` | ~50-70 | Adicionar reset CSS antes do globalCss |
+| Linha | Alteração |
+|-------|-----------|
+| 393 | Adicionar `h-full flex-1` ao wrapper |
+
+```tsx
+// Antes
+className={`relative w-full ${className}`}
+
+// Depois
+className={`relative w-full h-full flex-1 flex flex-col ${className}`}
+```
+
+### Arquivo: `src/pages/EfiCodeEditor.tsx`
+
+| Linha | Alteração |
+|-------|-----------|
+| 500 | Adicionar props para forçar filhos a esticarem |
+
+```tsx
+// Antes
+<Element is={Container} canvas background="transparent" padding={0} minHeight={400} />
+
+// Depois
+<Element 
+  is={Container} 
+  canvas 
+  background="transparent" 
+  padding={0} 
+  minHeight={400}
+  alignItems="stretch"
+/>
+```
+
+### Arquivo: `src/components/eficode/user-components/Container.tsx`
+
+| Linha | Alteração |
+|-------|-----------|
+| 34-48 | Adicionar `height: '100%'` quando for ROOT ou canvas |
+
+```tsx
+// Antes
+style={{
+  minHeight,
+  display: 'flex',
+  ...
+}}
+
+// Depois
+style={{
+  minHeight,
+  height: '100%',
+  display: 'flex',
+  ...
+}}
+```
 
 ## Resultado Esperado
 
-- O conteúdo do iframe ocupará 100% da largura disponível
-- Imagens e mídia serão responsivas (`max-width: 100%`)
-- Margens padrão do navegador serão removidas
-- O CSS global (Tailwind v4) poderá sobrescrever esses resets se necessário
+Após as alterações:
+- O Container ROOT ocupará toda a altura disponível do viewport
+- O HtmlBlock se expandirá para preencher o Container
+- O IframePreview ocupará toda a área do HtmlBlock
+- O iframe interno mostrará o conteúdo ocupando toda a área visível
+
+## Resumo de Arquivos
+
+| Arquivo | Linhas | Alteração |
+|---------|--------|-----------|
+| `IframePreview.tsx` | 186, 191 | Adicionar `h-full flex flex-col`, `flex: 1` no iframe |
+| `HtmlBlock.tsx` | 393 | Adicionar `h-full flex-1 flex flex-col` |
+| `EfiCodeEditor.tsx` | 500 | Adicionar `alignItems="stretch"` |
+| `Container.tsx` | 34-48 | Adicionar `height: '100%'` |
+
