@@ -128,23 +128,108 @@
   }
 }
 
-/* Reset para área do editor Efi Code */
-/* Neutraliza os estilos globais do Tailwind dentro do viewport do editor */
+/* ============================================
+   RESET AGRESSIVO PARA EDITOR EFI CODE
+   Isola o viewport do Tailwind v3 da plataforma
+   para permitir que Tailwind v4 dos blocos prevaleça
+   ============================================ */
+
+/* Reset base - reverte TODOS os estilos do Tailwind preflight */
+.efi-editor-viewport {
+  all: revert;
+  display: block;
+  box-sizing: border-box;
+}
+
+/* Reset profundo para todos os elementos filhos */
 .efi-editor-viewport *,
 .efi-editor-viewport *::before,
 .efi-editor-viewport *::after {
-  /* Restaurar comportamento padrão de bordas */
-  border-color: currentColor;
-  border-style: none;
+  /* Reverte estilos do Tailwind preflight */
+  all: revert;
+  box-sizing: border-box;
 }
 
-/* Permitir que elementos com bordas definidas mantenham seu estilo */
-.efi-editor-viewport [style*="border"],
-.efi-editor-viewport [class*="border"] {
-  border-style: solid;
+/* Restaurar comportamentos essenciais após revert */
+.efi-editor-viewport img,
+.efi-editor-viewport video,
+.efi-editor-viewport canvas,
+.efi-editor-viewport svg {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  height: auto;
 }
 
-/* Garantir que estilos inline prevaleçam (exceto rings e outlines do Craft.js) */
-.efi-editor-viewport *:not([class*="ring"]):not([class*="outline"]) {
-  border-color: inherit;
+.efi-editor-viewport button,
+.efi-editor-viewport input,
+.efi-editor-viewport select,
+.efi-editor-viewport textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* Manter funcionalidade do Craft.js (seleção e drag) */
+.efi-editor-viewport [data-cy="craftjs-renderer"],
+.efi-editor-viewport [class*="craftjs"] {
+  all: unset;
+  display: contents;
+}
+
+/* Container principal do conteúdo - aqui o CSS global v4 será aplicado */
+.efi-editor-viewport .efi-content,
+.efi-editor-viewport > div {
+  display: block;
+  width: 100%;
+}
+
+/* Preservar outline de seleção do Craft.js */
+.efi-editor-viewport [style*="box-shadow: 0 0 0 2px"] {
+  box-shadow: inherit !important;
+}
+
+/* Reset de margens do preflight que podem vazar */
+.efi-editor-viewport h1,
+.efi-editor-viewport h2,
+.efi-editor-viewport h3,
+.efi-editor-viewport h4,
+.efi-editor-viewport h5,
+.efi-editor-viewport h6,
+.efi-editor-viewport p,
+.efi-editor-viewport blockquote,
+.efi-editor-viewport figure,
+.efi-editor-viewport fieldset,
+.efi-editor-viewport dl,
+.efi-editor-viewport dd,
+.efi-editor-viewport pre {
+  margin: revert;
+}
+
+/* Reset de listas */
+.efi-editor-viewport ol,
+.efi-editor-viewport ul {
+  list-style: revert;
+  margin: revert;
+  padding: revert;
+}
+
+/* Links mantêm comportamento padrão */
+.efi-editor-viewport a {
+  color: revert;
+  text-decoration: revert;
+}
+
+/* Tabelas mantêm comportamento padrão */
+.efi-editor-viewport table {
+  border-collapse: revert;
+  border-spacing: revert;
+}
+
+.efi-editor-viewport th,
+.efi-editor-viewport td {
+  padding: revert;
+  text-align: revert;
+  vertical-align: revert;
 }
