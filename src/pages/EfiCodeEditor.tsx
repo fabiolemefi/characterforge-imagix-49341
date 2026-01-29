@@ -506,6 +506,7 @@ export default function EfiCodeEditor() {
                 }}
               >
                 <UnifiedIframe
+                  key={`iframe-${blocks.reduce((acc, b) => acc + b.html.length, 0)}`}
                   blocks={blocks}
                   globalCss={globalCss}
                   selectedBlockId={selectedBlockId}
