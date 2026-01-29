@@ -345,6 +345,17 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
     if (enabled && selected && !isEditing) {
       originalTemplateRef.current = template;
       setIsEditing(true);
+      
+      // Ativar edição IMEDIATAMENTE via postMessage (não esperar useEffect)
+      requestAnimationFrame(() => {
+        const iframe = containerRef.current?.querySelector('iframe');
+        if (iframe?.contentWindow) {
+          iframe.contentWindow.postMessage(
+            { type: 'eficode-set-editable', editable: true },
+            '*'
+          );
+        }
+      });
     }
     
     // Restaurar scroll após micro-tarefa (após React processar)

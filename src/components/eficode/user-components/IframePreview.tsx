@@ -109,20 +109,31 @@ export const IframePreview = ({
       sendHeight();
     });
     
-    // Detectar quando perde o foco
+    // Blur com delay para evitar race condition
+    let blurTimer;
     document.body.addEventListener('blur', () => {
       if (!editMode) return;
       clearTimeout(debounceTimer);
-      window.parent.postMessage({ 
-        type: 'eficode-edit-end',
-        html: document.body.innerHTML 
-      }, '*');
+      clearTimeout(blurTimer);
+      
+      blurTimer = setTimeout(() => {
+        window.parent.postMessage({ 
+          type: 'eficode-edit-end',
+          html: document.body.innerHTML 
+        }, '*');
+      }, 150);
+    });
+    
+    // Cancelar blur timer se receber foco novamente
+    document.body.addEventListener('focus', () => {
+      clearTimeout(blurTimer);
     });
     
     // Escape para sair do modo de edição
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && editMode) {
         clearTimeout(debounceTimer);
+        clearTimeout(blurTimer);
         window.parent.postMessage({ 
           type: 'eficode-edit-end',
           html: document.body.innerHTML 
@@ -130,8 +141,8 @@ export const IframePreview = ({
       }
     });
     
-    // Cliques (só propaga quando não está editando)
-    document.body.addEventListener('click', (e) => {
+    // Mousedown para capturar clique (antes do focus)
+    document.body.addEventListener('mousedown', (e) => {
       if (!editMode) {
         window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
       }
@@ -191,19 +202,12 @@ export const IframePreview = ({
           margin: 0,
           padding: 0,
           overflow: 'hidden',
-          pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
+          pointerEvents: 'auto', // Sempre permitir interação
         }}
         title="HTML Preview"
         sandbox="allow-scripts allow-same-origin"
       />
-      {/* Overlay invisível para capturar cliques quando NÃO está em modo de edição */}
-      {!editable && onClick && (
-        <div 
-          className="absolute inset-0 cursor-pointer" 
-          onClick={onClick}
-          style={{ background: 'transparent' }}
-        />
-      )}
+      {/* Overlay removido - cliques vão direto para o iframe */}
     </div>
   );
 };
