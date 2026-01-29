@@ -9,6 +9,7 @@ import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sendToExtension, checkExtensionInstalled } from '@/lib/extensionProxy';
+import { IframePreview } from './IframePreview';
 
 // Helper to convert blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -361,6 +362,27 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
     }
   }, [selected]);
 
+  // Handler para mudanças de HTML vindas do IframePreview em modo editável
+  const handleIframeHtmlChange = useCallback((newHtml: string) => {
+    // Atualização em tempo real durante edição (opcional)
+  }, []);
+
+  // Handler para quando a edição no iframe termina
+  const handleIframeEditEnd = useCallback((newHtml: string) => {
+    if (newHtml) {
+      const normalized = normalizeHtml(newHtml);
+      const currentNormalized = normalizeHtml(template);
+      
+      if (normalized !== currentNormalized) {
+        setProp((props: any) => {
+          props.htmlTemplate = normalized;
+          props.html = normalized;
+        });
+      }
+    }
+    setIsEditing(false);
+  }, [template, setProp]);
+
   return (
     <div
       ref={(ref) => {
@@ -370,20 +392,24 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
       }}
       className={`relative ${className}`}
       style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
-      onClick={handleContainerClick}
     >
-      <div
-        ref={containerRef}
-        contentEditable={isEditing}
-        suppressContentEditableWarning={true}
-        dangerouslySetInnerHTML={{ __html: template }}
-        onBlur={handleBlur}
-        className={isEditing ? 'outline-2 outline-primary outline-offset-2' : ''}
-        style={{ 
-          cursor: enabled ? (isEditing ? 'text' : 'pointer') : 'default',
-          minHeight: '20px'
-        }}
-      />
+      {isEditing ? (
+        // Modo edição: contentEditable dentro do iframe isolado
+        <IframePreview
+          html={template}
+          editable={true}
+          onHtmlChange={handleIframeHtmlChange}
+          onEditEnd={handleIframeEditEnd}
+          minHeight={50}
+        />
+      ) : (
+        // Modo preview: IframePreview com CSS global isolado (sem edição)
+        <IframePreview
+          html={template}
+          onClick={handleContainerClick}
+          minHeight={50}
+        />
+      )}
     </div>
   );
 };

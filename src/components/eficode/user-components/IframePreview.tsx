@@ -4,7 +4,7 @@ import { useEfiCodeContext } from '@/components/eficode/EfiCodeContext';
 interface IframePreviewProps {
   html: string;
   className?: string;
-  onClick?: () => void;
+  onClick?: (e?: React.MouseEvent) => void;
   minHeight?: number;
   editable?: boolean;
   onHtmlChange?: (html: string) => void;
