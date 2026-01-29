@@ -190,56 +190,16 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         return;
       }
       
-      // Check if clicked on a link or button
-      const link = e.target.closest('a');
-      const button = e.target.closest('button');
-      
-      if ((link || button) && block) {
+      // FIRST: Check if clicked DIRECTLY on an image (even inside a link)
+      // This ensures image clicks always open image modal, not link modal
+      if (e.target.tagName === 'IMG' && block) {
         e.stopPropagation();
-        e.preventDefault(); // Prevent navigation
+        e.preventDefault();
         
-        const element = link || button;
-        const elementType = link ? 'link' : 'button';
-        const href = element.getAttribute('href');
-        const targetAttr = element.getAttribute('target');
-        const text = element.textContent || '';
-        const blockId = block.dataset.blockId;
-        
-        // Check for inner images/icons
-        const innerImg = element.querySelector('img');
-        const innerSvg = element.querySelector('svg');
-        const hasInnerImage = !!innerImg || !!innerSvg;
-        const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
-        
-        // Find occurrence index
-        const selector = elementType === 'link' ? 'a' : 'button';
-        const allElements = Array.from(block.querySelectorAll(selector));
-        const occurrenceIndex = allElements.indexOf(element);
-        
-        window.parent.postMessage({
-          type: 'eficode-link-click',
-          blockId: blockId,
-          elementType: elementType,
-          href: href,
-          text: text,
-          target: targetAttr,
-          occurrenceIndex: occurrenceIndex,
-          hasInnerImage: hasInnerImage,
-          innerImageSrc: innerImageSrc
-        }, '*');
-        
-        return;
-      }
-      
-      // Check if clicked on an image (not in editing mode)
-      const img = e.target.closest('img');
-      const picture = e.target.closest('picture');
-      
-      if (img && block) {
-        e.stopPropagation();
-        
+        const img = e.target;
         const blockId = block.dataset.blockId;
         const imgSrc = img.getAttribute('src');
+        const picture = img.closest('picture');
         
         // Find the occurrence index of this image among all images with the same src
         const allImgs = Array.from(block.querySelectorAll('img'));
@@ -277,6 +237,47 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
             occurrenceIndex: occurrenceIndex
           }, '*');
         }
+        
+        return; // Don't continue to link/button detection
+      }
+      
+      // SECOND: Check if clicked on a link or button (but NOT on an image inside it)
+      const link = e.target.closest('a');
+      const button = e.target.closest('button');
+      
+      if ((link || button) && block) {
+        e.stopPropagation();
+        e.preventDefault(); // Prevent navigation
+        
+        const element = link || button;
+        const elementType = link ? 'link' : 'button';
+        const href = element.getAttribute('href');
+        const targetAttr = element.getAttribute('target');
+        const text = element.textContent || '';
+        const blockId = block.dataset.blockId;
+        
+        // Check for inner images/icons (useful for "Change Icon" button)
+        const innerImg = element.querySelector('img');
+        const innerSvg = element.querySelector('svg');
+        const hasInnerImage = !!innerImg || !!innerSvg;
+        const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
+        
+        // Find occurrence index
+        const selector = elementType === 'link' ? 'a' : 'button';
+        const allElements = Array.from(block.querySelectorAll(selector));
+        const occurrenceIndex = allElements.indexOf(element);
+        
+        window.parent.postMessage({
+          type: 'eficode-link-click',
+          blockId: blockId,
+          elementType: elementType,
+          href: href,
+          text: text,
+          target: targetAttr,
+          occurrenceIndex: occurrenceIndex,
+          hasInnerImage: hasInnerImage,
+          innerImageSrc: innerImageSrc
+        }, '*');
         
         return;
       }
