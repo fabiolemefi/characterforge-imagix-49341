@@ -93,6 +93,18 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       font-style: italic;
     }
     
+    /* Clickable images indicator */
+    .efi-block:not(.editing) img {
+      cursor: pointer;
+      transition: outline 0.15s ease, opacity 0.15s ease;
+    }
+    
+    .efi-block:not(.editing) img:hover {
+      outline: 2px solid #8b5cf6;
+      outline-offset: 2px;
+      opacity: 0.9;
+    }
+    
     /* Edit mode indicator */
     #edit-mode-indicator {
       position: fixed;
@@ -155,7 +167,52 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
     
     // Handle clicks on blocks
     document.addEventListener('click', function(e) {
+      // Check if clicked on an image (not in editing mode)
+      const img = e.target.closest('img');
+      const picture = e.target.closest('picture');
       const block = e.target.closest('[data-block-id]');
+      
+      // If block is in editing mode, don't intercept image clicks
+      if (block && block.classList.contains('editing')) {
+        return;
+      }
+      
+      if (img && block) {
+        e.stopPropagation();
+        
+        const blockId = block.dataset.blockId;
+        const imgSrc = img.getAttribute('src');
+        
+        // If inside a picture element, collect all sources
+        if (picture) {
+          const sources = Array.from(picture.querySelectorAll('source')).map(function(s) {
+            return {
+              src: s.getAttribute('srcset'),
+              media: s.getAttribute('media'),
+              tagType: 'source'
+            };
+          });
+          sources.push({ src: imgSrc, media: null, tagType: 'img' });
+          
+          window.parent.postMessage({
+            type: 'eficode-image-click',
+            blockId: blockId,
+            imageSrc: imgSrc,
+            isPicture: true,
+            sources: sources
+          }, '*');
+        } else {
+          // Simple image
+          window.parent.postMessage({
+            type: 'eficode-image-click',
+            blockId: blockId,
+            imageSrc: imgSrc,
+            isPicture: false
+          }, '*');
+        }
+        
+        return;
+      }
       
       if (block) {
         const blockId = block.dataset.blockId;
