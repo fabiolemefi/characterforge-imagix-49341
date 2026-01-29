@@ -24,6 +24,22 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const editingBlockIdRef = useRef<string | null>(null);
+  const scrollPositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const prevSrcDocRef = useRef<string>('');
+
+  // Save scroll position before render (runs synchronously before DOM updates)
+  const saveScrollPosition = useCallback(() => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        scrollPositionRef.current = {
+          x: iframeRef.current.contentWindow.scrollX || 0,
+          y: iframeRef.current.contentWindow.scrollY || 0
+        };
+      } catch (e) {
+        // Cross-origin or not ready, ignore
+      }
+    }
+  }, []);
 
   // Generate srcDoc content
   const srcDoc = useMemo(() => {
@@ -401,7 +417,34 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
 </html>`;
   }, [blocks, globalCss, selectedBlockId, themeMode]);
 
-  // Handle messages from iframe
+  // Save scroll position before srcDoc changes, restore after load
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    // Save current scroll position before iframe reloads
+    saveScrollPosition();
+
+    const handleLoad = () => {
+      // Only restore if we had a previous position
+      if (prevSrcDocRef.current !== '' && (scrollPositionRef.current.y > 0 || scrollPositionRef.current.x > 0)) {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.scrollTo(
+              scrollPositionRef.current.x,
+              scrollPositionRef.current.y
+            );
+          } catch (e) {
+            // Cross-origin or not ready, ignore
+          }
+        }, 10);
+      }
+      prevSrcDocRef.current = srcDoc;
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    return () => iframe.removeEventListener('load', handleLoad);
+  }, [srcDoc, saveScrollPosition]);
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
