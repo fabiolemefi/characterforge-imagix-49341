@@ -24,8 +24,15 @@ import { Toolbox } from '@/components/eficode/editor/Toolbox';
 import { SettingsPanel } from '@/components/eficode/editor/SettingsPanel';
 import { UnifiedIframe } from '@/components/eficode/editor/UnifiedIframe';
 import { BlockList } from '@/components/eficode/editor/BlockList';
+import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { generateFullHtml } from '@/lib/efiCodeHtmlGenerator';
 import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
+
+interface ImageSource {
+  src: string;
+  media: string | null;
+  tagType: 'source' | 'img';
+}
 
 type ViewMode = 'visual' | 'code';
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
@@ -72,6 +79,15 @@ export default function EfiCodeEditor() {
   const [hasEditorChanges, setHasEditorChanges] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // State for direct image editing from preview
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [editingImageContext, setEditingImageContext] = useState<{
+    blockId: string;
+    imageSrc: string;
+    isPicture: boolean;
+    sources?: ImageSource[];
+  } | null>(null);
   
   // Refs for original values comparison
   const originalSiteNameRef = useRef<string>('');
@@ -290,6 +306,71 @@ export default function EfiCodeEditor() {
   const handleBlockEdit = useCallback((blockId: string, newHtml: string) => {
     updateBlockHtml(blockId, newHtml);
   }, [updateBlockHtml]);
+
+  // Handle image click from preview iframe
+  const handleImageClick = useCallback((
+    blockId: string, 
+    imageSrc: string, 
+    isPicture: boolean, 
+    sources?: ImageSource[]
+  ) => {
+    selectBlock(blockId);
+    setEditingImageContext({ blockId, imageSrc, isPicture, sources });
+    setImagePickerOpen(true);
+  }, [selectBlock]);
+
+  // Handle image selection from modal
+  const handleImageSelect = useCallback((image: { url: string; name?: string }) => {
+    if (!editingImageContext) return;
+    
+    const block = blocks.find(b => b.id === editingImageContext.blockId);
+    if (!block) return;
+    
+    let newHtml = block.html;
+    
+    if (editingImageContext.sources && editingImageContext.sources.length > 0) {
+      // Replace all sources in picture element
+      for (const source of editingImageContext.sources) {
+        if (!source.src) continue;
+        const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const attr = source.tagType === 'source' ? 'srcset' : 'src';
+        const regex = new RegExp(`(<${source.tagType}[^>]*${attr}=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+        newHtml = newHtml.replace(regex, `$1${image.url}$2`);
+      }
+    } else {
+      // Replace single image
+      const escapedSrc = editingImageContext.imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+      newHtml = newHtml.replace(regex, `$1${image.url}$2`);
+    }
+    
+    if (newHtml !== block.html) {
+      updateBlockHtml(editingImageContext.blockId, newHtml);
+      toast.success('Imagem atualizada!');
+    }
+    
+    setImagePickerOpen(false);
+    setEditingImageContext(null);
+  }, [editingImageContext, blocks, updateBlockHtml]);
+
+  // Listen for image click messages from iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') return;
+      
+      if (event.data.type === 'eficode-image-click') {
+        handleImageClick(
+          event.data.blockId,
+          event.data.imageSrc,
+          event.data.isPicture,
+          event.data.sources
+        );
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [handleImageClick]);
 
   // Block list handlers
   const handleMoveUp = useCallback((blockId: string) => {
@@ -603,12 +684,22 @@ export default function EfiCodeEditor() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handlePreviewConfirm}>
-              Salvar e Abrir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <AlertDialogAction onClick={handlePreviewConfirm}>
+            Salvar e Abrir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Image Picker Modal for direct image editing */}
+    <ImagePickerModal
+      open={imagePickerOpen}
+      onOpenChange={(open) => {
+        setImagePickerOpen(open);
+        if (!open) setEditingImageContext(null);
+      }}
+      onSelectImage={handleImageSelect}
+    />
     </div>
   );
 }
