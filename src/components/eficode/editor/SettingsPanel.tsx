@@ -19,33 +19,43 @@ interface BlockImage {
   alt: string;
 }
 
-// Extract images from HTML (preservando estrutura)
+// Extract images from HTML (usando regex para evitar alterações na estrutura)
 const extractImages = (html: string): BlockImage[] => {
-  const template = document.createElement('template');
-  template.innerHTML = html.trim();
+  const images: BlockImage[] = [];
+  const imgRegex = /<img\s+[^>]*?src=(["'])([^"']*)\1[^>]*>/gi;
+  let match;
+  let index = 0;
   
-  const imgs = template.content.querySelectorAll('img');
-  return Array.from(imgs).map((img, i) => ({
-    index: i,
-    src: img.getAttribute('src') || '',
-    alt: img.getAttribute('alt') || ''
-  }));
-};
-
-// Replace image in HTML at specific index (preservando estrutura)
-const replaceImage = (html: string, index: number, newSrc: string): string => {
-  const template = document.createElement('template');
-  template.innerHTML = html.trim();
-  
-  const imgs = template.content.querySelectorAll('img');
-  if (imgs[index]) {
-    imgs[index].setAttribute('src', newSrc);
+  while ((match = imgRegex.exec(html)) !== null) {
+    const fullMatch = match[0];
+    const src = match[2];
+    // Extract alt attribute if present
+    const altMatch = fullMatch.match(/alt=(["'])([^"']*)\1/i);
+    const alt = altMatch ? altMatch[2] : '';
+    
+    images.push({ index, src, alt });
+    index++;
   }
   
-  // Converter de volta para HTML string
-  const container = document.createElement('div');
-  container.appendChild(template.content.cloneNode(true));
-  return container.innerHTML;
+  return images;
+};
+
+// Replace image in HTML at specific index (usando regex para preservar estrutura original)
+const replaceImage = (html: string, index: number, newSrc: string): string => {
+  let currentIndex = 0;
+  
+  // Regex que captura <img ... src="..." ...> preservando atributos
+  return html.replace(
+    /<img\s+([^>]*?)src=(["'])([^"']*)\2([^>]*)>/gi,
+    (match, before, quote, currentSrc, after) => {
+      if (currentIndex === index) {
+        currentIndex++;
+        return `<img ${before}src=${quote}${newSrc}${quote}${after}>`;
+      }
+      currentIndex++;
+      return match;
+    }
+  );
 };
 
 export const SettingsPanel = () => {
@@ -69,11 +79,26 @@ export const SettingsPanel = () => {
 
   // Handle image replacement
   const handleImageSelect = (image: { url: string; name?: string }) => {
+    console.log('[SettingsPanel] Selecionando imagem:', image.url);
+    
     if (selectedBlock && editingImageIndex !== null) {
-      const newHtml = replaceImage(selectedBlock.html, editingImageIndex, image.url);
-      updateBlockHtml(selectedBlock.id, newHtml);
-      toast.success('Imagem atualizada!');
+      const originalHtml = selectedBlock.html;
+      const newHtml = replaceImage(originalHtml, editingImageIndex, image.url);
+      
+      console.log('[SettingsPanel] Index:', editingImageIndex);
+      console.log('[SettingsPanel] Original HTML length:', originalHtml.length);
+      console.log('[SettingsPanel] New HTML length:', newHtml.length);
+      console.log('[SettingsPanel] HTML changed:', originalHtml !== newHtml);
+      
+      if (originalHtml !== newHtml) {
+        updateBlockHtml(selectedBlock.id, newHtml);
+        toast.success('Imagem atualizada!');
+      } else {
+        console.error('[SettingsPanel] ERRO: HTML não foi modificado!');
+        toast.error('Erro ao atualizar imagem');
+      }
     }
+    
     setImagePickerOpen(false);
     setEditingImageIndex(null);
   };
