@@ -78,6 +78,7 @@ export default function EfiCodeEditor() {
   const [viewportSize, setViewportSize] = useState<ViewportSize>('xl');
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [codeContent, setCodeContent] = useState<string>('');
+  const [newlyAddedBlockId, setNewlyAddedBlockId] = useState<string | null>(null);
   
   // State for tracking unsaved changes
   const [hasEditorChanges, setHasEditorChanges] = useState(false);
@@ -307,6 +308,29 @@ export default function EfiCodeEditor() {
     setShowPreviewDialog(false);
     await handleSave();
   }, [handleSave]);
+
+  // Handle adding a new block with scroll
+  const handleAddBlock = useCallback((html: string, afterId?: string) => {
+    // Get current block count to detect new block ID
+    const currentBlockIds = new Set(blocks.map(b => b.id));
+    
+    // Add the block
+    addBlock(html, afterId);
+    
+    // Use a microtask to detect the new block ID after state update
+    setTimeout(() => {
+      const newBlocks = useEfiCodeEditorStore.getState().blocks;
+      const newBlock = newBlocks.find(b => !currentBlockIds.has(b.id));
+      if (newBlock) {
+        setNewlyAddedBlockId(newBlock.id);
+      }
+    }, 0);
+  }, [blocks, addBlock]);
+
+  // Clear newly added block ID after scroll completes
+  const handleScrollComplete = useCallback(() => {
+    setNewlyAddedBlockId(null);
+  }, []);
 
   // Block interaction handlers
   const handleBlockClick = useCallback((blockId: string) => {
@@ -733,7 +757,7 @@ export default function EfiCodeEditor() {
             <Toolbox 
               pageSettings={pageSettings} 
               onPageSettingsChange={setPageSettings}
-              onAddBlock={addBlock}
+              onAddBlock={handleAddBlock}
             />
           </ScrollArea>
         </aside>
@@ -772,9 +796,11 @@ export default function EfiCodeEditor() {
                   selectedBlockId={selectedBlockId}
                   viewportWidth="100%"
                   themeMode={themeMode}
+                  scrollToBlockId={newlyAddedBlockId}
                   onBlockClick={handleBlockClick}
                   onBlockDoubleClick={handleBlockDoubleClick}
                   onBlockEdit={handleBlockEdit}
+                  onScrollComplete={handleScrollComplete}
                 />
               </div>
             </div>
