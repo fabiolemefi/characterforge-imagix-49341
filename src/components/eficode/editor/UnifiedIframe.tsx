@@ -426,7 +426,6 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       style={{
         width: viewportWidth,
         minHeight: '100%',
-        background: 'white',
       }}
       sandbox="allow-scripts allow-same-origin"
       title="Efi Code Editor Preview"
