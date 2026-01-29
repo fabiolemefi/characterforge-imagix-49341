@@ -318,7 +318,13 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const wasEditingRef = useRef(false); // Rastrear estado de edição independente do ciclo React
   const processingEditEnd = useRef(false);
+  
+  // Manter ref sincronizada com estado
+  useEffect(() => {
+    wasEditingRef.current = isEditing;
+  }, [isEditing]);
   
   // Extrair valores de nodeProps para reatividade correta
   const html = nodeProps?.html;
@@ -344,6 +350,7 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
     // Depois, se já estava selecionado, ativar modo de edição inline
     if (enabled && selected && !isEditing) {
       originalTemplateRef.current = template;
+      wasEditingRef.current = true; // Marcar antes do state para garantir captura
       setIsEditing(true);
       
       // Ativar edição IMEDIATAMENTE via postMessage (não esperar useEffect)
@@ -410,10 +417,14 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
 
   // Handler para quando a edição no iframe termina - com proteção contra duplicatas
   const handleIframeEditEnd = useCallback((newHtml: string) => {
-    // Ignorar se já estamos processando ou se não estamos editando
-    if (processingEditEnd.current || !isEditing) return;
+    // Ignorar se já estamos processando
+    if (processingEditEnd.current) return;
+    
+    // Usar wasEditingRef para verificar (não depender do state que pode estar desatualizado)
+    if (!wasEditingRef.current && !isEditing) return;
     
     processingEditEnd.current = true;
+    wasEditingRef.current = false; // Reset
     
     if (newHtml) {
       const normalized = normalizeHtml(newHtml);

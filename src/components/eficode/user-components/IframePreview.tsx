@@ -24,6 +24,7 @@ export const IframePreview = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(minHeight);
   const lastHeightRef = useRef(minHeight);
+  const prevHtmlRef = useRef(html);
 
   // Build the complete HTML document for the iframe - memoizado
   // editable removido das dependências - controlado via postMessage
@@ -98,6 +99,12 @@ export const IframePreview = ({
         }
         document.body.contentEditable = editMode ? 'true' : 'false';
         if (editMode) document.body.focus({ preventScroll: true });
+      }
+      
+      // Atualizar conteúdo quando receber nova versão do parent (sem recriar iframe)
+      if (e.data?.type === 'eficode-update-content') {
+        document.body.innerHTML = e.data.html;
+        sendHeight();
       }
     });
     
@@ -201,6 +208,17 @@ export const IframePreview = ({
       );
     }
   }, [editable]);
+  
+  // Atualizar conteúdo do iframe quando html muda externamente (sem recriar)
+  useEffect(() => {
+    if (html !== prevHtmlRef.current && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        { type: 'eficode-update-content', html },
+        '*'
+      );
+      prevHtmlRef.current = html;
+    }
+  }, [html]);
 
   return (
     <div className={`relative w-full ${className}`}>
