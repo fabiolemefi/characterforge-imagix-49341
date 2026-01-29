@@ -23,30 +23,10 @@ export const IframePreview = ({
   const { globalCss } = useEfiCodeContext();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(minHeight);
-  
-  // Ref para armazenar o HTML "travado" durante edição
-  // Isso evita recriação do srcdoc enquanto o usuário edita
-  const lockedHtmlRef = useRef<string | null>(null);
-  
-  // Quando entra em modo de edição, travar o HTML atual
-  // Quando sai, liberar
-  useEffect(() => {
-    if (editable) {
-      lockedHtmlRef.current = html;
-    } else {
-      lockedHtmlRef.current = null;
-    }
-  }, [editable]); // Propositalmente não inclui html como dependência
-  
-  // Usar o HTML "travado" durante edição para evitar recriação do iframe
-  const stableHtml = useMemo(() => {
-    if (editable && lockedHtmlRef.current !== null) {
-      return lockedHtmlRef.current;
-    }
-    return html;
-  }, [editable, html]);
+  const lastHeightRef = useRef(minHeight);
 
   // Build the complete HTML document for the iframe - memoizado
+  // editable removido das dependências - controlado via postMessage
   const srcdoc = useMemo(() => `
 <!DOCTYPE html>
 <html style="width: 100%; height: auto;">
@@ -88,9 +68,9 @@ export const IframePreview = ({
   </style>
 </head>
 <body>
-  ${stableHtml}
+  ${html}
   <script>
-    const EDITABLE_MODE = ${editable};
+    let editMode = false;
     
     // Comunicar altura para o parent
     function sendHeight() {
@@ -106,60 +86,71 @@ export const IframePreview = ({
     window.addEventListener('load', sendHeight);
     sendHeight();
     
-    if (EDITABLE_MODE) {
-      // Ativar modo de edição
-      document.body.contentEditable = 'true';
-      document.body.focus();
-      
-      // Enviar mudanças de HTML para o parent com debounce
-      let debounceTimer;
-      document.body.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          window.parent.postMessage({ 
-            type: 'eficode-html-change', 
-            html: document.body.innerHTML 
-          }, '*');
-        }, 100);
-        sendHeight();
-      });
-      
-      // Detectar quando perde o foco
-      document.body.addEventListener('blur', () => {
+    // Escutar comandos do parent para controlar edição
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'eficode-set-editable') {
+        editMode = e.data.editable;
+        document.body.contentEditable = editMode ? 'true' : 'false';
+        if (editMode) document.body.focus();
+      }
+    });
+    
+    // Input handling (sempre configurado, só funciona quando editMode=true)
+    let debounceTimer;
+    document.body.addEventListener('input', () => {
+      if (!editMode) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        window.parent.postMessage({ 
+          type: 'eficode-html-change', 
+          html: document.body.innerHTML 
+        }, '*');
+      }, 100);
+      sendHeight();
+    });
+    
+    // Detectar quando perde o foco
+    document.body.addEventListener('blur', () => {
+      if (!editMode) return;
+      clearTimeout(debounceTimer);
+      window.parent.postMessage({ 
+        type: 'eficode-edit-end',
+        html: document.body.innerHTML 
+      }, '*');
+    });
+    
+    // Escape para sair do modo de edição
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && editMode) {
         clearTimeout(debounceTimer);
         window.parent.postMessage({ 
           type: 'eficode-edit-end',
           html: document.body.innerHTML 
         }, '*');
-      });
-      
-      // Escape para sair do modo de edição
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          clearTimeout(debounceTimer);
-          window.parent.postMessage({ 
-            type: 'eficode-edit-end',
-            html: document.body.innerHTML 
-          }, '*');
-        }
-      });
-    } else {
-      // Propagar cliques para o parent apenas em modo não editável
-      document.body.addEventListener('click', (e) => {
+      }
+    });
+    
+    // Cliques (só propaga quando não está editando)
+    document.body.addEventListener('click', (e) => {
+      if (!editMode) {
         window.parent.postMessage({ type: 'eficode-iframe-click' }, '*');
-      });
-    }
+      }
+    });
   </script>
 </body>
 </html>
-  `, [globalCss, stableHtml, editable]);
+  `, [globalCss, html]); // editable removido - controlado via postMessage
 
   // Listen for messages from the iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'eficode-iframe-height') {
         const newHeight = Math.max(event.data.height, minHeight);
-        setHeight(newHeight);
+        // Só atualiza se realmente mudou para evitar re-renders
+        if (newHeight !== lastHeightRef.current) {
+          lastHeightRef.current = newHeight;
+          setHeight(newHeight);
+        }
       }
       if (event.data?.type === 'eficode-iframe-click') {
         onClick?.();
@@ -176,10 +167,13 @@ export const IframePreview = ({
     return () => window.removeEventListener('message', handleMessage);
   }, [onClick, minHeight, onHtmlChange, onEditEnd]);
 
-  // Focus iframe when entering edit mode
+  // Enviar mensagem para ativar/desativar edição (sem recriar iframe)
   useEffect(() => {
-    if (editable && iframeRef.current) {
-      iframeRef.current.focus();
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        { type: 'eficode-set-editable', editable },
+        '*'
+      );
     }
   }, [editable]);
 
