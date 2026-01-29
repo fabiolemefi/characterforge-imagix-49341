@@ -1,5 +1,4 @@
-import { useState, useRef } from 'react';
-import ContentEditable from 'react-contenteditable';
+import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Bold, Italic, Heading1, Heading2, List, ListOrdered } from 'lucide-react';
 
@@ -12,19 +11,22 @@ interface InlineTextEditorProps {
 
 export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: InlineTextEditorProps) => {
   const [showToolbar, setShowToolbar] = useState(false);
-  const contentRef = useRef(value);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const handleChange = (evt: any) => {
-    contentRef.current = evt.target.value;
-    onChange(evt.target.value);
-  };
+  const handleInput = useCallback(() => {
+    if (contentRef.current) {
+      onChange(contentRef.current.innerHTML);
+    }
+  }, [onChange]);
 
-  const executeCommand = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
+  const executeCommand = (command: string, val?: string) => {
+    document.execCommand(command, false, val);
+    handleInput();
   };
 
   const formatBlock = (tag: string) => {
     document.execCommand('formatBlock', false, tag);
+    handleInput();
   };
 
   if (disabled) {
@@ -103,14 +105,15 @@ export const InlineTextEditor = ({ value, onChange, placeholder, disabled }: Inl
         </div>
       )}
       
-      <ContentEditable
-        html={contentRef.current}
-        disabled={disabled}
-        onChange={handleChange}
+      <div
+        ref={contentRef}
+        contentEditable
+        onInput={handleInput}
         onFocus={() => setShowToolbar(true)}
         onBlur={() => setTimeout(() => setShowToolbar(false), 200)}
+        dangerouslySetInnerHTML={{ __html: value }}
         className="prose prose-lg max-w-none min-h-[40px] rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_h1]:text-6xl [&_h1]:font-bold [&_h1]:mb-8 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:mb-4 [&_h2]:pr-32 [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1"
-        tagName="div"
+        data-placeholder={placeholder}
       />
     </div>
   );
