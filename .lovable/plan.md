@@ -1,130 +1,68 @@
 
-
-# Plano: Fazer o Conteúdo do Iframe Ocupar Toda a Área do Editor
+# Plano: Fazer Blocos Ocuparem Toda a Área do Editor
 
 ## Problema Identificado
 
-Analisando a imagem e o código, identifiquei a cadeia de elementos que precisa ser ajustada:
+Analisando a estrutura do editor, identifiquei que a cadeia de altura está quebrada:
 
 ```text
-main.flex-1.overflow-auto           ← Área principal do editor
-  └── div.efi-editor-viewport       ← Container com maxWidth
+main.flex-1.overflow-auto           ← OK: altura 100% do layout
+  └── div.efi-editor-viewport       ← PROBLEMA: só tem minHeight: 600px, não height: 100%
        └── Frame (Craft.js)
-            └── Element/Container   ← minHeight: 400, display: flex, flexDirection: column
-                 └── HtmlBlock      ← w-full (largura OK, mas altura não)
-                      └── IframePreview ← height baseada no conteúdo interno
-                           └── iframe   ← Só ocupa a altura do HTML
+            └── Container ROOT      ← height: 100%, mas 100% de nada definido!
+                 └── HtmlBlock      ← flex-1 (tentando expandir, mas não tem espaço)
 ```
 
-O problema é que o HtmlBlock/IframePreview não está expandindo para ocupar toda a altura disponível do Container pai.
+O viewport container não tem `height: 100%` ou `h-full`, então quando um bloco é arrastado, ele não expande para ocupar toda a área visível porque o Container ROOT não tem uma altura real para herdar.
 
 ## Solução
 
-Modificar a cadeia de componentes para que os elementos filhos ocupem 100% do espaço disponível:
+Adicionar `h-full` (ou altura 100%) à div `efi-editor-viewport` para que a cadeia de altura funcione corretamente do topo até o HtmlBlock.
 
-### 1. Container.tsx - Adicionar `flex-1` e `min-height`
-O Container ROOT precisa permitir que seus filhos expandam verticalmente.
-
-### 2. HtmlBlock.tsx - Adicionar `h-full` ao wrapper
-O wrapper do HtmlBlock precisa ocupar toda a altura disponível.
-
-### 3. IframePreview.tsx - Adicionar `h-full` e ajustar altura do iframe
-O wrapper do IframePreview precisa herdar a altura do pai, e o iframe precisa ocupar essa altura.
-
-### 4. EditorFrame - Ajustar Container ROOT
-O Container ROOT no EditorFrame precisa ter `alignItems: 'stretch'` e `min-height` adequado.
-
-## Alterações Detalhadas
-
-### Arquivo: `src/components/eficode/user-components/IframePreview.tsx`
-
-| Linha | Alteração |
-|-------|-----------|
-| 186 | Adicionar `h-full` à div wrapper e `flex flex-col` |
-| 191-192 | Mudar altura do iframe para `flex-1` ou `100%` |
-
-```tsx
-// Antes
-<div className={`relative ${className}`} style={{ minHeight: `${minHeight}px` }}>
-  <iframe ... style={{ height: `${height}px`, ... }} />
-
-// Depois  
-<div className={`relative h-full flex flex-col ${className}`} style={{ minHeight: `${minHeight}px` }}>
-  <iframe ... style={{ flex: 1, minHeight: `${height}px`, ... }} />
-```
-
-### Arquivo: `src/components/eficode/user-components/HtmlBlock.tsx`
-
-| Linha | Alteração |
-|-------|-----------|
-| 393 | Adicionar `h-full flex-1` ao wrapper |
-
-```tsx
-// Antes
-className={`relative w-full ${className}`}
-
-// Depois
-className={`relative w-full h-full flex-1 flex flex-col ${className}`}
-```
+## Alterações
 
 ### Arquivo: `src/pages/EfiCodeEditor.tsx`
 
-| Linha | Alteração |
-|-------|-----------|
-| 500 | Adicionar props para forçar filhos a esticarem |
+| Linha | De | Para |
+|-------|-----|------|
+| ~346 | `className="mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport"` | `className="mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport h-full"` |
+
+### Código Específico
 
 ```tsx
-// Antes
-<Element is={Container} canvas background="transparent" padding={0} minHeight={400} />
+// Antes (linha ~345-356)
+<div 
+  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
+  style={{
+    minHeight: '600px',
+    maxWidth: ...
+  }}
+>
 
 // Depois
-<Element 
-  is={Container} 
-  canvas 
-  background="transparent" 
-  padding={0} 
-  minHeight={400}
-  alignItems="stretch"
-/>
-```
-
-### Arquivo: `src/components/eficode/user-components/Container.tsx`
-
-| Linha | Alteração |
-|-------|-----------|
-| 34-48 | Adicionar `height: '100%'` quando for ROOT ou canvas |
-
-```tsx
-// Antes
-style={{
-  minHeight,
-  display: 'flex',
-  ...
-}}
-
-// Depois
-style={{
-  minHeight,
-  height: '100%',
-  display: 'flex',
-  ...
-}}
+<div 
+  className={`mx-auto overflow-hidden transition-all duration-300 efi-editor-viewport h-full ${pageSettings.containerClasses || ''}`}
+  style={{
+    minHeight: '600px',
+    maxWidth: ...
+  }}
+>
 ```
 
 ## Resultado Esperado
 
-Após as alterações:
-- O Container ROOT ocupará toda a altura disponível do viewport
-- O HtmlBlock se expandirá para preencher o Container
-- O IframePreview ocupará toda a área do HtmlBlock
-- O iframe interno mostrará o conteúdo ocupando toda a área visível
+Após a alteração, a cadeia de altura funcionará corretamente:
 
-## Resumo de Arquivos
+```text
+main.flex-1.overflow-auto           ← altura do viewport
+  └── div.efi-editor-viewport.h-full ← AGORA: herda altura do pai
+       └── Frame (Craft.js)
+            └── Container ROOT      ← height: 100% funciona!
+                 └── HtmlBlock      ← flex-1 expande para preencher!
+```
+
+## Resumo
 
 | Arquivo | Linhas | Alteração |
 |---------|--------|-----------|
-| `IframePreview.tsx` | 186, 191 | Adicionar `h-full flex flex-col`, `flex: 1` no iframe |
-| `HtmlBlock.tsx` | 393 | Adicionar `h-full flex-1 flex flex-col` |
-| `EfiCodeEditor.tsx` | 500 | Adicionar `alignItems="stretch"` |
-| `Container.tsx` | 34-48 | Adicionar `height: '100%'` |
-
+| `EfiCodeEditor.tsx` | ~346 | Adicionar `h-full` à classe da div viewport |
