@@ -342,19 +342,21 @@ export default function EfiCodeEditor() {
               }} />
               
               {viewMode === 'visual' ? (
-                <div 
-                  className={`mx-auto transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
-                  style={{
-                    minHeight: '600px',
-                    maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
-                    width: viewportWidths[viewportSize],
-                    paddingTop: `${pageSettings.paddingTop || 0}px`,
-                    paddingBottom: `${pageSettings.paddingBottom || 0}px`,
-                    paddingLeft: `${pageSettings.paddingLeft || 0}px`,
-                    paddingRight: `${pageSettings.paddingRight || 0}px`,
-                  }}
-                >
-                  <EditorFrame editorState={editorState} />
+                <div className="min-h-full flex justify-center">
+                  <div 
+                    className={`transition-all duration-300 efi-editor-viewport ${pageSettings.containerClasses || ''}`}
+                    style={{
+                      minHeight: '600px',
+                      maxWidth: viewportSize === 'desktop' ? `${pageSettings.containerMaxWidth}px` : viewportWidths[viewportSize],
+                      width: viewportWidths[viewportSize],
+                      paddingTop: `${pageSettings.paddingTop || 0}px`,
+                      paddingBottom: `${pageSettings.paddingBottom || 0}px`,
+                      paddingLeft: `${pageSettings.paddingLeft || 0}px`,
+                      paddingRight: `${pageSettings.paddingRight || 0}px`,
+                    }}
+                  >
+                    <EditorFrame editorState={editorState} />
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex flex-col">
