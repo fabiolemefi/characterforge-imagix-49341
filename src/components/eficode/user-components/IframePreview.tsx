@@ -62,10 +62,11 @@ export const IframePreview = ({
       margin: 0;
       padding: 0;
       width: 100%;
-      min-height: 100%;
+      min-height: auto;
+      overflow: hidden;
     }
     body {
-      overflow-x: hidden;
+      overflow: hidden;
     }
     img, video, iframe {
       max-width: 100%;
@@ -93,7 +94,7 @@ export const IframePreview = ({
     
     // Comunicar altura para o parent
     function sendHeight() {
-      const height = document.body.scrollHeight;
+      const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
       window.parent.postMessage({ type: 'eficode-iframe-height', height }, '*');
     }
     
@@ -188,9 +189,11 @@ export const IframePreview = ({
         ref={iframeRef}
         srcDoc={srcdoc}
         className="w-full border-0 block mx-auto"
+        scrolling="no"
         style={{ 
           width: '100%',
           height: `${height}px`,
+          overflow: 'hidden',
           pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
         }}
         title="HTML Preview"
