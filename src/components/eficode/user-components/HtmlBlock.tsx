@@ -437,6 +437,7 @@ export const HtmlBlock = ({ className = '' }: HtmlBlockProps) => {
   return (
     <div
       ref={(ref) => {
+        containerRef.current = ref; // Manter referência para postMessage
         if (ref && enabled) {
           connect(drag(ref));
         }
