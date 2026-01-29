@@ -1,151 +1,168 @@
 
+# Plano: Remover Rolagem Vertical dos Iframes dos Blocos
 
-# Plano: Iframes Sem Limite de Altura e Centralizados
+## Problema Identificado
 
-## Problemas Identificados
+Analisando a screenshot e o código, vejo que cada bloco HTML renderiza em um iframe separado e esses iframes mostram scrollbars verticais. O problema está em múltiplos lugares:
 
-### 1. Iframes com Rolagem (Limite de Altura)
-O `IframePreview` define `minHeight` no wrapper e no iframe, mas o problema é que o iframe precisa expandir para o conteúdo sem limite superior:
+1. **Iframe não desabilita scrolling explicitamente**: Falta `scrolling="no"` no elemento `<iframe>`
+2. **CSS interno do iframe permite overflow**: O `<body>` dentro do iframe não tem `overflow: hidden`
+3. **Altura dinâmica pode ter delay**: A altura é comunicada via `postMessage`, mas o iframe pode mostrar scrollbar antes de receber a altura correta
 
-```tsx
-// Atual (IframePreview.tsx linha 186 e 191-194)
-<div style={{ minHeight: `${minHeight}px` }}>
-  <iframe style={{ minHeight: `${height}px` }} />
-</div>
+## Arquitetura Atual
+
+```text
+EfiCodeEditor.tsx
+  └── EditorFrame (linha 357)
+       └── Frame (Craft.js)
+            └── Container (canvas)
+                 └── HtmlBlock
+                      └── IframePreview ← Aqui está o problema
+                           └── <iframe srcDoc="...">
+                                └── <html>
+                                     └── <body> ← overflow não desabilitado
 ```
-
-A altura é calculada via `postMessage`, mas o wrapper ainda tem um `minHeight` que pode causar comportamento inconsistente.
-
-### 2. Iframes Alinhados à Esquerda
-O wrapper do IframePreview não tem centralização:
-```tsx
-<div className={`relative h-full flex flex-col ${className}`}>
-```
-
-Falta `mx-auto` para centralizar horizontalmente.
 
 ## Solução
 
-### Arquivo 1: `src/components/eficode/user-components/IframePreview.tsx`
+### Arquivo: `src/components/eficode/user-components/IframePreview.tsx`
 
-| Linha | Alteração |
-|-------|-----------|
-| 186 | Adicionar `mx-auto` e usar `height: auto` em vez de minHeight no wrapper |
-| 191-194 | Usar `height` dinâmico sem limite, remover `flex: 1` que força altura |
+#### Alteração 1: Adicionar `scrolling="no"` ao iframe (linha 190)
 
-**Código Antes (linhas 185-198):**
-```tsx
-return (
-  <div className={`relative h-full flex flex-col ${className}`} style={{ minHeight: `${minHeight}px` }}>
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcdoc}
-      className="w-full border-0 block"
-      style={{ 
-        flex: 1,
-        width: '100%',
-        minHeight: `${height}px`,
-        pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
-      }}
+| Antes | Depois |
+|-------|--------|
+| `<iframe ... className="w-full border-0 block mx-auto"` | `<iframe ... className="w-full border-0 block mx-auto" scrolling="no"` |
+
+#### Alteração 2: Desabilitar overflow no CSS interno (linhas 61-68)
+
+```css
+/* Antes */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+}
+body {
+  overflow-x: hidden;
+}
+
+/* Depois */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: auto; /* Mudou de 100% para auto */
+  overflow: hidden; /* Desabilitar scroll em ambos */
+}
+body {
+  overflow: hidden; /* Garantir que não haja scroll */
+}
 ```
 
-**Código Depois:**
-```tsx
-return (
-  <div className={`relative mx-auto w-full ${className}`}>
-    <iframe
-      ref={iframeRef}
-      srcDoc={srcdoc}
-      className="w-full border-0 block mx-auto"
-      style={{ 
-        width: '100%',
-        height: `${height}px`,
-        pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
-      }}
+#### Alteração 3: Garantir altura dinâmica (linha 95-97)
+
+Usar `offsetHeight` em vez de `scrollHeight` para calcular altura mais precisa:
+
+```javascript
+// Antes
+function sendHeight() {
+  const height = document.body.scrollHeight;
+  window.parent.postMessage({ type: 'eficode-iframe-height', height }, '*');
+}
+
+// Depois
+function sendHeight() {
+  // offsetHeight é mais preciso para altura visível
+  const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
+  window.parent.postMessage({ type: 'eficode-iframe-height', height }, '*');
+}
 ```
 
-Principais mudanças:
-- **Wrapper**: Remover `h-full flex flex-col` e `minHeight`, adicionar `mx-auto` para centralização
-- **Iframe**: Usar `height` (não `minHeight`), remover `flex: 1`, adicionar `mx-auto` na classe
+#### Alteração 4: Adicionar estilo CSS para overflow no iframe (linha 191-195)
 
-### Arquivo 2: `src/components/eficode/user-components/HtmlBlock.tsx`
-
-| Linha | Alteração |
-|-------|-----------|
-| 402 | Ajustar wrapper para centralizar conteúdo |
-| 412, 419 | Remover `minHeight` fixo dos IframePreview |
-
-**Código Antes (linhas 395-422):**
 ```tsx
-<div
-  ref={...}
-  className={`relative w-full h-full flex-1 flex flex-col ${className}`}
-  style={{ boxShadow: ... }}
->
-  {isEditing ? (
-    <IframePreview
-      ...
-      minHeight={50}
-    />
-  ) : (
-    <IframePreview
-      ...
-      minHeight={50}
-    />
-  )}
-</div>
+// Antes
+style={{ 
+  width: '100%',
+  height: `${height}px`,
+  pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
+}}
+
+// Depois
+style={{ 
+  width: '100%',
+  height: `${height}px`,
+  overflow: 'hidden',
+  pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
+}}
 ```
 
-**Código Depois:**
-```tsx
-<div
-  ref={...}
-  className={`relative w-full ${className}`}
-  style={{ boxShadow: ... }}
->
-  {isEditing ? (
-    <IframePreview
-      ...
-      minHeight={0}
-    />
-  ) : (
-    <IframePreview
-      ...
-      minHeight={0}
-    />
-  )}
-</div>
+## Código Final Completo
+
+### Linhas 61-69 (CSS interno do srcdoc):
+```css
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: auto;
+  overflow: hidden;
+}
+body {
+  overflow: hidden;
+}
 ```
 
-Principais mudanças:
-- Wrapper: Remover `h-full flex-1 flex flex-col` que forçam altura fixa
-- IframePreview: Usar `minHeight={0}` para permitir altura 100% do conteúdo
+### Linhas 94-98 (função sendHeight):
+```javascript
+function sendHeight() {
+  const height = Math.max(document.body.scrollHeight, document.body.offsetHeight);
+  window.parent.postMessage({ type: 'eficode-iframe-height', height }, '*');
+}
+```
+
+### Linhas 187-198 (elemento iframe):
+```tsx
+<iframe
+  ref={iframeRef}
+  srcDoc={srcdoc}
+  className="w-full border-0 block mx-auto"
+  scrolling="no"
+  style={{ 
+    width: '100%',
+    height: `${height}px`,
+    overflow: 'hidden',
+    pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
+  }}
+  title="HTML Preview"
+  sandbox="allow-scripts allow-same-origin"
+/>
+```
 
 ## Resultado Esperado
 
 ```text
 Antes:
-┌─────────────────────────────────────────┐
-│ ┌───────────────────────────────┐       │
-│ │ Bloco com rolagem interna │ ↕ │       │  ← Alinhado à esquerda
-│ └───────────────────────────────┘       │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────┐
+│ Conteúdo do bloco               │ ↑
+│                                 │ ▓  ← Scrollbar
+│                                 │ ↓
+└─────────────────────────────────┘
 
 Depois:
-┌─────────────────────────────────────────┐
-│     ┌───────────────────────────────┐   │
-│     │ Bloco expandido sem rolagem   │   │  ← Centralizado
-│     │ Conteúdo todo visível         │   │
-│     └───────────────────────────────┘   │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────┐
+│ Conteúdo do bloco               │
+│                                 │   ← Sem scrollbar
+│ (altura expande automaticamente)│
+└─────────────────────────────────┘
 ```
 
-## Resumo de Arquivos
+## Resumo de Alterações
 
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `IframePreview.tsx` | 186 | Wrapper: remover flex, adicionar `mx-auto w-full` |
-| `IframePreview.tsx` | 190-194 | Iframe: usar `height` dinâmico, adicionar `mx-auto` |
-| `HtmlBlock.tsx` | 402 | Wrapper: remover `h-full flex-1 flex flex-col` |
-| `HtmlBlock.tsx` | 412, 419 | IframePreview: `minHeight={0}` |
-
+| Linha | Alteração |
+|-------|-----------|
+| 61-68 | CSS: `min-height: auto`, `overflow: hidden` em html e body |
+| 95-97 | JS: Usar `Math.max(scrollHeight, offsetHeight)` |
+| 190 | Adicionar atributo `scrolling="no"` |
+| 191-195 | Adicionar `overflow: 'hidden'` no style do iframe |
