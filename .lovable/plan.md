@@ -1,5 +1,11 @@
-
 # Plano: Remover Craft.js e Implementar Editor com Iframe Único
+
+## ✅ Status: IMPLEMENTADO
+
+A migração foi concluída com sucesso. O editor agora usa:
+- **Zustand** para gerenciamento de estado (`src/stores/efiCodeEditorStore.ts`)
+- **UnifiedIframe** para renderização única (`src/components/eficode/editor/UnifiedIframe.tsx`)
+- **BlockList** com drag-and-drop via @dnd-kit (`src/components/eficode/editor/BlockList.tsx`)
 
 ## Visão Geral
 

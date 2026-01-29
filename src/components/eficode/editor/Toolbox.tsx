@@ -1,6 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { useEditor, Element } from '@craftjs/core';
-import { Container, Text, Heading, Button, Image, Divider, Spacer, HtmlBlock } from '../user-components';
+import React, { useState } from 'react';
 import { useEfiCodeBlocks, EfiCodeBlock } from '@/hooks/useEfiCodeBlocks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -42,15 +40,19 @@ import {
 interface ToolboxItemProps {
   icon: React.ReactNode;
   label: string;
+  onClick?: () => void;
 }
 
-const ToolboxItem = ({ icon, label }: ToolboxItemProps) => {
+const ToolboxItem = ({ icon, label, onClick }: ToolboxItemProps) => {
   return (
-    <div className="flex flex-col items-center justify-center p-3 rounded-lg border bg-card hover:bg-accent cursor-grab active:cursor-grabbing transition-colors">
+    <div 
+      className="flex flex-col items-center justify-center p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer active:scale-95 transition-all"
+      onClick={onClick}
+    >
       <div className="text-muted-foreground mb-1">
         {icon}
       </div>
-      <span className="text-xs font-medium">{label}</span>
+      <span className="text-xs font-medium text-center">{label}</span>
     </div>
   );
 };
@@ -77,10 +79,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
 interface ToolboxProps {
   pageSettings?: PageSettings;
   onPageSettingsChange?: (settings: PageSettings) => void;
+  onAddBlock?: (html: string) => void;
 }
 
-export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) => {
-  const { connectors } = useEditor();
+export const Toolbox = ({ pageSettings, onPageSettingsChange, onAddBlock }: ToolboxProps) => {
   const { blocks, isLoading } = useEfiCodeBlocks(true);
   const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
   const [isUploadingBackground, setIsUploadingBackground] = useState(false);
@@ -176,53 +178,15 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
     return IconComponent ? <IconComponent className="h-5 w-5" /> : <SquareDashed className="h-5 w-5" />;
   };
 
-  // Memoizar a função getComponent para estabilidade
-  const getComponent = useCallback((block: EfiCodeBlock): React.ReactElement => {
-    // Se tem html_content, usar HtmlBlock diretamente (sem Element wrapper para serialização correta)
-    if (block.html_content) {
-      const dynamicProps = (block.default_props as Record<string, any>) || {};
-      return (
-        <HtmlBlock 
-          htmlTemplate={block.html_content} 
-          {...dynamicProps} 
-        />
-      );
-    }
+  // Handler para adicionar bloco ao clicar
+  const handleAddBlock = (block: EfiCodeBlock) => {
+    if (!onAddBlock) return;
     
-    // Caso contrário, usar componente padrão (compatibilidade)
-    const defaultProps = block.default_props || {};
-    switch (block.component_type) {
-      case 'Container':
-        return <Element is={Container} canvas {...defaultProps} />;
-      case 'Heading':
-        return <Heading {...defaultProps} />;
-      case 'Text':
-        return <Text {...defaultProps} />;
-      case 'Button':
-        return <Button {...defaultProps} />;
-      case 'Image':
-        return <Image {...defaultProps} />;
-      case 'Divider':
-        return <Divider {...defaultProps} />;
-      case 'Spacer':
-        return <Spacer {...defaultProps} />;
-      case 'HtmlBlock':
-        // Usar HtmlBlock diretamente para serialização correta
-        return <HtmlBlock htmlTemplate="" {...defaultProps} />;
-      default:
-        return <Element is={Container} canvas {...defaultProps} />;
-    }
-  }, []);
-
-  // Memoizar todos os componentes para evitar recriação a cada render
-  // Isso garante que connectors.create receba sempre o mesmo componente
-  const memoizedComponents = useMemo(() => {
-    const components: Record<string, React.ReactElement> = {};
-    blocks.forEach(block => {
-      components[block.id] = getComponent(block);
-    });
-    return components;
-  }, [blocks, getComponent]);
+    // Usa html_content diretamente
+    const htmlContent = block.html_content || '';
+    onAddBlock(htmlContent);
+    toast.success(`Bloco "${block.name}" adicionado!`);
+  };
 
   if (isLoading) {
     return (
@@ -250,19 +214,12 @@ export const Toolbox = ({ pageSettings, onPageSettingsChange }: ToolboxProps) =>
           <AccordionContent>
             <div className="grid grid-cols-2 gap-2 pt-2">
               {blocks.map((block) => (
-                <div
+                <ToolboxItem
                   key={block.id}
-                  ref={(ref) => {
-                    if (ref && memoizedComponents[block.id]) {
-                      connectors.create(ref, memoizedComponents[block.id]);
-                    }
-                  }}
-                >
-                  <ToolboxItem
-                    icon={getIcon(block.icon_name)}
-                    label={block.name}
-                  />
-                </div>
+                  icon={getIcon(block.icon_name)}
+                  label={block.name}
+                  onClick={() => handleAddBlock(block)}
+                />
               ))}
             </div>
           </AccordionContent>
