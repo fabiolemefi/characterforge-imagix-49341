@@ -1,386 +1,182 @@
-# Plano: Remover Craft.js e Implementar Editor com Iframe Único
 
-## ✅ Status: IMPLEMENTADO
 
-A migração foi concluída com sucesso. O editor agora usa:
-- **Zustand** para gerenciamento de estado (`src/stores/efiCodeEditorStore.ts`)
-- **UnifiedIframe** para renderização única (`src/components/eficode/editor/UnifiedIframe.tsx`)
-- **BlockList** com drag-and-drop via @dnd-kit (`src/components/eficode/editor/BlockList.tsx`)
+# Plano: Corrigir Edição Inline e Restaurar Edição de Propriedades
 
-## Visão Geral
+## Problemas Identificados
 
-Substituir o Craft.js por uma arquitetura simplificada com:
-- **Estado centralizado** via Zustand para gerenciar blocos
-- **Único iframe** para renderizar todos os blocos
-- **@dnd-kit** para reordenação drag-and-drop
-- **Sistema de mensagens** para edição inline
+### 1. Erro de Build
+O arquivo `src/components/brandguide/InlineTextEditor.tsx` ainda importa `react-contenteditable` que foi removido das dependências.
 
-## Arquitetura Atual vs Nova
-
-```text
-ATUAL (Craft.js + N iframes)
-┌─────────────────────────────────────────────────────────────┐
-│ Editor (Craft.js)                                           │
-│   ├── Frame (Canvas)                                        │
-│   │   ├── HtmlBlock → IframePreview #1 (CSS + HTML)        │
-│   │   ├── HtmlBlock → IframePreview #2 (CSS + HTML)        │
-│   │   └── HtmlBlock → IframePreview #3 (CSS + HTML)        │
-│   └── Serialização/Deserialização complexa                  │
-└─────────────────────────────────────────────────────────────┘
-
-NOVA (Zustand + 1 iframe)
-┌─────────────────────────────────────────────────────────────┐
-│ Editor (Zustand)                                            │
-│   ├── BlocksList (React) ← drag-and-drop aqui              │
-│   │   ├── BlockHandle #1 (bordas + controles)              │
-│   │   ├── BlockHandle #2 (bordas + controles)              │
-│   │   └── BlockHandle #3 (bordas + controles)              │
-│   └── UnifiedIframe (1 iframe com todo HTML)               │
-│       └── CSS carregado 1x + todos os blocos concatenados  │
-└─────────────────────────────────────────────────────────────┘
+### 2. Double-click Seleciona Todo Conteúdo
+No script do iframe, após ativar o modo de edição, o código seleciona todo o conteúdo do bloco:
+```javascript
+range.selectNodeContents(block);
+selection.removeAllRanges();
+selection.addRange(range);
 ```
+Isso causa o comportamento indesejado de selecionar tudo.
 
-## Estrutura de Dados
+### 3. Sem Indicação Visual de Modo de Edição
+O bloco em modo de edição deveria ter uma indicação mais clara (borda laranja existe mas pode não ser suficiente).
 
-### Modelo Simplificado
+### 4. Edição de Propriedades (Imagens) Perdida
+O `SettingsPanel` foi simplificado e perdeu a funcionalidade de editar imagens. A implementação original permitia:
+- Clicar em imagens dentro do bloco para substituí-las
+- Selecionar imagens da biblioteca via `ImagePickerModal`
+
+## Solução Proposta
+
+### Parte 1: Corrigir Erro de Build
+
+Refatorar `InlineTextEditor.tsx` para não usar `react-contenteditable`, usando `contentEditable` nativo do React.
+
+### Parte 2: Melhorar Experiência de Edição Inline
+
+1. **Remover seleção automática de todo conteúdo** - Em vez de selecionar tudo, apenas posicionar o cursor no ponto clicado
+2. **Adicionar indicação visual clara** - Banner/overlay indicando "Modo de Edição" com instrução de como sair (ESC ou clicar fora)
+3. **Feedback visual melhorado** - Borda laranja mais proeminente + ícone de edição
+
+### Parte 3: Restaurar Edição de Propriedades
+
+Criar um novo `SettingsPanel` completo que inclui:
+
+1. **Detecção de imagens no bloco** - Parsear o HTML e extrair todas as `<img>` tags
+2. **Lista de imagens editáveis** - Exibir thumbnails das imagens com botão de trocar
+3. **Integração com ImagePickerModal** - Abrir modal para selecionar nova imagem
+4. **Atualização do HTML** - Substituir a URL da imagem no HTML do bloco
+
+---
+
+## Implementação Detalhada
+
+### Arquivo 1: `src/components/brandguide/InlineTextEditor.tsx`
+
+Refatorar para usar `contentEditable` nativo:
 
 ```typescript
-// src/stores/efiCodeEditorStore.ts
-interface Block {
-  id: string;
-  html: string;
-  order: number;
-}
+// Substituir:
+import ContentEditable from 'react-contenteditable';
 
-interface EditorState {
-  blocks: Block[];
-  selectedBlockId: string | null;
-  history: Block[][];
-  historyIndex: number;
-  
-  // Actions
-  addBlock: (html: string) => void;
-  removeBlock: (id: string) => void;
-  updateBlockHtml: (id: string, html: string) => void;
-  reorderBlocks: (fromIndex: number, toIndex: number) => void;
-  selectBlock: (id: string | null) => void;
-  undo: () => void;
-  redo: () => void;
-  
-  // Serialização (compatível com formato atual)
-  serialize: () => Record<string, any>;
-  deserialize: (content: Record<string, any>) => void;
-}
+// Por implementação nativa com useRef e dangerouslySetInnerHTML
 ```
 
-### Compatibilidade com Banco de Dados
+### Arquivo 2: `src/components/eficode/editor/UnifiedIframe.tsx`
 
-O formato salvo no banco continua o mesmo para manter compatibilidade:
+Modificar o script do iframe:
+
+```javascript
+// ANTES (linha 173-179):
+block.focus();
+const selection = window.getSelection();
+const range = document.createRange();
+range.selectNodeContents(block);
+selection.removeAllRanges();
+selection.addRange(range);
+
+// DEPOIS:
+block.focus({ preventScroll: true });
+// Não selecionar automaticamente - deixar cursor onde o usuário clicou
+```
+
+Adicionar indicador visual de modo de edição:
+
+```javascript
+// No script, ao entrar em modo de edição:
+const indicator = document.createElement('div');
+indicator.id = 'edit-mode-indicator';
+indicator.innerHTML = '✏️ Modo de Edição • Pressione ESC para sair';
+indicator.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);...';
+document.body.appendChild(indicator);
+```
+
+### Arquivo 3: `src/components/eficode/editor/SettingsPanel.tsx`
+
+Expandir com edição de propriedades:
 
 ```typescript
-// Converter de novo formato para formato do banco
-serialize(): Record<string, any> {
-  const nodes: Record<string, any> = {
-    ROOT: {
-      type: { resolvedName: 'Container' },
-      props: { background: 'transparent' },
-      nodes: this.blocks.map(b => b.id),
-      parent: null
-    }
-  };
-  
-  this.blocks.forEach(block => {
-    nodes[block.id] = {
-      type: { resolvedName: 'Bloco HTML' },
-      props: { htmlTemplate: block.html, html: '' },
-      parent: 'ROOT',
-      nodes: []
-    };
-  });
-  
-  return nodes;
+interface BlockImage {
+  index: number;
+  src: string;
+  alt: string;
 }
 
-// Converter de formato do banco para novo formato
-deserialize(content: Record<string, any>) {
-  const root = content.ROOT;
-  if (!root?.nodes) return;
-  
-  this.blocks = root.nodes.map((id: string, index: number) => ({
-    id,
-    html: content[id]?.props?.htmlTemplate || '',
-    order: index
+// Parsear imagens do HTML
+const extractImages = (html: string): BlockImage[] => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const imgs = doc.querySelectorAll('img');
+  return Array.from(imgs).map((img, i) => ({
+    index: i,
+    src: img.src,
+    alt: img.alt || ''
   }));
-}
+};
+
+// Substituir imagem no HTML
+const replaceImage = (html: string, index: number, newSrc: string): string => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const imgs = doc.querySelectorAll('img');
+  if (imgs[index]) {
+    imgs[index].src = newSrc;
+  }
+  return doc.body.innerHTML;
+};
 ```
 
-## Componentes a Criar
+UI do painel expandido:
+- Seção "Imagens do Bloco" com thumbnails
+- Botão "Trocar" que abre `ImagePickerModal`
+- Botão "Editar HTML" que abre modal com código
 
-### 1. Store Zustand
-
-**Arquivo:** `src/stores/efiCodeEditorStore.ts`
-
-- Estado dos blocos como array simples
-- Histórico para undo/redo (máximo 50 estados)
-- Serialização/deserialização compatível com banco
-
-### 2. Componente UnifiedIframe
-
-**Arquivo:** `src/components/eficode/editor/UnifiedIframe.tsx`
-
-```typescript
-interface UnifiedIframeProps {
-  blocks: Block[];
-  globalCss: string;
-  selectedBlockId: string | null;
-  viewportWidth: string;
-  onBlockClick: (blockId: string) => void;
-  onBlockEdit: (blockId: string, newHtml: string) => void;
-}
-```
-
-Funcionalidades:
-- Renderiza todos os blocos em um único iframe
-- Cada bloco envolvido em `<div data-block-id="xxx">`
-- Destaque visual para bloco selecionado
-- Edição inline via contentEditable no bloco clicado
-- Comunicação via postMessage para cliques e edições
-
-### 3. Componente BlockList (overlay de controles)
-
-**Arquivo:** `src/components/eficode/editor/BlockList.tsx`
-
-Renderiza divs invisíveis sobrepostos ao iframe para:
-- Áreas de drag-and-drop (bordas dos blocos)
-- Botões de ação (excluir, duplicar)
-- Indicadores de inserção durante drag
-
-### 4. Editor Principal Refatorado
-
-**Arquivo:** `src/pages/EfiCodeEditor.tsx`
-
-- Remove imports do Craft.js
-- Usa store Zustand
-- Integra UnifiedIframe + BlockList
-- Mantém Toolbox existente (com adaptação)
-
-## Fluxo de Interação
-
-### Adicionar Bloco
-
-```text
-1. Usuário clica em bloco no Toolbox
-2. Store adiciona novo Block ao array
-3. UnifiedIframe re-renderiza com novo bloco
-4. Scroll automático para novo bloco
-```
-
-### Reordenar Blocos
-
-```text
-1. Usuário inicia drag na área de grip do bloco
-2. @dnd-kit gerencia o drag visualmente
-3. onDragEnd chama store.reorderBlocks()
-4. UnifiedIframe re-renderiza na nova ordem
-```
-
-### Editar Texto Inline
-
-```text
-1. Usuário clica em bloco no iframe
-2. postMessage envia 'eficode-block-click' com blockId
-3. Editor marca bloco como selecionado
-4. Segundo clique ativa contentEditable no bloco
-5. Blur envia 'eficode-block-edit' com novo HTML
-6. Store atualiza block.html
-7. UnifiedIframe atualiza apenas o bloco editado
-```
-
-### Undo/Redo
-
-```text
-1. Cada mutação no store cria snapshot no histórico
-2. Ctrl+Z / botão chama store.undo()
-3. Store restaura estado anterior
-4. UnifiedIframe re-renderiza
-```
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Ação |
-|---------|------|
-| `src/stores/efiCodeEditorStore.ts` | **CRIAR** - Store Zustand |
-| `src/components/eficode/editor/UnifiedIframe.tsx` | **CRIAR** - Iframe único |
-| `src/components/eficode/editor/BlockList.tsx` | **CRIAR** - Overlay de controles |
-| `src/pages/EfiCodeEditor.tsx` | **REFATORAR** - Remover Craft.js |
-| `src/components/eficode/editor/Toolbox.tsx` | **MODIFICAR** - Adaptar para nova API |
-| `src/components/eficode/editor/SettingsPanel.tsx` | **MODIFICAR** - Usar store |
-| `src/lib/efiCodeHtmlGenerator.ts` | **SIMPLIFICAR** - Formato mais direto |
-| `src/components/eficode/user-components/HtmlBlock.tsx` | **REMOVER** - Não mais necessário |
-| `src/components/eficode/user-components/IframePreview.tsx` | **REMOVER** - Substituído por UnifiedIframe |
+| Arquivo | Modificação |
+|---------|-------------|
+| `src/components/brandguide/InlineTextEditor.tsx` | Remover import de `react-contenteditable`, usar `contentEditable` nativo |
+| `src/components/eficode/editor/UnifiedIframe.tsx` | Remover seleção automática, adicionar indicador visual de edição |
+| `src/components/eficode/editor/SettingsPanel.tsx` | Adicionar extração e edição de imagens do bloco |
+| `src/pages/EfiCodeEditor.tsx` | Passar `updateBlockHtml` para o SettingsPanel |
 
-## Arquivos que Podem Ser Removidos
+---
 
-Componentes Craft.js que não serão mais usados:
-- `src/components/eficode/user-components/Container.tsx`
-- `src/components/eficode/user-components/Text.tsx`
-- `src/components/eficode/user-components/Heading.tsx`
-- `src/components/eficode/user-components/Button.tsx`
-- `src/components/eficode/user-components/Image.tsx`
-- `src/components/eficode/user-components/Divider.tsx`
-- `src/components/eficode/user-components/Spacer.tsx`
-- `src/components/eficode/editor/Viewport.tsx`
+## Fluxo de Interação Melhorado
 
-## Detalhes Técnicos
+### Edição de Texto (Inline)
 
-### UnifiedIframe - Estrutura do srcDoc
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <!-- CSS Global (Tailwind v4, fontes, etc.) -->
-  <style>${globalCss}</style>
-  <style>
-    /* Estilos de seleção */
-    [data-block-id].selected {
-      outline: 2px solid #3b82f6;
-      outline-offset: 2px;
-    }
-    [data-block-id]:hover:not(.selected) {
-      outline: 1px dashed #9ca3af;
-    }
-  </style>
-</head>
-<body>
-  ${blocks.map(b => `
-    <div 
-      data-block-id="${b.id}" 
-      class="${selectedBlockId === b.id ? 'selected' : ''}"
-    >
-      ${b.html}
-    </div>
-  `).join('')}
-  
-  <script>
-    // Handler de cliques
-    document.addEventListener('click', (e) => {
-      const block = e.target.closest('[data-block-id]');
-      if (block) {
-        parent.postMessage({
-          type: 'eficode-block-click',
-          blockId: block.dataset.blockId
-        }, '*');
-      }
-    });
-    
-    // Handler de edição
-    document.addEventListener('blur', (e) => {
-      const block = e.target.closest('[data-block-id]');
-      if (block && block.getAttribute('contenteditable') === 'true') {
-        parent.postMessage({
-          type: 'eficode-block-edit',
-          blockId: block.dataset.blockId,
-          html: block.innerHTML
-        }, '*');
-      }
-    }, true);
-  </script>
-</body>
-</html>
+```text
+1. Usuário clica no bloco → Bloco selecionado (borda azul)
+2. Usuário clica novamente/duplo clique → Modo edição ativado
+   - Borda laranja
+   - Banner "Modo de Edição" aparece no topo
+   - Cursor posicionado onde clicou (sem selecionar tudo)
+3. Usuário edita o texto
+4. ESC ou clique fora → Salva e sai do modo edição
 ```
 
-### Store Zustand - Histórico
+### Edição de Imagem (Via Painel)
 
-```typescript
-// Padrão Command para undo/redo
-const MAX_HISTORY = 50;
-
-interface EditorState {
-  blocks: Block[];
-  history: Block[][];
-  historyIndex: number;
-  
-  pushHistory: () => void;
-  undo: () => void;
-  redo: () => void;
-}
-
-// Implementação
-pushHistory: () => {
-  const snapshot = JSON.parse(JSON.stringify(get().blocks));
-  const newHistory = get().history.slice(0, get().historyIndex + 1);
-  newHistory.push(snapshot);
-  if (newHistory.length > MAX_HISTORY) newHistory.shift();
-  set({ history: newHistory, historyIndex: newHistory.length - 1 });
-}
-
-undo: () => {
-  const { historyIndex, history } = get();
-  if (historyIndex > 0) {
-    set({ 
-      blocks: JSON.parse(JSON.stringify(history[historyIndex - 1])),
-      historyIndex: historyIndex - 1 
-    });
-  }
-}
+```text
+1. Usuário clica no bloco → Bloco selecionado
+2. Painel lateral mostra:
+   - Informações do bloco
+   - Lista de imagens do bloco (thumbnails)
+3. Usuário clica "Trocar" em uma imagem
+4. ImagePickerModal abre
+5. Usuário seleciona nova imagem
+6. HTML do bloco é atualizado com nova URL
 ```
 
-### Integração com Toolbox
-
-O Toolbox precisa de adaptação mínima:
-
-```typescript
-// Antes (Craft.js)
-ref={(ref) => {
-  if (ref) connectors.create(ref, <HtmlBlock html={block.html_content} />);
-}}
-
-// Depois (Store)
-onClick={() => {
-  useEditorStore.getState().addBlock(block.html_content);
-}}
-```
+---
 
 ## Benefícios
 
-| Aspecto | Antes (Craft.js) | Depois (Zustand) |
-|---------|------------------|------------------|
-| Performance | N iframes, N contextos | 1 iframe, 1 contexto |
-| Complexidade | Alta (árvore, canvas) | Baixa (array simples) |
-| Race conditions | Frequentes | Eliminadas |
-| Tamanho do bundle | +150KB (Craft.js) | +3KB (Zustand) |
-| Undo/Redo | Craft.js history | Customizado, mais controle |
-| Debug | Difícil (estado espalhado) | Fácil (estado centralizado) |
-| Manutenção | Dependência externa | Código próprio |
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Double-click | Seleciona tudo | Posiciona cursor |
+| Indicação de edição | Apenas borda | Borda + banner informativo |
+| Edição de imagens | Perdida | Restaurada via painel lateral |
+| Build | Falha (react-contenteditable) | Funciona |
 
-## Migração Gradual (Opcional)
-
-Se preferir migração mais segura:
-
-1. **Fase 1**: Criar store + UnifiedIframe lado a lado
-2. **Fase 2**: Toggle para alternar entre editores
-3. **Fase 3**: Validar em produção
-4. **Fase 4**: Remover Craft.js
-
-## Estimativa de Tempo
-
-| Tarefa | Tempo Estimado |
-|--------|----------------|
-| Store Zustand | 2-3 horas |
-| UnifiedIframe | 4-6 horas |
-| BlockList (drag-and-drop) | 3-4 horas |
-| Refatorar EfiCodeEditor | 4-6 horas |
-| Adaptar Toolbox | 1-2 horas |
-| Adaptar SettingsPanel | 2-3 horas |
-| Testes e ajustes | 4-6 horas |
-| **Total** | **20-30 horas** |
-
-## Riscos e Mitigações
-
-| Risco | Mitigação |
-|-------|-----------|
-| Sites existentes quebram | Deserialização mantém formato antigo |
-| Edição inline menos fluida | Usar mesmo sistema de postMessage atual |
-| Drag visualmente diferente | @dnd-kit suporta overlays customizados |
-| Perda de funcionalidades | Listar funcionalidades usadas antes de remover |
