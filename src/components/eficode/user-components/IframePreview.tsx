@@ -183,13 +183,14 @@ export const IframePreview = ({
   }, [editable]);
 
   return (
-    <div className={`relative ${className}`} style={{ minHeight: `${minHeight}px` }}>
+    <div className={`relative h-full flex flex-col ${className}`} style={{ minHeight: `${minHeight}px` }}>
       <iframe
         ref={iframeRef}
         srcDoc={srcdoc}
         className="w-full border-0 block"
         style={{ 
-          height: `${height}px`,
+          flex: 1,
+          minHeight: `${height}px`,
           pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
         }}
         title="HTML Preview"

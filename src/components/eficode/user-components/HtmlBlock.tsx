@@ -390,7 +390,7 @@ export const HtmlBlock = ({ html, htmlTemplate, className = '' }: HtmlBlockProps
           connect(drag(ref));
         }
       }}
-      className={`relative w-full ${className}`}
+      className={`relative w-full h-full flex-1 flex flex-col ${className}`}
       style={{ boxShadow: enabled && selected ? '0 0 0 2px rgba(59, 130, 246, 0.8)' : 'none' }}
     >
       {isEditing ? (

@@ -39,6 +39,7 @@ export const Container = ({
         margin,
         borderRadius,
         minHeight,
+        height: '100%',
         display: 'flex',
         flexDirection,
         justifyContent,
