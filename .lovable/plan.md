@@ -1,138 +1,215 @@
 
-# Plano: Substituir Todas as Ocorrências da Mesma Imagem
+# Plano: Vincular Imagens Responsivas (Desktop + Mobile)
 
 ## Problema Identificado
 
-O HTML dos blocos frequentemente contém a mesma imagem duplicada para versões responsivas (desktop/mobile):
+Os blocos HTML usam imagens **diferentes** para versões responsivas:
 
 ```html
-<!-- Mesmo placeholder em ambas as versões -->
-<img src="https://placehold.co/600x400" class="hidden md:block">
-<img src="https://placehold.co/600x400" class="block md:hidden">
+<!-- Desktop - URL A -->
+<img src="https://...sede/imagem-A.png" class="hidden md:block">
+
+<!-- Mobile - URL B (diferente!) -->
+<img src="https://...sys/imagem-B.png" class="block md:hidden">
 ```
 
-O sistema atual:
-- Extrai cada `<img>` separadamente (mostrando 2 thumbnails iguais)
-- Substitui apenas por índice (uma imagem de cada vez)
+A lógica atual agrupa apenas por URL idêntica. Como as URLs são diferentes, cada uma aparece como uma imagem separada no painel.
 
 ## Solução Proposta
 
-### 1. Agrupar Imagens por URL
+Detectar imagens que são "pares responsivos" analisando suas classes CSS (ex: `hidden md:block` / `block md:hidden`) e agrupá-las juntas.
 
-Em vez de listar cada `<img>` individualmente, agrupar por URL única:
+### 1. Detectar Pares Responsivos
+
+Analisar as classes de cada `<img>` para identificar padrões responsivos:
 
 ```typescript
-interface UniqueBlockImage {
+interface ImageWithContext {
   src: string;
   alt: string;
-  count: number;  // Quantas vezes aparece
-  indices: number[];  // Quais índices no HTML
+  responsiveType: 'desktop' | 'mobile' | 'both';
+  fullMatch: string; // Tag completa para substituição
+}
+
+const isDesktopOnly = (classes: string) => 
+  /hidden\s+(sm|md|lg|xl):block/.test(classes) || 
+  /(sm|md|lg|xl):block\s+hidden/.test(classes);
+
+const isMobileOnly = (classes: string) => 
+  /block\s+(sm|md|lg|xl):hidden/.test(classes) || 
+  /(sm|md|lg|xl):hidden\s+block/.test(classes);
+```
+
+### 2. Agrupar Imagens por Contexto
+
+Quando duas imagens consecutivas têm padrões complementares (uma desktop, outra mobile), agrupá-las:
+
+```typescript
+interface ResponsiveImageGroup {
+  desktopSrc: string | null;
+  mobileSrc: string | null;
+  alt: string;
+  previewSrc: string; // Usar desktop ou mobile para preview
 }
 ```
 
-### 2. Substituir Todas as Ocorrências da Mesma URL
+### 3. Substituir Ambas ao Mesmo Tempo
 
-Quando o usuário troca uma imagem, substituir TODAS as `<img>` que tinham a mesma URL original:
+Quando usuário troca uma imagem do grupo, substituir TODAS as URLs do grupo:
 
 ```typescript
-const replaceAllOccurrences = (html: string, oldSrc: string, newSrc: string): string => {
-  // Escapa caracteres especiais da URL para usar no regex
-  const escapedOldSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const replaceResponsiveGroup = (
+  html: string, 
+  group: ResponsiveImageGroup, 
+  newSrc: string
+): string => {
+  let result = html;
   
-  // Substitui todas as ocorrências da URL antiga pela nova
-  const regex = new RegExp(`(src=["'])${escapedOldSrc}(["'])`, 'gi');
-  return html.replace(regex, `$1${newSrc}$2`);
+  if (group.desktopSrc) {
+    result = replaceAllImageOccurrences(result, group.desktopSrc, newSrc);
+  }
+  if (group.mobileSrc) {
+    result = replaceAllImageOccurrences(result, group.mobileSrc, newSrc);
+  }
+  
+  return result;
 };
 ```
 
-### 3. Interface Melhorada
+### 4. Interface Atualizada
 
-- Mostrar apenas imagens únicas (não duplicadas)
-- Indicar quantas vezes cada imagem aparece (ex: "2x")
-- Ao trocar, substituir todas de uma vez
+Mostrar grupos responsivos com indicador visual:
+
+```
+┌─────────────────────────────────┐
+│  [Imagem Preview]               │
+│  📱💻 Desktop + Mobile          │
+│        [Trocar]                 │
+└─────────────────────────────────┘
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/components/eficode/editor/SettingsPanel.tsx` | Refatorar extração e substituição de imagens |
+| `src/components/eficode/editor/SettingsPanel.tsx` | Refatorar extração para detectar pares responsivos e substituir ambos |
 
 ## Implementação Detalhada
 
-### Nova Extração (Agrupada por URL)
+### Nova Interface
 
 ```typescript
-interface UniqueBlockImage {
-  src: string;
+interface ResponsiveImageGroup {
+  id: string;
+  sources: Array<{
+    src: string;
+    type: 'desktop' | 'mobile' | 'universal';
+  }>;
+  previewSrc: string;
   alt: string;
-  count: number;
 }
+```
 
-const extractUniqueImages = (html: string): UniqueBlockImage[] => {
-  const imageMap = new Map<string, UniqueBlockImage>();
-  const imgRegex = /<img\s+[^>]*?src=(["'])([^"']*)\1[^>]*>/gi;
-  let match;
+### Nova Extração
+
+```typescript
+const extractResponsiveGroups = (html: string): ResponsiveImageGroup[] => {
+  const groups: ResponsiveImageGroup[] = [];
+  const imgRegex = /<img\s+([^>]*?)src=(["'])([^"']*)\2([^>]*)>/gi;
+  const images: Array<{ src: string; classes: string; alt: string; type: 'desktop' | 'mobile' | 'universal' }> = [];
   
+  let match;
   while ((match = imgRegex.exec(html)) !== null) {
-    const src = match[2];
-    const altMatch = match[0].match(/alt=(["'])([^"']*)\1/i);
+    const fullTag = match[0];
+    const src = match[3];
+    const classMatch = fullTag.match(/class=(["'])([^"']*)\1/i);
+    const classes = classMatch ? classMatch[2] : '';
+    const altMatch = fullTag.match(/alt=(["'])([^"']*)\1/i);
     const alt = altMatch ? altMatch[2] : '';
     
-    if (imageMap.has(src)) {
-      imageMap.get(src)!.count++;
-    } else {
-      imageMap.set(src, { src, alt, count: 1 });
+    let type: 'desktop' | 'mobile' | 'universal' = 'universal';
+    if (/hidden\s+(sm|md|lg|xl):block|(sm|md|lg|xl):block.*hidden/.test(classes)) {
+      type = 'desktop';
+    } else if (/block\s+(sm|md|lg|xl):hidden|(sm|md|lg|xl):hidden.*block/.test(classes)) {
+      type = 'mobile';
     }
-  }
-  
-  return Array.from(imageMap.values());
-};
-```
-
-### Nova Substituição (Todas as Ocorrências)
-
-```typescript
-const replaceAllImageOccurrences = (html: string, oldSrc: string, newSrc: string): string => {
-  // Escapa caracteres especiais para regex
-  const escapedSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  // Substitui todas as ocorrências do src
-  const regex = new RegExp(`(<img\\s+[^>]*?src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-  return html.replace(regex, `$1${newSrc}$2`);
-};
-```
-
-### Atualização do handleImageSelect
-
-```typescript
-const handleImageSelect = (image: { url: string; name?: string }) => {
-  if (selectedBlock && editingSrc !== null) {
-    const originalHtml = selectedBlock.html;
-    // Substitui TODAS as ocorrências da imagem antiga
-    const newHtml = replaceAllImageOccurrences(originalHtml, editingSrc, image.url);
     
-    if (originalHtml !== newHtml) {
-      updateBlockHtml(selectedBlock.id, newHtml);
-      toast.success('Imagem atualizada em todas as ocorrências!');
+    images.push({ src, classes, alt, type });
+  }
+  
+  // Agrupar imagens consecutivas desktop+mobile como um par
+  const processed = new Set<number>();
+  
+  for (let i = 0; i < images.length; i++) {
+    if (processed.has(i)) continue;
+    
+    const current = images[i];
+    const next = images[i + 1];
+    
+    // Verificar se é um par responsivo
+    if (next && 
+        ((current.type === 'desktop' && next.type === 'mobile') ||
+         (current.type === 'mobile' && next.type === 'desktop'))) {
+      // Criar grupo com ambas
+      groups.push({
+        id: `group-${i}`,
+        sources: [
+          { src: current.src, type: current.type },
+          { src: next.src, type: next.type }
+        ],
+        previewSrc: current.type === 'desktop' ? current.src : next.src,
+        alt: current.alt || next.alt
+      });
+      processed.add(i);
+      processed.add(i + 1);
+    } else {
+      // Imagem individual
+      groups.push({
+        id: `group-${i}`,
+        sources: [{ src: current.src, type: current.type }],
+        previewSrc: current.src,
+        alt: current.alt
+      });
+      processed.add(i);
     }
   }
+  
+  return groups;
 };
 ```
 
-### Interface Atualizada
+### Nova Substituição
+
+```typescript
+const replaceImageGroup = (
+  html: string, 
+  group: ResponsiveImageGroup, 
+  newSrc: string
+): string => {
+  let result = html;
+  
+  for (const source of group.sources) {
+    result = replaceAllImageOccurrences(result, source.src, newSrc);
+  }
+  
+  return result;
+};
+```
+
+### UI com Indicador Responsivo
 
 ```tsx
-{blockImages.map((img) => (
-  <div key={img.src} className="relative group ...">
-    {/* Mostrar badge se imagem aparece mais de uma vez */}
-    {img.count > 1 && (
-      <span className="absolute top-1 right-1 bg-primary text-xs px-1 rounded">
-        {img.count}x
-      </span>
-    )}
-    <img src={img.src} ... />
-    <Button onClick={() => openImagePicker(img.src)}>
-      Trocar
+{imageGroups.map((group) => (
+  <div key={group.id} className="relative group border rounded-md overflow-hidden">
+    {/* Badge indicando tipo */}
+    <span className="absolute top-1 right-1 z-10 bg-primary/90 text-xs px-1.5 py-0.5 rounded">
+      {group.sources.length > 1 ? '📱💻' : group.sources[0].type === 'desktop' ? '💻' : '📱'}
+    </span>
+    
+    <img src={group.previewSrc} ... />
+    
+    <Button onClick={() => openImagePicker(group)}>
+      Trocar {group.sources.length > 1 ? 'ambas' : ''}
     </Button>
   </div>
 ))}
@@ -141,19 +218,20 @@ const handleImageSelect = (image: { url: string; name?: string }) => {
 ## Fluxo Atualizado
 
 ```
-1. Usuário seleciona bloco com imagens duplicadas
-2. Painel mostra imagens ÚNICAS (agrupadas por URL)
-   - Badge "2x" indica duplicatas
-3. Usuário clica "Trocar" em uma imagem
-4. Seleciona nova imagem da biblioteca
-5. TODAS as ocorrências da URL antiga são substituídas
-6. Preview atualiza mostrando nova imagem em desktop E mobile
+1. Bloco tem 2 imagens: desktop (URL A) e mobile (URL B)
+2. Sistema detecta que são par responsivo (classes complementares)
+3. Painel mostra UM thumbnail com badge "📱💻"
+4. Usuário clica "Trocar"
+5. Seleciona nova imagem
+6. Sistema substitui AMBAS as URLs (A → nova, B → nova)
+7. Preview mostra imagem atualizada em qualquer viewport
 ```
 
 ## Benefícios
 
 | Aspecto | Antes | Depois |
 |---------|-------|--------|
-| Listagem | Duplicatas visíveis | Imagens únicas |
-| Substituição | Uma por vez | Todas de uma vez |
-| UX | Confuso | Claro e eficiente |
+| Imagens responsivas | Mostradas separadamente | Agrupadas como par |
+| Substituição | Uma URL por vez | Todas do grupo |
+| UX | Confuso | Intuitivo |
+| Indicador visual | Nenhum | Badge 📱💻 |
