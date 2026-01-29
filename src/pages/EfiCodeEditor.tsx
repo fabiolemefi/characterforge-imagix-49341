@@ -76,7 +76,7 @@ export default function EfiCodeEditor() {
   const [pageSettings, setPageSettings] = useState<PageSettings>(defaultPageSettings);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
   const [viewportSize, setViewportSize] = useState<ViewportSize>('xl');
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [codeContent, setCodeContent] = useState<string>('');
   
   // State for tracking unsaved changes
@@ -105,6 +105,7 @@ export default function EfiCodeEditor() {
     occurrenceIndex: number;
     hasInnerImage: boolean;
     innerImageSrc: string | null;
+    innerImageOccurrenceIndex?: number;
   } | null>(null);
   
   // Refs for original values comparison
@@ -401,7 +402,8 @@ export default function EfiCodeEditor() {
     target: string | null,
     occurrenceIndex: number,
     hasInnerImage: boolean,
-    innerImageSrc: string | null
+    innerImageSrc: string | null,
+    innerImageOccurrenceIndex?: number
   ) => {
     selectBlock(blockId);
     setEditingLinkContext({ 
@@ -412,7 +414,8 @@ export default function EfiCodeEditor() {
       target,
       occurrenceIndex,
       hasInnerImage,
-      innerImageSrc
+      innerImageSrc,
+      innerImageOccurrenceIndex
     });
     setLinkEditorOpen(true);
   }, [selectBlock]);
@@ -487,12 +490,12 @@ export default function EfiCodeEditor() {
       // Close link modal
       setLinkEditorOpen(false);
       
-      // Open image picker with link context
+      // Open image picker with link context - use innerImageOccurrenceIndex for correct replacement
       setEditingImageContext({
         blockId: editingLinkContext.blockId,
         imageSrc: editingLinkContext.innerImageSrc || '',
         isPicture: false,
-        occurrenceIndex: editingLinkContext.occurrenceIndex
+        occurrenceIndex: editingLinkContext.innerImageOccurrenceIndex ?? 0
       });
       setImagePickerOpen(true);
     }
@@ -520,7 +523,8 @@ export default function EfiCodeEditor() {
           event.data.target,
           event.data.occurrenceIndex,
           event.data.hasInnerImage,
-          event.data.innerImageSrc
+          event.data.innerImageSrc,
+          event.data.innerImageOccurrenceIndex
         );
       }
     };
