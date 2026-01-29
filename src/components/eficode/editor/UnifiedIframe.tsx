@@ -183,6 +183,13 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         const blockId = block.dataset.blockId;
         const imgSrc = img.getAttribute('src');
         
+        // Find the occurrence index of this image among all images with the same src
+        const allImgs = Array.from(block.querySelectorAll('img'));
+        const sameSourceImgs = allImgs.filter(function(i) {
+          return i.getAttribute('src') === imgSrc;
+        });
+        const occurrenceIndex = sameSourceImgs.indexOf(img);
+        
         // If inside a picture element, collect all sources
         if (picture) {
           const sources = Array.from(picture.querySelectorAll('source')).map(function(s) {
@@ -199,7 +206,8 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
             blockId: blockId,
             imageSrc: imgSrc,
             isPicture: true,
-            sources: sources
+            sources: sources,
+            occurrenceIndex: occurrenceIndex
           }, '*');
         } else {
           // Simple image
@@ -207,7 +215,8 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
             type: 'eficode-image-click',
             blockId: blockId,
             imageSrc: imgSrc,
-            isPicture: false
+            isPicture: false,
+            occurrenceIndex: occurrenceIndex
           }, '*');
         }
         

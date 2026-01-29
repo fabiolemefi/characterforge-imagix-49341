@@ -87,6 +87,7 @@ export default function EfiCodeEditor() {
     imageSrc: string;
     isPicture: boolean;
     sources?: ImageSource[];
+    occurrenceIndex?: number;
   } | null>(null);
   
   // Refs for original values comparison
@@ -312,10 +313,11 @@ export default function EfiCodeEditor() {
     blockId: string, 
     imageSrc: string, 
     isPicture: boolean, 
-    sources?: ImageSource[]
+    sources?: ImageSource[],
+    occurrenceIndex?: number
   ) => {
     selectBlock(blockId);
-    setEditingImageContext({ blockId, imageSrc, isPicture, sources });
+    setEditingImageContext({ blockId, imageSrc, isPicture, sources, occurrenceIndex });
     setImagePickerOpen(true);
   }, [selectBlock]);
 
@@ -327,21 +329,41 @@ export default function EfiCodeEditor() {
     if (!block) return;
     
     let newHtml = block.html;
+    const occurrenceIndex = editingImageContext.occurrenceIndex ?? 0;
     
     if (editingImageContext.sources && editingImageContext.sources.length > 0) {
-      // Replace all sources in picture element
+      // Replace all sources in picture element (only for this specific occurrence)
       for (const source of editingImageContext.sources) {
         if (!source.src) continue;
         const escapedSrc = source.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const attr = source.tagType === 'source' ? 'srcset' : 'src';
         const regex = new RegExp(`(<${source.tagType}[^>]*${attr}=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-        newHtml = newHtml.replace(regex, `$1${image.url}$2`);
+        
+        // Replace only the N-th occurrence
+        let matchIndex = 0;
+        newHtml = newHtml.replace(regex, (match, p1, p2) => {
+          if (matchIndex === occurrenceIndex) {
+            matchIndex++;
+            return `${p1}${image.url}${p2}`;
+          }
+          matchIndex++;
+          return match;
+        });
       }
     } else {
-      // Replace single image
+      // Replace single image - only the N-th occurrence
       const escapedSrc = editingImageContext.imageSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`(<img[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
-      newHtml = newHtml.replace(regex, `$1${image.url}$2`);
+      
+      let matchIndex = 0;
+      newHtml = newHtml.replace(regex, (match, p1, p2) => {
+        if (matchIndex === occurrenceIndex) {
+          matchIndex++;
+          return `${p1}${image.url}${p2}`;
+        }
+        matchIndex++;
+        return match;
+      });
     }
     
     if (newHtml !== block.html) {
@@ -363,7 +385,8 @@ export default function EfiCodeEditor() {
           event.data.blockId,
           event.data.imageSrc,
           event.data.isPicture,
-          event.data.sources
+          event.data.sources,
+          event.data.occurrenceIndex
         );
       }
     };
