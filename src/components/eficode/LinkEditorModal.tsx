@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Link, Type } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Link, Type, Image, ExternalLink } from 'lucide-react';
 
 interface LinkEditorModalProps {
   open: boolean;
@@ -11,7 +12,11 @@ interface LinkEditorModalProps {
   elementType: 'link' | 'button';
   initialText: string;
   initialHref: string | null;
-  onSave: (text: string, href: string | null) => void;
+  initialTarget: string | null;
+  hasInnerImage: boolean;
+  innerImageSrc: string | null;
+  onSave: (text: string, href: string | null, target: string | null) => void;
+  onChangeImage: () => void;
 }
 
 export const LinkEditorModal = ({
@@ -20,21 +25,28 @@ export const LinkEditorModal = ({
   elementType,
   initialText,
   initialHref,
+  initialTarget,
+  hasInnerImage,
+  innerImageSrc,
   onSave,
+  onChangeImage,
 }: LinkEditorModalProps) => {
   const [text, setText] = useState(initialText);
   const [href, setHref] = useState(initialHref || '');
+  const [target, setTarget] = useState(initialTarget || '_self');
 
   // Reset state when modal opens with new values
   useEffect(() => {
     if (open) {
       setText(initialText);
       setHref(initialHref || '');
+      setTarget(initialTarget || '_self');
     }
-  }, [open, initialText, initialHref]);
+  }, [open, initialText, initialHref, initialTarget]);
 
   const handleSave = () => {
-    onSave(text, elementType === 'link' ? href : null);
+    const finalTarget = target === '_self' ? null : target;
+    onSave(text, href || null, finalTarget);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -75,16 +87,55 @@ export const LinkEditorModal = ({
             />
           </div>
 
-          {elementType === 'link' && (
-            <div className="space-y-2">
-              <Label htmlFor="href">URL (href)</Label>
-              <Input
-                id="href"
-                value={href}
-                onChange={(e) => setHref(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="https://..."
-              />
+          <div className="space-y-2">
+            <Label htmlFor="href">URL (href)</Label>
+            <Input
+              id="href"
+              value={href}
+              onChange={(e) => setHref(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="target">Abrir em</Label>
+            <Select value={target} onValueChange={setTarget}>
+              <SelectTrigger id="target">
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_self">
+                  <span className="flex items-center gap-2">
+                    Mesma janela
+                  </span>
+                </SelectItem>
+                <SelectItem value="_blank">
+                  <span className="flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    Nova janela
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {hasInnerImage && (
+            <div className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full flex items-center gap-2"
+                onClick={onChangeImage}
+              >
+                <Image className="h-4 w-4" />
+                Trocar Ícone
+              </Button>
+              {innerImageSrc && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  Atual: {innerImageSrc.split('/').pop()}
+                </p>
+              )}
             </div>
           )}
         </div>
