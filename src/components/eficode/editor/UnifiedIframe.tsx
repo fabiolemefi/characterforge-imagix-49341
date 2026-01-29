@@ -65,19 +65,19 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       transition: outline 0.15s ease;
     }
     
-    .efi-block:hover:not(.selected) {
+    .efi-block:hover:not(.selected):not(.editing) {
       outline: 1px dashed #9ca3af;
       outline-offset: 2px;
     }
     
-    .efi-block.selected {
+    .efi-block.selected:not(.editing) {
       outline: 2px solid #3b82f6;
       outline-offset: 2px;
     }
     
     .efi-block.editing {
-      outline: 2px solid #f97316;
-      outline-offset: 2px;
+      outline: 3px solid #f97316;
+      outline-offset: 4px;
     }
     
     /* Ensure contenteditable elements are visible */
@@ -92,6 +92,38 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       color: #9ca3af;
       font-style: italic;
     }
+    
+    /* Edit mode indicator */
+    #edit-mode-indicator {
+      position: fixed;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: white;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: slideDown 0.2s ease;
+    }
+    
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    
+    #edit-mode-indicator kbd {
+      background: rgba(255,255,255,0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -102,6 +134,24 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
     let currentEditingBlock = null;
     let clickCount = 0;
     let clickTimer = null;
+    let editIndicator = null;
+    
+    // Create edit mode indicator
+    function showEditIndicator() {
+      if (editIndicator) return;
+      
+      editIndicator = document.createElement('div');
+      editIndicator.id = 'edit-mode-indicator';
+      editIndicator.innerHTML = '✏️ Modo de Edição • <kbd>ESC</kbd> para sair';
+      document.body.appendChild(editIndicator);
+    }
+    
+    function hideEditIndicator() {
+      if (editIndicator) {
+        editIndicator.remove();
+        editIndicator = null;
+      }
+    }
     
     // Handle clicks on blocks
     document.addEventListener('click', function(e) {
@@ -152,6 +202,7 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
         block.removeAttribute('contenteditable');
         block.classList.remove('editing');
         currentEditingBlock = null;
+        hideEditIndicator();
       }
     }, true);
     
@@ -168,15 +219,14 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           
           block.setAttribute('contenteditable', 'true');
           block.classList.add('editing');
-          block.focus();
+          block.classList.remove('selected');
           currentEditingBlock = block;
           
-          // Select all content
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(block);
-          selection.removeAllRanges();
-          selection.addRange(range);
+          // Focus without selecting all - cursor stays where user clicked
+          block.focus({ preventScroll: true });
+          
+          // Show edit mode indicator
+          showEditIndicator();
         }
       } else if (e.data.type === 'eficode-disable-edit') {
         if (currentEditingBlock) {
@@ -190,6 +240,7 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           currentEditingBlock.removeAttribute('contenteditable');
           currentEditingBlock.classList.remove('editing');
           currentEditingBlock = null;
+          hideEditIndicator();
         }
       } else if (e.data.type === 'eficode-update-selection') {
         // Update visual selection
