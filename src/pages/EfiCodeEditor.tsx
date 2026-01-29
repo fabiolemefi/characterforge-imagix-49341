@@ -497,7 +497,7 @@ function EditorFrame({ editorState }: { editorState: string | null }) {
   
   return (
     <Frame>
-      <Element is={Container} canvas background="transparent" padding={0} minHeight={400} />
+      <Element is={Container} canvas background="transparent" padding={0} minHeight={400} alignItems="stretch" />
     </Frame>
   );
 }
