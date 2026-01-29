@@ -19,27 +19,33 @@ interface BlockImage {
   alt: string;
 }
 
-// Extract images from HTML
+// Extract images from HTML (preservando estrutura)
 const extractImages = (html: string): BlockImage[] => {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const imgs = doc.querySelectorAll('img');
+  const template = document.createElement('template');
+  template.innerHTML = html.trim();
+  
+  const imgs = template.content.querySelectorAll('img');
   return Array.from(imgs).map((img, i) => ({
     index: i,
-    src: img.src,
-    alt: img.alt || ''
+    src: img.getAttribute('src') || '',
+    alt: img.getAttribute('alt') || ''
   }));
 };
 
-// Replace image in HTML at specific index
+// Replace image in HTML at specific index (preservando estrutura)
 const replaceImage = (html: string, index: number, newSrc: string): string => {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const imgs = doc.querySelectorAll('img');
+  const template = document.createElement('template');
+  template.innerHTML = html.trim();
+  
+  const imgs = template.content.querySelectorAll('img');
   if (imgs[index]) {
-    imgs[index].src = newSrc;
+    imgs[index].setAttribute('src', newSrc);
   }
-  return doc.body.innerHTML;
+  
+  // Converter de volta para HTML string
+  const container = document.createElement('div');
+  container.appendChild(template.content.cloneNode(true));
+  return container.innerHTML;
 };
 
 export const SettingsPanel = () => {
