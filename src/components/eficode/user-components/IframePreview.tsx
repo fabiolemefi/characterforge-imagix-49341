@@ -184,15 +184,18 @@ export const IframePreview = ({
   }, [editable]);
 
   return (
-    <div className={`relative mx-auto w-full ${className}`}>
+    <div className={`relative w-full ${className}`}>
       <iframe
         ref={iframeRef}
         srcDoc={srcdoc}
-        className="w-full border-0 block mx-auto"
         scrolling="no"
         style={{ 
+          display: 'block',
           width: '100%',
           height: `${height}px`,
+          border: 'none',
+          margin: 0,
+          padding: 0,
           overflow: 'hidden',
           pointerEvents: editable ? 'auto' : (onClick ? 'auto' : 'none'),
         }}
