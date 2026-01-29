@@ -141,6 +141,35 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       opacity: 0.9;
     }
     
+    /* Clickable iframes (video embeds) indicator */
+    .efi-block:not(.editing) iframe {
+      cursor: pointer;
+      transition: outline 0.15s ease;
+      pointer-events: none;
+    }
+    
+    .efi-block:not(.editing) .iframe-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: transparent;
+      cursor: pointer;
+      z-index: 10;
+    }
+    
+    .efi-block:not(.editing) .iframe-overlay:hover + iframe,
+    .efi-block:not(.editing) .iframe-wrapper:hover iframe {
+      outline: 2px solid #f59e0b;
+      outline-offset: 2px;
+    }
+    
+    .efi-block:not(.editing) .iframe-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+    
     /* Edit mode indicator */
     #edit-mode-indicator {
       position: fixed;
@@ -184,6 +213,42 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
     let clickTimer = null;
     let editIndicator = null;
     
+    // Wrap iframes in clickable overlays for editing
+    function wrapIframes() {
+      document.querySelectorAll('.efi-block iframe').forEach(function(iframe) {
+        // Skip if already wrapped
+        if (iframe.parentElement && iframe.parentElement.classList.contains('iframe-wrapper')) return;
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'iframe-wrapper';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'block';
+        wrapper.style.width = iframe.offsetWidth ? iframe.offsetWidth + 'px' : '100%';
+        wrapper.style.height = iframe.offsetHeight ? iframe.offsetHeight + 'px' : 'auto';
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'iframe-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.bottom = '0';
+        overlay.style.cursor = 'pointer';
+        overlay.style.zIndex = '10';
+        overlay.style.background = 'transparent';
+        
+        // Store reference to iframe
+        overlay.dataset.iframeSrc = iframe.getAttribute('src') || '';
+        
+        iframe.parentNode.insertBefore(wrapper, iframe);
+        wrapper.appendChild(overlay);
+        wrapper.appendChild(iframe);
+      });
+    }
+    
+    // Run after DOM is ready
+    wrapIframes();
+    
     // Create edit mode indicator
     function showEditIndicator() {
       if (editIndicator) return;
@@ -207,6 +272,31 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       
       // If block is in editing mode, don't intercept clicks
       if (block && block.classList.contains('editing')) {
+        return;
+      }
+      
+      // Check if clicked on iframe overlay (video embed)
+      if (e.target.classList.contains('iframe-overlay') && block) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const overlay = e.target;
+        const wrapper = overlay.closest('.iframe-wrapper');
+        const iframe = wrapper ? wrapper.querySelector('iframe') : null;
+        const iframeSrc = iframe ? iframe.getAttribute('src') : overlay.dataset.iframeSrc;
+        const blockId = block.dataset.blockId;
+        
+        // Find occurrence index
+        const allIframes = Array.from(block.querySelectorAll('iframe'));
+        const occurrenceIndex = iframe ? allIframes.indexOf(iframe) : 0;
+        
+        window.parent.postMessage({
+          type: 'eficode-embed-click',
+          blockId: blockId,
+          embedSrc: iframeSrc,
+          occurrenceIndex: occurrenceIndex
+        }, '*');
+        
         return;
       }
       
