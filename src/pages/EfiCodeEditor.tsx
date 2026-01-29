@@ -26,6 +26,7 @@ import { UnifiedIframe } from '@/components/eficode/editor/UnifiedIframe';
 import { BlockList } from '@/components/eficode/editor/BlockList';
 import { ImagePickerModal } from '@/components/eficode/ImagePickerModal';
 import { LinkEditorModal } from '@/components/eficode/LinkEditorModal';
+import { EmbedEditorModal } from '@/components/eficode/EmbedEditorModal';
 import { generateFullHtml } from '@/lib/efiCodeHtmlGenerator';
 import { useEfiCodeEditorStore } from '@/stores/efiCodeEditorStore';
 
@@ -109,6 +110,14 @@ export default function EfiCodeEditor() {
     innerImageSrc: string | null;
     innerImageOccurrenceIndex?: number;
     innerImageType?: 'img' | 'svg-image' | null;
+  } | null>(null);
+  
+  // State for embed/video editing from preview
+  const [embedEditorOpen, setEmbedEditorOpen] = useState(false);
+  const [editingEmbedContext, setEditingEmbedContext] = useState<{
+    blockId: string;
+    embedSrc: string;
+    occurrenceIndex: number;
   } | null>(null);
   
   // Refs for original values comparison
@@ -569,7 +578,47 @@ export default function EfiCodeEditor() {
     }
   }, [editingLinkContext]);
 
-  // Listen for image and link click messages from iframe
+  // Handle embed/video click from preview iframe
+  const handleEmbedClick = useCallback((
+    blockId: string,
+    embedSrc: string,
+    occurrenceIndex: number
+  ) => {
+    selectBlock(blockId);
+    setEditingEmbedContext({ blockId, embedSrc, occurrenceIndex });
+    setEmbedEditorOpen(true);
+  }, [selectBlock]);
+
+  // Handle embed save from modal
+  const handleEmbedSave = useCallback((newSrc: string) => {
+    if (!editingEmbedContext) return;
+    
+    const block = blocks.find(b => b.id === editingEmbedContext.blockId);
+    if (!block) return;
+    
+    const escapedSrc = editingEmbedContext.embedSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(<iframe[^>]*src=["'])${escapedSrc}(["'][^>]*>)`, 'gi');
+    
+    let matchIndex = 0;
+    const newHtml = block.html.replace(regex, (match, p1, p2) => {
+      if (matchIndex === editingEmbedContext.occurrenceIndex) {
+        matchIndex++;
+        return `${p1}${newSrc}${p2}`;
+      }
+      matchIndex++;
+      return match;
+    });
+    
+    if (newHtml !== block.html) {
+      updateBlockHtml(editingEmbedContext.blockId, newHtml);
+      toast.success('Vídeo atualizado!');
+    }
+    
+    setEmbedEditorOpen(false);
+    setEditingEmbedContext(null);
+  }, [editingEmbedContext, blocks, updateBlockHtml]);
+
+  // Listen for image, link, and embed click messages from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
@@ -595,12 +644,18 @@ export default function EfiCodeEditor() {
           event.data.innerImageOccurrenceIndex,
           event.data.innerImageType
         );
+      } else if (event.data.type === 'eficode-embed-click') {
+        handleEmbedClick(
+          event.data.blockId,
+          event.data.embedSrc,
+          event.data.occurrenceIndex
+        );
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [handleImageClick, handleLinkClick]);
+  }, [handleImageClick, handleLinkClick, handleEmbedClick]);
 
   // Block list handlers
   const handleMoveUp = useCallback((blockId: string) => {
@@ -967,6 +1022,17 @@ export default function EfiCodeEditor() {
       innerImageSrc={editingLinkContext?.innerImageSrc || null}
       onSave={handleLinkSave}
       onChangeImage={handleLinkImageChange}
+    />
+
+    {/* Embed Editor Modal for video/iframe editing */}
+    <EmbedEditorModal
+      open={embedEditorOpen}
+      onOpenChange={(open) => {
+        setEmbedEditorOpen(open);
+        if (!open) setEditingEmbedContext(null);
+      }}
+      currentSrc={editingEmbedContext?.embedSrc || ''}
+      onSave={handleEmbedSave}
     />
     </div>
   );
