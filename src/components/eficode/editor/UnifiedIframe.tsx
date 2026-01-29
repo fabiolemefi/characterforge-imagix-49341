@@ -7,9 +7,11 @@ interface UnifiedIframeProps {
   selectedBlockId: string | null;
   viewportWidth: string;
   themeMode?: 'light' | 'dark';
+  scrollToBlockId?: string | null;
   onBlockClick: (blockId: string) => void;
   onBlockDoubleClick: (blockId: string) => void;
   onBlockEdit: (blockId: string, newHtml: string) => void;
+  onScrollComplete?: () => void;
 }
 
 export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
@@ -18,9 +20,11 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
   selectedBlockId,
   viewportWidth,
   themeMode = 'light',
+  scrollToBlockId,
   onBlockClick,
   onBlockDoubleClick,
   onBlockEdit,
+  onScrollComplete,
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const editingBlockIdRef = useRef<string | null>(null);
@@ -428,17 +432,32 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
 </html>`;
   }, [blocks, globalCss, selectedBlockId, themeMode]);
 
-  // Save scroll position before srcDoc changes, restore after load
+  // Save scroll position before srcDoc changes, restore after load (or scroll to new block)
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
-    // Save current scroll position before iframe reloads
-    saveScrollPosition();
+    // Save current scroll position before iframe reloads (only if not adding a new block)
+    if (!scrollToBlockId) {
+      saveScrollPosition();
+    }
 
     const handleLoad = () => {
-      // Only restore if we had a previous position
-      if (prevSrcDocRef.current !== '' && (scrollPositionRef.current.y > 0 || scrollPositionRef.current.x > 0)) {
+      // If we need to scroll to a specific block (new block added)
+      if (scrollToBlockId) {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.postMessage({
+              type: 'eficode-scroll-to-block',
+              blockId: scrollToBlockId
+            }, '*');
+            onScrollComplete?.();
+          } catch (e) {
+            // Ignore
+          }
+        }, 50);
+      } else if (prevSrcDocRef.current !== '' && (scrollPositionRef.current.y > 0 || scrollPositionRef.current.x > 0)) {
+        // Restore previous scroll position (for edits like image replacement)
         setTimeout(() => {
           try {
             iframe.contentWindow?.scrollTo(
@@ -448,14 +467,14 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
           } catch (e) {
             // Cross-origin or not ready, ignore
           }
-        }, 10);
+        }, 50);
       }
       prevSrcDocRef.current = srcDoc;
     };
 
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
-  }, [srcDoc, saveScrollPosition]);
+  }, [srcDoc, saveScrollPosition, scrollToBlockId, onScrollComplete]);
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
