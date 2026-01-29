@@ -233,3 +233,33 @@
   text-align: revert;
   vertical-align: revert;
 }
+
+/* Scrollbar elegante para o editor Efi Code */
+.efi-code-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+}
+
+.efi-code-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.efi-code-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.efi-code-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.4);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.efi-code-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.6);
+}
+
+.efi-code-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}

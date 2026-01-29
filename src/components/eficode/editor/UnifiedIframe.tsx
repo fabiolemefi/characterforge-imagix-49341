@@ -107,6 +107,20 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
       opacity: 0.9;
     }
     
+    /* Clickable links and buttons indicator */
+    .efi-block:not(.editing) a,
+    .efi-block:not(.editing) button {
+      cursor: pointer;
+      transition: outline 0.15s ease, opacity 0.15s ease;
+    }
+    
+    .efi-block:not(.editing) a:hover,
+    .efi-block:not(.editing) button:hover {
+      outline: 2px solid #10b981;
+      outline-offset: 2px;
+      opacity: 0.9;
+    }
+    
     /* Edit mode indicator */
     #edit-mode-indicator {
       position: fixed;
@@ -169,15 +183,47 @@ export const UnifiedIframe: React.FC<UnifiedIframeProps> = ({
     
     // Handle clicks on blocks
     document.addEventListener('click', function(e) {
-      // Check if clicked on an image (not in editing mode)
-      const img = e.target.closest('img');
-      const picture = e.target.closest('picture');
       const block = e.target.closest('[data-block-id]');
       
-      // If block is in editing mode, don't intercept image clicks
+      // If block is in editing mode, don't intercept clicks
       if (block && block.classList.contains('editing')) {
         return;
       }
+      
+      // Check if clicked on a link or button
+      const link = e.target.closest('a');
+      const button = e.target.closest('button');
+      
+      if ((link || button) && block) {
+        e.stopPropagation();
+        e.preventDefault(); // Prevent navigation
+        
+        const element = link || button;
+        const elementType = link ? 'link' : 'button';
+        const href = link ? link.getAttribute('href') : null;
+        const text = element.textContent || '';
+        const blockId = block.dataset.blockId;
+        
+        // Find occurrence index
+        const selector = elementType === 'link' ? 'a' : 'button';
+        const allElements = Array.from(block.querySelectorAll(selector));
+        const occurrenceIndex = allElements.indexOf(element);
+        
+        window.parent.postMessage({
+          type: 'eficode-link-click',
+          blockId: blockId,
+          elementType: elementType,
+          href: href,
+          text: text,
+          occurrenceIndex: occurrenceIndex
+        }, '*');
+        
+        return;
+      }
+      
+      // Check if clicked on an image (not in editing mode)
+      const img = e.target.closest('img');
+      const picture = e.target.closest('picture');
       
       if (img && block) {
         e.stopPropagation();
