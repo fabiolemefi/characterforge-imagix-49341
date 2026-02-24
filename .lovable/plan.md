@@ -1,31 +1,35 @@
 
 
-# Plano: Blocos "Paleta de Cores 2" e "Paleta de Cores 3"
+# Implementar Blocos "Paleta de Cores" no Brand Guide
 
-## Objetivo
+## Situacao Atual
 
-Criar dois novos tipos de bloco para o Brand Guide, inspirados no layout do Duolingo Design System:
-- **color_palette_2**: 2 colunas de cores (estilo "Core Brand Colors")
-- **color_palette_3**: 3 colunas de cores (estilo "Secondary Colors")
+Nada foi implementado ainda. O enum do banco de dados nao tem os novos tipos e o componente nao existe. Precisamos:
 
-Cada coluna exibe:
-- Quadrado grande com a cor
-- Nome da cor
-- Hex (editavel, ao digitar atualiza o quadrado e o RGB automaticamente)
-- RGB (calculado automaticamente)
-- CMYK (editavel manualmente)
+1. Criar o enum no banco
+2. Criar o componente visual
+3. Registrar nos hooks e paginas
 
-## Arquivos a Criar
+## Etapas
 
-### 1. `src/components/brandguide/ColorPaletteBlock.tsx`
+### 1. Migracão no banco de dados
 
-Componente reutilizavel que recebe o numero de colunas (2 ou 3). Cada coluna tera:
+Adicionar os valores `color_palette_2` e `color_palette_3` ao enum `brand_guide_block_type` e recarregar o cache do schema.
+
+```sql
+ALTER TYPE public.brand_guide_block_type ADD VALUE IF NOT EXISTS 'color_palette_2';
+ALTER TYPE public.brand_guide_block_type ADD VALUE IF NOT EXISTS 'color_palette_3';
+NOTIFY pgrst, 'reload schema';
+```
+
+### 2. Criar componente `src/components/brandguide/ColorPaletteBlock.tsx`
+
+Componente reutilizavel que recebe o numero de colunas (2 ou 3). Para cada cor exibe:
 
 ```text
 +---------------------------+
 |                           |
-|    [cor preenchida]       |
-|    (quadrado grande)      |
+|    [quadrado com a cor]   |
 |                           |
 +---------------------------+
   Nome da Cor
@@ -35,65 +39,43 @@ Componente reutilizavel que recebe o numero de colunas (2 ou 3). Cada coluna ter
   CMYK   0, 66, 80, 0
 ```
 
-Logica de conversao:
-- Ao editar o campo Hex, converte automaticamente para RGB e atualiza a cor do quadrado
-- CMYK e preenchido manualmente (nao ha conversao exata de Hex para CMYK)
-- No modo admin: campos editaveis (inputs)
-- No modo publico: apenas exibicao dos valores
+- Hex editavel no admin, ao digitar converte automaticamente para RGB e atualiza a cor do quadrado
+- CMYK editavel manualmente
+- No modo publico: apenas exibicao
+- Grid `grid-cols-2` ou `grid-cols-3` conforme o tipo do bloco
+- Borda visivel para cores claras
 
-Estrutura do `content`:
-```typescript
-{
-  colors: [
-    { name: "Feather Green", hex: "58CC02", rgb: "88, 204, 2", cmyk: "57, 0, 99, 20" },
-    { name: "Mask Green", hex: "89E219", rgb: "137, 226, 25", cmyk: "39, 0, 89, 11" }
-  ]
-}
-```
-
-## Arquivos a Modificar
-
-### 2. `src/hooks/useBrandGuide.ts`
+### 3. Atualizar `src/hooks/useBrandGuide.ts`
 
 - Adicionar `'color_palette_2' | 'color_palette_3'` ao union type de `block_type`
-- Adicionar `defaultContent` no `addBlock` para ambos os tipos:
-  - `color_palette_2`: array de 2 cores vazias
-  - `color_palette_3`: array de 3 cores vazias
+- Adicionar default content no `addBlock`:
+  - `color_palette_2`: 2 cores vazias
+  - `color_palette_3`: 3 cores vazias
 
-### 3. `src/pages/AdminBrandGuidePage.tsx`
+### 4. Atualizar `src/hooks/useBrandGuidePageContent.ts`
 
-- Importar `ColorPaletteBlock`
-- Adicionar 2 novos `case` no `renderBlock` (`color_palette_2`, `color_palette_3`)
-- Adicionar 2 novas opcoes no dropdown "Adicionar Bloco":
-  - "Paleta de Cores (2 colunas)"
-  - "Paleta de Cores (3 colunas)"
-- Atualizar o tipo do `handleAddBlock` para aceitar os novos tipos
+- Adicionar os novos tipos ao union type de `block_type`
 
-### 4. `src/pages/BrandGuide.tsx`
+### 5. Atualizar `src/pages/AdminBrandGuidePage.tsx`
 
 - Importar `ColorPaletteBlock`
-- Adicionar 2 novos `case` no `renderBlock` publico
+- Adicionar cases `color_palette_2` e `color_palette_3` no `renderBlock`
+- Adicionar opcoes "Paleta de Cores (2 colunas)" e "Paleta de Cores (3 colunas)" no dropdown
+- Atualizar tipo do `handleAddBlock`
 
-### 5. `src/hooks/useBrandGuidePageContent.ts`
+### 6. Atualizar `src/pages/BrandGuide.tsx`
 
-- Atualizar o tipo `BrandGuideBlock` se existir uma copia do union type nesse arquivo
+- Importar `ColorPaletteBlock`
+- Adicionar cases no `renderBlock` publico
 
-## Detalhes Tecnicos
+## Arquivos afetados
 
-### Conversao Hex para RGB
-```typescript
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  return `${r}, ${g}, ${b}`;
-}
-```
-
-### Layout visual
-- Quadrado de cor: `aspect-square rounded-lg border` com `backgroundColor` dinamico
-- Cores claras (ex: branco) terao borda visivel para nao "sumir"
-- Grid: `grid-cols-2` ou `grid-cols-3` conforme o tipo
-- Separador fino entre nome e dados tecnicos (como no Duolingo)
-- Fontes monoespaçadas para os valores hex/rgb/cmyk
+| Arquivo | Acao |
+|---------|------|
+| Migracao SQL | Criar (enum) |
+| `src/components/brandguide/ColorPaletteBlock.tsx` | Criar |
+| `src/hooks/useBrandGuide.ts` | Modificar tipos e addBlock |
+| `src/hooks/useBrandGuidePageContent.ts` | Modificar tipos |
+| `src/pages/AdminBrandGuidePage.tsx` | Modificar renderBlock e dropdown |
+| `src/pages/BrandGuide.tsx` | Modificar renderBlock |
 
