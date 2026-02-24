@@ -1,107 +1,112 @@
 
-# Plano: Correções no Editor Efi Code
 
-## Problemas a Resolver
+# Plano: Exclusão Segura de Arquivos
 
-1. **Tema padrão deve ser "dark"**: Atualmente o tema inicia como "light", mas o usuário quer que "dark" seja o padrão.
+## Lógica Atual (Problema)
 
-2. **Troca de ícone em botão não funciona**: Quando o usuário clica em "Trocar Ícone" no modal de link/botão, a imagem não é substituída corretamente porque o `occurrenceIndex` passado é do link, não da imagem interna.
+Hoje o fluxo é: deletar do storage -> se falhar, aborta tudo -> deletar do banco. Se o storage falha (timeout em arquivos grandes, ou arquivo já não existe), o registro do banco nunca é removido e o arquivo fica "preso" na lista.
 
----
+## Nova Lógica
 
-## Solução
+1. **Verificar se o arquivo existe no storage** usando `list()` no caminho do arquivo
+2. **Se existe**: deletar do storage, depois deletar do banco
+3. **Se não existe**: apenas deletar o registro do banco (sem tentar remover do storage)
+4. Em ambos os casos, o registro do banco é sempre removido
 
-### Parte 1: Tema Padrão Dark
+## Detalhes Tecnicos
 
-Alterar o valor inicial do estado `themeMode` de `'light'` para `'dark'`.
+### Arquivo: `src/pages/Downloads.tsx`
 
-**Arquivo**: `src/pages/EfiCodeEditor.tsx`
-
-```typescript
-// Antes
-const [themeMode, setThemeMode] = useState<ThemeMode>('light');
-
-// Depois
-const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
-```
-
----
-
-### Parte 2: Corrigir Índice de Ocorrência para Ícones
-
-O problema está no cálculo do `occurrenceIndex` da imagem interna. Atualmente:
-
-1. O iframe detecta que um link tem uma imagem interna (`hasInnerImage: true`)
-2. Envia `innerImageSrc` mas usa o `occurrenceIndex` do **link**
-3. Quando o usuário clica em "Trocar Ícone", esse índice errado é passado para `handleImageSelect`
-4. O `handleImageSelect` procura a N-ésima ocorrência da imagem, mas usa o índice do link
-
-**Correção**: Calcular um `innerImageOccurrenceIndex` específico para a imagem interna do link.
-
-#### No UnifiedIframe.tsx
-
-Ao detectar um link com imagem interna, calcular o índice correto da imagem:
-
-```javascript
-// Check for inner images/icons
-const innerImg = element.querySelector('img');
-const innerSvg = element.querySelector('svg');
-const hasInnerImage = !!innerImg || !!innerSvg;
-const innerImageSrc = innerImg ? innerImg.getAttribute('src') : null;
-
-// Calculate the CORRECT occurrence index for the inner image
-let innerImageOccurrenceIndex = 0;
-if (innerImg && innerImageSrc) {
-  const allImgs = Array.from(block.querySelectorAll('img'));
-  const sameSourceImgs = allImgs.filter(function(i) {
-    return i.getAttribute('src') === innerImageSrc;
-  });
-  innerImageOccurrenceIndex = sameSourceImgs.indexOf(innerImg);
-}
-
-window.parent.postMessage({
-  type: 'eficode-link-click',
-  // ... outros campos ...
-  hasInnerImage: hasInnerImage,
-  innerImageSrc: innerImageSrc,
-  innerImageOccurrenceIndex: innerImageOccurrenceIndex  // NOVO
-}, '*');
-```
-
-#### No EfiCodeEditor.tsx
-
-1. Expandir `editingLinkContext` para incluir `innerImageOccurrenceIndex`
-2. Em `handleLinkClick`, capturar o novo campo
-3. Em `handleLinkImageChange`, usar `innerImageOccurrenceIndex` em vez de `occurrenceIndex`
+Substituir a funcao `handleDelete` por:
 
 ```typescript
-// Estado expandido
-const [editingLinkContext, setEditingLinkContext] = useState<{
-  // ... campos existentes ...
-  innerImageOccurrenceIndex?: number;  // NOVO
-} | null>(null);
+const handleDelete = async () => {
+  if (!deleteId) return;
 
-// Em handleLinkImageChange
-setEditingImageContext({
-  blockId: editingLinkContext.blockId,
-  imageSrc: editingLinkContext.innerImageSrc || '',
-  isPicture: false,
-  occurrenceIndex: editingLinkContext.innerImageOccurrenceIndex ?? 0  // Usar índice correto
-});
+  const fileIdToDelete = deleteId;
+  setDeletingId(fileIdToDelete);
+  setDeleteId(null);
+
+  try {
+    const file = files?.find((f) => f.id === fileIdToDelete);
+    if (!file) return;
+
+    // 1. Checar se o arquivo existe no storage
+    const folder = file.file_path.substring(0, file.file_path.lastIndexOf('/'));
+    const fileName = file.file_path.substring(file.file_path.lastIndexOf('/') + 1);
+
+    const { data: listData } = await supabase.storage
+      .from('media-downloads')
+      .list(folder || undefined, {
+        search: fileName,
+      });
+
+    const existsInStorage = listData?.some((f) => f.name === fileName);
+
+    // 2. Se existe no storage, deletar
+    if (existsInStorage) {
+      const { error: storageError } = await supabase.storage
+        .from('media-downloads')
+        .remove([file.file_path]);
+
+      if (storageError) {
+        console.error('Erro ao deletar do storage:', storageError);
+        // Continua mesmo assim para remover do banco
+      }
+    }
+
+    // 3. Sempre deletar o registro do banco
+    const { error: dbError } = await supabase
+      .from('shared_files')
+      .delete()
+      .eq('id', fileIdToDelete);
+
+    if (dbError) throw dbError;
+
+    queryClient.invalidateQueries({ queryKey: ['shared-files'] });
+    toast({
+      title: 'Arquivo deletado',
+      description: existsInStorage
+        ? 'O arquivo foi removido com sucesso'
+        : 'O registro foi removido (arquivo já não existia no storage)',
+    });
+  } catch (error) {
+    console.error('Erro ao deletar:', error);
+    toast({
+      title: 'Erro ao deletar',
+      description: 'Não foi possível remover o arquivo',
+      variant: 'destructive',
+    });
+  } finally {
+    setDeletingId(null);
+  }
+};
 ```
 
----
+## Resumo do Fluxo
 
-## Arquivos a Modificar
+```text
+Clicou em deletar
+  |
+  v
+Arquivo existe no storage?
+  |          |
+ SIM        NAO
+  |          |
+  v          |
+Deletar     |
+do storage  |
+  |          |
+  v          v
+Deletar registro do banco (SEMPRE)
+  |
+  v
+Atualizar lista
+```
 
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/pages/EfiCodeEditor.tsx` | Mudar tema padrão para 'dark', adicionar `innerImageOccurrenceIndex` ao contexto |
-| `src/components/eficode/editor/UnifiedIframe.tsx` | Calcular e enviar `innerImageOccurrenceIndex` |
+## Arquivo a Modificar
 
----
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/Downloads.tsx` | Reescrever `handleDelete` com checagem de existencia |
 
-## Resultado Esperado
-
-1. Ao abrir o editor, o tema já estará em modo escuro
-2. Ao clicar em "Trocar Ícone" em um botão com ícone, a imagem correta será substituída
