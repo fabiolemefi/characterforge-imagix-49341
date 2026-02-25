@@ -29,7 +29,7 @@ export interface BrandGuideBlock {
   id: string;
   page_id?: string;
   category_id?: string;
-  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'separator';
+  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'separator' | 'color_palette_2' | 'color_palette_3';
   position: number;
   content: any;
   created_at: string;
@@ -145,7 +145,7 @@ export const useBrandGuide = () => {
     }
   };
 
-  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed') => {
+  const addBlock = async (pageId: string | null, categoryId: string | null, blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'color_palette_2' | 'color_palette_3') => {
     try {
       const { data: existingBlocks } = await supabase
         .from('brand_guide_blocks')
@@ -177,6 +177,12 @@ export const useBrandGuide = () => {
         ? { image_url: '', image_alt: '' }
         : blockType === 'video'
         ? { video_url: '' }
+        : blockType === 'embed'
+        ? { embed_url: '' }
+        : blockType === 'color_palette_2'
+        ? { colors: [{ name: '', hex: '#', rgb: '', cmyk: '' }, { name: '', hex: '#', rgb: '', cmyk: '' }] }
+        : blockType === 'color_palette_3'
+        ? { colors: [{ name: '', hex: '#', rgb: '', cmyk: '' }, { name: '', hex: '#', rgb: '', cmyk: '' }, { name: '', hex: '#', rgb: '', cmyk: '' }] }
         : { embed_url: '' };
 
       const { data, error } = await supabase

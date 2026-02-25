@@ -11,6 +11,7 @@ import { ImageBlock } from '@/components/brandguide/ImageBlock';
 import { VideoBlock } from '@/components/brandguide/VideoBlock';
 import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
 import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
+import { ColorPaletteBlock } from '@/components/brandguide/ColorPaletteBlock';
 
 export default function BrandGuide() {
   const { categorySlug, pageSlug } = useParams();
@@ -54,6 +55,10 @@ export default function BrandGuide() {
         return <EmbedBlock key={block.id} {...props} />;
       case 'separator':
         return <SeparatorBlock key={block.id} {...props} />;
+      case 'color_palette_2':
+        return <ColorPaletteBlock key={block.id} {...props} columns={2} />;
+      case 'color_palette_3':
+        return <ColorPaletteBlock key={block.id} {...props} columns={3} />;
       default:
         return null;
     }

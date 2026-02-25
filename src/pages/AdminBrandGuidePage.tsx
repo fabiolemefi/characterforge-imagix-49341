@@ -14,6 +14,7 @@ import { ImageBlock } from '@/components/brandguide/ImageBlock';
 import { VideoBlock } from '@/components/brandguide/VideoBlock';
 import { EmbedBlock } from '@/components/brandguide/EmbedBlock';
 import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
+import { ColorPaletteBlock } from '@/components/brandguide/ColorPaletteBlock';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,7 +96,7 @@ export default function AdminBrandGuidePage() {
     }
   };
 
-  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only') => {
+  const handleAddBlock = async (blockType: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'color_palette_2' | 'color_palette_3') => {
     const newBlock = await addBlock(
       pageData?.page?.id || null,
       pageData?.page ? null : pageData?.category?.id,
@@ -210,6 +211,26 @@ export default function AdminBrandGuidePage() {
             onContentChange={(content) => handleContentChange(block.id, content)}
           />
         );
+      case 'color_palette_2':
+        return blockWrapper(
+          <ColorPaletteBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            columns={2}
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
+      case 'color_palette_3':
+        return blockWrapper(
+          <ColorPaletteBlock 
+            blockId={block.id} 
+            content={block.content} 
+            isAdmin={true} 
+            columns={3}
+            onContentChange={(content) => handleContentChange(block.id, content)}
+          />
+        );
       default:
         return null;
     }
@@ -295,6 +316,12 @@ export default function AdminBrandGuidePage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleAddBlock('three_columns')}>
                   3 Colunas
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleAddBlock('color_palette_2')}>
+                  Paleta de Cores (2 colunas)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleAddBlock('color_palette_3')}>
+                  Paleta de Cores (3 colunas)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
