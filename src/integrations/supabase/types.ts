@@ -2122,6 +2122,8 @@ export type Database = {
         | "video"
         | "embed"
         | "separator"
+        | "color_palette_2"
+        | "color_palette_3"
       briefing_status: "rascunho" | "em_revisao" | "aprovado" | "concluido"
       test_status: "planejamento" | "execucao" | "analise" | "documentacao"
     }
@@ -2262,6 +2264,8 @@ export const Constants = {
         "video",
         "embed",
         "separator",
+        "color_palette_2",
+        "color_palette_3",
       ],
       briefing_status: ["rascunho", "em_revisao", "aprovado", "concluido"],
       test_status: ["planejamento", "execucao", "analise", "documentacao"],

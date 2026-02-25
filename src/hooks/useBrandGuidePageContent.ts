@@ -5,7 +5,7 @@ export interface BrandGuideBlock {
   id: string;
   page_id?: string;
   category_id?: string;
-  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'separator';
+  block_type: 'single_column' | 'two_columns' | 'three_columns' | 'title_only' | 'text_only' | 'image' | 'video' | 'embed' | 'separator' | 'color_palette_2' | 'color_palette_3';
   position: number;
   content: any;
   created_at: string;
