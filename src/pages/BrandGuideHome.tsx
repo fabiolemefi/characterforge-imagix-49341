@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SingleColumnBlock } from '@/components/brandguide/SingleColumnBlock';
 import { TwoColumnBlock } from '@/components/brandguide/TwoColumnBlock';
 import { ThreeColumnBlock } from '@/components/brandguide/ThreeColumnBlock';
@@ -10,10 +11,36 @@ import { SeparatorBlock } from '@/components/brandguide/SeparatorBlock';
 import { BrandGuideBlock } from '@/hooks/useBrandGuide';
 import { useBrandGuideHomeBlocks } from '@/hooks/useBrandGuideHomeBlocks';
 import { ErrorFallback } from '@/components/ErrorFallback';
+import { Button } from '@/components/ui/button';
+import { Download, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function BrandGuideHome() {
-  // React Query hook (com cache automático)
   const { data: blocks = [], isLoading: loading, error } = useBrandGuideHomeBlocks();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const { data, error } = await supabase.functions.invoke('export-brand-guide');
+      if (error) throw error;
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `brand-guide-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Conteúdo exportado com sucesso!');
+    } catch (err: any) {
+      console.error('Export error:', err);
+      toast.error('Erro ao exportar conteúdo');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const renderBlock = (block: BrandGuideBlock) => {
     switch (block.block_type) {
@@ -127,6 +154,21 @@ export default function BrandGuideHome() {
         />
       ) : (
         <>
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Exportar conteúdo
+            </Button>
+          </div>
           {blocks.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
