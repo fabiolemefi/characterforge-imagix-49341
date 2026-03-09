@@ -1,59 +1,23 @@
 
 
-## Plano: Exportar conteúdo do Guia de Marca
+## Plano: Gerar arquivo .md com documentação técnica do módulo Jira Tasks
 
-O volume de dados é grande (66 blocos em 7+ páginas), então a melhor abordagem é criar uma **função backend** que extrai todo o conteúdo e retorna um JSON estruturado limpo, pronto para copiar e passar para outra IA.
+Vou criar um arquivo `docs/jira-tasks-technical.md` na raiz do projeto com toda a documentação técnica do módulo `/jira-tasks`, incluindo:
 
-### Estrutura atual no banco
+### Conteúdo do documento
 
-```text
-4 Categorias (menus):
-├── ID Verbal (6 páginas)
-│   ├── Nosso tom de voz (4 blocos)
-│   ├── Canais (2 blocos)
-│   ├── Lista de palavras
-│   ├── O básico da Efi
-│   ├── Nosso nome
-│   └── Narrativa
-├── ID Visual (11 páginas)
-│   ├── Logo (15 blocos)
-│   ├── Efi Bank
-│   ├── Endosso
-│   ├── Diretrizes do logo e do símbolo
-│   ├── Paleta de cores (10 blocos)
-│   ├── Tipografia
-│   ├── Estilo de fotografia
-│   ├── Elementos gráficos
-│   ├── Estilo iconográfico
-│   ├── Estilo ilustrativo
-│   └── Ritmo nas composições
-├── Layouts (4 páginas)
-│   ├── Módulos
-│   ├── Margens e colunas
-│   ├── Aplicação dos elementos
-│   └── Composição final
-└── Motion Guide (3 páginas)
-    ├── Home (1 bloco)
-    ├── Orientações de audiovisual (24 blocos)
-    └── Trilha sonora (3 blocos)
+1. **Arquitetura geral** - visão do fluxo frontend → edge functions → Jira Cloud API → banco de dados
+2. **Rotas e páginas** - todas as 5 rotas (`/jira-tasks`, `/new`, `/list`, `/okrs`, `/admin/jira`)
+3. **Tabelas do banco** - `jira_tasks`, `jira_task_subtasks`, `jira_okrs`, `jira_areas` com schemas
+4. **Edge Functions** - `create-jira-task`, `delete-jira-task`, `create-jira-epic`, `jira-login` com payloads e lógica
+5. **Jira API** - endpoints utilizados, autenticação Basic Auth, projeto `MAR`, issue types (`Esteira`, subtask id `10011`)
+6. **Configurações e secrets** - `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `JIRA_LOGIN_SECRET`
+7. **Hooks** - todos os hooks de `useJiraTasks.ts` com queries e mutations
+8. **Types** - interfaces TypeScript completas
+9. **Trechos de código relevantes** - HTML→ADF converter, sprint label generator, briefing→task flow
+10. **Componentes auxiliares** - `OperationProgressModal`
 
-+ 7 blocos na Home do Brand Guide
-```
+### Implementação
 
-### O que será criado
-
-1. **Edge function `export-brand-guide`**: consulta todas as categorias, páginas e blocos, faz strip do HTML para texto puro, e retorna um JSON organizado com:
-   - Estrutura de menus (categorias > páginas)
-   - Conteúdo textual limpo de cada bloco (sem tags HTML, sem atributos)
-   - URLs de imagens/vídeos preservadas
-   - Dados de paleta de cores (hex, rgb, cmyk, pantone)
-
-2. **Botão "Exportar conteúdo"** na página `/brand-guide` que chama a função e faz download de um arquivo `.json`
-
-### Detalhes técnicos
-
-- A função usa o service role key para acessar todos os dados
-- Strip de HTML feito com regex server-side (remove tags, atributos, comentários)
-- Formato de saída organizado por categoria > página > blocos
-- Cada bloco terá: `type`, `position`, `text_content`, `media_urls`, `color_data`
+Criar um único arquivo `.md` com todas essas seções, pronto para copiar e colar para outra LLM.
 
