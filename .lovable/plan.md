@@ -1,59 +1,30 @@
 
 
-## Plano: Exportar conteúdo do Guia de Marca
+# Migração da Biblioteca de Imagens e Ícones
 
-O volume de dados é grande (66 blocos em 7+ páginas), então a melhor abordagem é criar uma **função backend** que extrai todo o conteúdo e retorna um JSON estruturado limpo, pronto para copiar e passar para outra IA.
+## Inventário Atual
 
-### Estrutura atual no banco
+| Tabela | Registros |
+|---|---|
+| `efi_image_categories` | 3 (Hero, Sede, Sys) |
+| `efi_library_images` | 3 |
+| `efi_library_icons` | 363 (grupos: `geral`, `ilustra`) |
 
-```text
-4 Categorias (menus):
-├── ID Verbal (6 páginas)
-│   ├── Nosso tom de voz (4 blocos)
-│   ├── Canais (2 blocos)
-│   ├── Lista de palavras
-│   ├── O básico da Efi
-│   ├── Nosso nome
-│   └── Narrativa
-├── ID Visual (11 páginas)
-│   ├── Logo (15 blocos)
-│   ├── Efi Bank
-│   ├── Endosso
-│   ├── Diretrizes do logo e do símbolo
-│   ├── Paleta de cores (10 blocos)
-│   ├── Tipografia
-│   ├── Estilo de fotografia
-│   ├── Elementos gráficos
-│   ├── Estilo iconográfico
-│   ├── Estilo ilustrativo
-│   └── Ritmo nas composições
-├── Layouts (4 páginas)
-│   ├── Módulos
-│   ├── Margens e colunas
-│   ├── Aplicação dos elementos
-│   └── Composição final
-└── Motion Guide (3 páginas)
-    ├── Home (1 bloco)
-    ├── Orientações de audiovisual (24 blocos)
-    └── Trilha sonora (3 blocos)
+Todos os arquivos estão no bucket público `efi-code-assets` com URLs públicas acessíveis.
 
-+ 7 blocos na Home do Brand Guide
-```
+## Plano de Entrega
 
-### O que será criado
+Vou criar um arquivo `docs/library-migration.md` contendo:
 
-1. **Edge function `export-brand-guide`**: consulta todas as categorias, páginas e blocos, faz strip do HTML para texto puro, e retorna um JSON organizado com:
-   - Estrutura de menus (categorias > páginas)
-   - Conteúdo textual limpo de cada bloco (sem tags HTML, sem atributos)
-   - URLs de imagens/vídeos preservadas
-   - Dados de paleta de cores (hex, rgb, cmyk, pantone)
+1. **SQL de criação das 3 tabelas** (`efi_image_categories`, `efi_library_images`, `efi_library_icons`) com schemas exatos, RLS policies e triggers
+2. **SQL de INSERT com todos os dados** — as 3 categorias, 3 imagens e 363 ícones com todas as URLs atuais
+3. **Instruções de storage** — criação do bucket `efi-code-assets` e estrutura de pastas
+4. **Prompt detalhado para LLM** — instruções completas para a outra LLM recriar o sistema no novo projeto
+5. **Hook TypeScript completo** (`useEfiImageLibrary.ts` e `useEfiLibraryIcons.ts`) e o componente `ImagePickerModal`
+6. **Nota sobre arquivos** — as URLs atuais são públicas e continuarão funcionando, mas se quiser independência total, precisa re-upload dos assets para o novo bucket
 
-2. **Botão "Exportar conteúdo"** na página `/brand-guide` que chama a função e faz download de um arquivo `.json`
-
-### Detalhes técnicos
-
-- A função usa o service role key para acessar todos os dados
-- Strip de HTML feito com regex server-side (remove tags, atributos, comentários)
-- Formato de saída organizado por categoria > página > blocos
-- Cada bloco terá: `type`, `position`, `text_content`, `media_urls`, `color_data`
+### Sobre os assets físicos
+As URLs dos arquivos (imagens PNG e ícones SVG) são públicas no storage atual. O documento incluirá:
+- Opção A: Manter as URLs atuais (funciona imediatamente)
+- Opção B: Script/instruções para baixar e re-upload no novo storage
 
