@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download - Mágicas do Fábio</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f1a; color: #eaeaea; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #1a1a2e; border-radius: 16px; padding: 40px; max-width: 420px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    .icon { width: 64px; height: 64px; margin-bottom: 16px; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    p { color: #9ca3af; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+    button { background: #3b82f6; color: #fff; border: none; padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
+    button:hover { background: #2563eb; transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .version { color: #6b7280; font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="chrome-ext/icons/icon128.png" alt="Mágicas do Fábio" class="icon">
+    <h1>Mágicas do Fábio</h1>
+    <p>Extensão Chrome para proxy SFMC e encurtamento de URLs.<br>Clique para baixar o ZIP e instale via <code>chrome://extensions</code> → Carregar sem compactação.</p>
+    <button id="download-btn" onclick="downloadExtension()">⬇ Baixar Extensão (.zip)</button>
+    <div class="version">v1.0.1</div>
+  </div>
+
+  <script>
+  // All text files embedded
+  const TEXT_FILES = {
+    "manifest.json": `MANIFEST_PLACEHOLDER`,
+    "background.js": `BACKGROUND_PLACEHOLDER`,
+    "content.js": `CONTENT_PLACEHOLDER`,
+    "rules.json": `RULES_PLACEHOLDER`,
+    "popup.html": `POPUP_HTML_PLACEHOLDER`,
+    "popup.js": `POPUP_JS_PLACEHOLDER`,
+    "popup.css": `POPUP_CSS_PLACEHOLDER`,
+    "README.md": `README_PLACEHOLDER`,
+  };
+
+  const BINARY_FILES = [
+    { path: "icons/icon16.png", url: "chrome-ext/icons/icon16.png" },
+    { path: "icons/icon48.png", url: "chrome-ext/icons/icon48.png" },
+    { path: "icons/icon128.png", url: "chrome-ext/icons/icon128.png" },
+    { path: "images/fabioleme.png", url: "chrome-ext/images/fabioleme.png" },
+    { path: "images/qrcode-fabio.png", url: "chrome-ext/images/qrcode-fabio.png" },
+  ];
+
+  async function downloadExtension() {
+    const btn = document.getElementById("download-btn");
+    btn.disabled = true;
+    btn.textContent = "Gerando ZIP...";
+
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder("chrome-extension-sfmc-proxy");
+
+      // Add text files
+      for (const [name, content] of Object.entries(TEXT_FILES)) {
+        folder.file(name, content);
+      }
+
+      // Fetch and add binary files
+      const binaryPromises = BINARY_FILES.map(async (file) => {
+        const resp = await fetch(file.url);
+        const blob = await resp.blob();
+        folder.file(file.path, blob);
+      });
+      await Promise.all(binaryPromises);
+
+      // Generate and download
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "chrome-extension-sfmc-proxy.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+
+      btn.textContent = "✓ Download iniciado!";
+      setTimeout(() => { btn.textContent = "⬇ Baixar Extensão (.zip)"; btn.disabled = false; }, 2000);
+    } catch (e) {
+      console.error(e);
+      btn.textContent = "Erro - tente novamente";
+      btn.disabled = false;
+    }
+  }
+  </script>
+</body>
+</html>
