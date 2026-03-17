@@ -1,0 +1,166 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eaeaea;
+  min-width: 320px;
+  padding: 16px;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2d2d44;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Seção de doação centralizada */
+.donation-section {
+  text-align: center;
+  padding: 20px 16px;
+  background: #2d2d44;
+  border-radius: 12px;
+}
+
+.avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #3b82f6;
+  margin-bottom: 12px;
+}
+
+.author-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 8px 0;
+}
+
+.donation-message {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.qrcode {
+  width: 140px;
+  height: 140px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+/* Botões */
+.btn {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-outline {
+  background: transparent;
+  color: #3b82f6;
+  border: 2px solid #3b82f6;
+}
+
+.btn-outline:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Status com indicadores */
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #2d2d44;
+  border-radius: 8px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7280;
+}
+
+.status-indicator.success {
+  background: #22c55e;
+}
+
+.status-indicator.error {
+  background: #ef4444;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.status-value {
+  font-size: 13px;
+  color: #fff;
+  margin-left: auto;
+}
+
+/* Mensagens */
+.message {
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.message.error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+/* Utilitários */
+.hidden {
+  display: none !important;
+}

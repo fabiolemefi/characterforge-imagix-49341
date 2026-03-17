@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mágicas do Fábio</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icons/icon48.png" alt="Mágicas do Fábio" class="logo">
+      <h1>Mágicas do Fábio</h1>
+    </div>
+
+    <div class="donation-section">
+      <img src="images/fabioleme.png" alt="Fábio Leme" class="avatar">
+      <h3 class="author-name">Fábio Leme</h3>
+      <p class="donation-message">
+        Se sua vida laboral está menos difícil, é porque meus plugins te ajudaram. 
+        Doe. Ajude nessa causa.
+      </p>
+      <img src="images/qrcode-fabio.png" alt="QR Code para doação" class="qrcode">
+    </div>
+
+    <button id="test-btn" class="btn btn-outline">Testar Conexão</button>
+
+    <div id="status" class="status hidden">
+      <div class="status-item">
+        <span class="status-indicator" id="sfmc-indicator"></span>
+        <span class="status-label">Marketing Cloud:</span>
+        <span class="status-value" id="sfmc-status">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-indicator" id="efilink-indicator"></span>
+        <span class="status-label">Efí Link:</span>
+        <span class="status-value" id="efilink-status">-</span>
+      </div>
+    </div>
+
+    <div id="vpn-message" class="message error hidden">
+      Campeão, ou é VPN desligada ou é falta de Proxy Zero Omega no navegador.
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
