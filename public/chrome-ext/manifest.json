@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Mágicas do Fábio",
+  "version": "1.0.1",
+  "description": "Proxy para upload de assets no Salesforce Marketing Cloud e encurtamento de URLs",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://*.exacttargetapis.com/*",
+    "https://*.salesforce.com/*",
+    "https://*.marketingcloudapis.com/*",
+    "https://gnetbr.com/*",
+    "https://shortener.gerencianet.com.br/*",
+    "https://*.gerencianet.com.br/*",
+    "https://sejaefi.com.br/*",
+    "https://*.sejaefi.com.br/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_cloudflare_bypass",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.lovable.app/*",
+        "*://*.lovable.dev/*",
+        "*://*.lovableproject.com/*",
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
