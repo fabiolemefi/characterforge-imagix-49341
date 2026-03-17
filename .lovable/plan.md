@@ -1,46 +1,59 @@
 
 
-# Documentação: Como Enviar Email para o Marketing Cloud (SFMC)
+## Plano: Exportar conteúdo do Guia de Marca
 
-Vou criar um arquivo `docs/sfmc-email-export.md` com instruções completas para outra LLM reproduzir o fluxo de exportação de emails para o Salesforce Marketing Cloud.
+O volume de dados é grande (66 blocos em 7+ páginas), então a melhor abordagem é criar uma **função backend** que extrai todo o conteúdo e retorna um JSON estruturado limpo, pronto para copiar e passar para outra IA.
 
-## Conteúdo do documento
+### Estrutura atual no banco
 
-O documento cobrirá a arquitetura completa em 4 camadas:
+```text
+4 Categorias (menus):
+├── ID Verbal (6 páginas)
+│   ├── Nosso tom de voz (4 blocos)
+│   ├── Canais (2 blocos)
+│   ├── Lista de palavras
+│   ├── O básico da Efi
+│   ├── Nosso nome
+│   └── Narrativa
+├── ID Visual (11 páginas)
+│   ├── Logo (15 blocos)
+│   ├── Efi Bank
+│   ├── Endosso
+│   ├── Diretrizes do logo e do símbolo
+│   ├── Paleta de cores (10 blocos)
+│   ├── Tipografia
+│   ├── Estilo de fotografia
+│   ├── Elementos gráficos
+│   ├── Estilo iconográfico
+│   ├── Estilo ilustrativo
+│   └── Ritmo nas composições
+├── Layouts (4 páginas)
+│   ├── Módulos
+│   ├── Margens e colunas
+│   ├── Aplicação dos elementos
+│   └── Composição final
+└── Motion Guide (3 páginas)
+    ├── Home (1 bloco)
+    ├── Orientações de audiovisual (24 blocos)
+    └── Trilha sonora (3 blocos)
 
-### 1. Arquitetura Geral
-- **Problema**: O IP do servidor é bloqueado pelo SFMC, impedindo chamadas diretas via Edge Functions
-- **Solução**: Chrome Extension atua como proxy OAuth2, usando a sessão autenticada do navegador do usuário
-- **Fluxo**: Frontend → `window.postMessage` → Content Script → `chrome.runtime.sendMessage` → Background (Service Worker) → SFMC REST API
++ 7 blocos na Home do Brand Guide
+```
 
-### 2. Chrome Extension (3 arquivos)
-- **manifest.json**: Permissões, content scripts, host_permissions para `*.marketingcloudapis.com`
-- **content.js**: Ponte bidirecional via `window.postMessage` com `requestId` matching e detecção de contexto invalidado
-- **background.js**: OAuth2 (`client_credentials` grant), token cache (TTL 30min - 5min segurança), e todas as ações SFMC:
-  - `UPLOAD_ASSET` → POST `/asset/v1/content/assets`
-  - `LIST_EMAILS` → POST `/asset/v1/content/assets/query` (assetType 207-209)
-  - `GET_EMAIL` → GET `/asset/v1/content/assets/{id}`
-  - `DELETE_EMAIL` → DELETE `/asset/v1/content/assets/{id}`
-  - `UPDATE_ASSET` → PATCH `/asset/v1/content/assets/{id}`
-  - `LIST_CATEGORIES`, `MOVE_ASSET`
+### O que será criado
 
-### 3. Fluxo de Export (handleExportToMC)
-- Extrai imagens do HTML (`<img src>`)
-- Converte cada imagem para base64 via `fetch` + `FileReader`
-- Gera `customerKey` curto (máx 36 chars): `img_[base36timestamp]_[suffix]`
-- Upload de cada imagem como asset (assetType 22=jpeg, 28=png, 23=gif) na categoria 93941
-- Substitui URLs das imagens para `image.comunicacao.sejaefi.com.br/...`
-- Upload do HTML final como `htmlemail` (assetType 208) na categoria 93810, com views (html, subjectline, preheader)
+1. **Edge function `export-brand-guide`**: consulta todas as categorias, páginas e blocos, faz strip do HTML para texto puro, e retorna um JSON organizado com:
+   - Estrutura de menus (categorias > páginas)
+   - Conteúdo textual limpo de cada bloco (sem tags HTML, sem atributos)
+   - URLs de imagens/vídeos preservadas
+   - Dados de paleta de cores (hex, rgb, cmyk, pantone)
 
-### 4. Payloads Exatos
-- Payload de imagem e payload de HTML com exemplos concretos
-- Fluxo de atualização (UPDATE_ASSET via PATCH) para emails existentes
+2. **Botão "Exportar conteúdo"** na página `/brand-guide` que chama a função e faz download de um arquivo `.json`
 
-### 5. Frontend Communication Pattern
-- `sendToExtension()` com requestId, timeout 30s, e event listener pattern
-- `checkExtension()` para verificar disponibilidade
+### Detalhes técnicos
 
-## Implementação
-
-Será um único arquivo: `docs/sfmc-email-export.md`
+- A função usa o service role key para acessar todos os dados
+- Strip de HTML feito com regex server-side (remove tags, atributos, comentários)
+- Formato de saída organizado por categoria > página > blocos
+- Cada bloco terá: `type`, `position`, `text_content`, `media_urls`, `color_data`
 
