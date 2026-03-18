@@ -1,59 +1,100 @@
 
 
-## Plano: Exportar conteúdo do Guia de Marca
+# Raio-X: Migração do Efi Link (`/efi-link`)
 
-O volume de dados é grande (66 blocos em 7+ páginas), então a melhor abordagem é criar uma **função backend** que extrai todo o conteúdo e retorna um JSON estruturado limpo, pronto para copiar e passar para outra IA.
-
-### Estrutura atual no banco
+## Arquitetura do Feature
 
 ```text
-4 Categorias (menus):
-├── ID Verbal (6 páginas)
-│   ├── Nosso tom de voz (4 blocos)
-│   ├── Canais (2 blocos)
-│   ├── Lista de palavras
-│   ├── O básico da Efi
-│   ├── Nosso nome
-│   └── Narrativa
-├── ID Visual (11 páginas)
-│   ├── Logo (15 blocos)
-│   ├── Efi Bank
-│   ├── Endosso
-│   ├── Diretrizes do logo e do símbolo
-│   ├── Paleta de cores (10 blocos)
-│   ├── Tipografia
-│   ├── Estilo de fotografia
-│   ├── Elementos gráficos
-│   ├── Estilo iconográfico
-│   ├── Estilo ilustrativo
-│   └── Ritmo nas composições
-├── Layouts (4 páginas)
-│   ├── Módulos
-│   ├── Margens e colunas
-│   ├── Aplicação dos elementos
-│   └── Composição final
-└── Motion Guide (3 páginas)
-    ├── Home (1 bloco)
-    ├── Orientações de audiovisual (24 blocos)
-    └── Trilha sonora (3 blocos)
-
-+ 7 blocos na Home do Brand Guide
+┌─────────────────────────────────────────────────────┐
+│  FRONTEND                                           │
+│                                                     │
+│  src/pages/EfiLink.tsx          ← Página principal  │
+│  src/components/efilink/                            │
+│    ├── EfiLinkFormModal.tsx     ← Modal criar/editar│
+│    └── QRCodeModal.tsx          ← Modal QR Code     │
+│  src/hooks/useEfiLinks.ts       ← CRUD + lógica URL│
+│  src/lib/extensionProxy.ts      ← Proxy p/ extensão│
+│                                                     │
+│  Rota: /efi-link (protegida, com AppLayout)         │
+├─────────────────────────────────────────────────────┤
+│  BANCO DE DADOS: tabela efi_links                   │
+│                                                     │
+│  Colunas:                                           │
+│    id, user_id, link_pattern (onelink|sejaefi),     │
+│    url_destino, deeplink, deeplink_param,           │
+│    utm_source/medium/campaign/content/term,         │
+│    pid, af_channel, c, af_adset, af_ad,             │
+│    original_url, shortened_url, shortened_code,     │
+│    name, created_at, updated_at                     │
+│                                                     │
+│  RLS: SELECT/UPDATE/DELETE → authenticated + true   │
+│       INSERT → auth.uid() = user_id                 │
+├─────────────────────────────────────────────────────┤
+│  CHROME EXTENSION (encurtamento via proxy)          │
+│    action: SHORTEN_URL → api.sejaefi.link/shorten   │
+│    + CHECK_EXTENSION                                │
+└─────────────────────────────────────────────────────┘
 ```
 
-### O que será criado
+## O que precisa migrar
 
-1. **Edge function `export-brand-guide`**: consulta todas as categorias, páginas e blocos, faz strip do HTML para texto puro, e retorna um JSON organizado com:
-   - Estrutura de menus (categorias > páginas)
-   - Conteúdo textual limpo de cada bloco (sem tags HTML, sem atributos)
-   - URLs de imagens/vídeos preservadas
-   - Dados de paleta de cores (hex, rgb, cmyk, pantone)
+### 1. Tabela `efi_links` (SQL)
+```sql
+CREATE TABLE public.efi_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  link_pattern text NOT NULL DEFAULT 'onelink', -- 'onelink' | 'sejaefi'
+  url_destino text NOT NULL,
+  deeplink text,
+  deeplink_param text,
+  utm_source text, utm_medium text, utm_campaign text, utm_content text, utm_term text,
+  pid text, af_channel text, c text, af_adset text, af_ad text,
+  original_url text,
+  shortened_url text,
+  shortened_code text,
+  name text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
 
-2. **Botão "Exportar conteúdo"** na página `/brand-guide` que chama a função e faz download de um arquivo `.json`
+ALTER TABLE public.efi_links ENABLE ROW LEVEL SECURITY;
 
-### Detalhes técnicos
+-- RLS: qualquer autenticado pode ver/editar/deletar tudo (colaboração)
+CREATE POLICY "select" ON public.efi_links FOR SELECT TO authenticated USING (true);
+CREATE POLICY "insert" ON public.efi_links FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "update" ON public.efi_links FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "delete" ON public.efi_links FOR DELETE TO authenticated USING (true);
+```
 
-- A função usa o service role key para acessar todos os dados
-- Strip de HTML feito com regex server-side (remove tags, atributos, comentários)
-- Formato de saída organizado por categoria > página > blocos
-- Cada bloco terá: `type`, `position`, `text_content`, `media_urls`, `color_data`
+### 2. Arquivos Frontend (4 arquivos)
+| Arquivo | Função |
+|---------|--------|
+| `src/pages/EfiLink.tsx` | Página com listagem, filtros, CRUD |
+| `src/components/efilink/EfiLinkFormModal.tsx` | Modal de criação/edição com radio (onelink/sejaefi), UTM auto-sync para AppsFlyer |
+| `src/components/efilink/QRCodeModal.tsx` | Geração de QR Code local (SVG/PNG) via lib `qrcode` |
+| `src/hooks/useEfiLinks.ts` | React Query hooks (useEfiLinks, useCreateEfiLink, useUpdateEfiLink, useDeleteEfiLink) + `generateFullUrl()` |
+
+### 3. Dependência: Chrome Extension Proxy
+O encurtamento de URL (`SHORTEN_URL`) e a detecção da extensão usam `src/lib/extensionProxy.ts`. O endpoint real é `https://api.sejaefi.link/shorten` (sem auth), chamado via `background.js` da extensão.
+
+Se não quiser depender da extensão, pode chamar `https://api.sejaefi.link/shorten` diretamente (é open, sem auth) via edge function ou fetch direto.
+
+### 4. Dependências NPM
+- `qrcode` — geração de QR Code (SVG e PNG)
+- `date-fns` — formatação de datas
+- `@tanstack/react-query` — gerenciamento de estado server-side
+- `sonner` — toast notifications
+- UI components: shadcn/ui (Dialog, Table, Badge, RadioGroup, AlertDialog, Select, Input, Button, Label)
+
+### 5. Rota no App.tsx
+```tsx
+<Route path="/efi-link" element={<ProtectedRoute><AppLayout><EfiLink /></AppLayout></ProtectedRoute>} />
+```
+
+### 6. Dados existentes
+Para exportar os dados atuais da tabela `efi_links`, pode-se usar uma query direta ou criar uma edge function de export similar à que fizemos para Efimagem.
+
+---
+
+**Resumo**: São 4 arquivos de código + 1 arquivo de proxy (opcional) + 1 tabela SQL + 1 lib npm (`qrcode`). Feature autocontida e simples de migrar.
 
